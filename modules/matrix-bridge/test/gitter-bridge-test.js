@@ -91,6 +91,12 @@ describe('gitter-bridge', () => {
           text: 'my gitter threaded message1',
           parent: 'message1'
         },
+        messageThreaded2: {
+          user: 'user1',
+          troupe: 'troupe1',
+          text: 'my gitter threaded message2',
+          parent: 'message1'
+        },
         messageFromVirtualUser1: {
           user: 'userBridge1',
           virtualUser: {
@@ -214,6 +220,45 @@ describe('gitter-bridge', () => {
           'm.relates_to': {
             'm.in_reply_to': {
               event_id: parentMessageEventId
+            }
+          }
+        });
+      });
+
+      it('threaded conversation replies to last message in thread gets sent off to Matrix', async () => {
+        const strategy = new restSerializer.ChatStrategy();
+        const serializedMessage = await restSerializer.serializeObject(
+          fixture.messageThreaded2,
+          strategy
+        );
+
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+        const parentMessageEventId = `$${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedMessage(fixture.message1, matrixRoomId, parentMessageEventId);
+        const threadReplyMessageEventId1 = `$${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedMessage(
+          fixture.messageThreaded1,
+          matrixRoomId,
+          threadReplyMessageEventId1
+        );
+
+        await gitterBridge.onDataChange({
+          url: `/rooms/${fixture.troupe1.id}/chatMessages`,
+          operation: 'create',
+          model: serializedMessage
+        });
+
+        // Message is sent to the new room
+        assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
+        assert.deepEqual(matrixBridge.getIntent().sendMessage.getCall(0).args[1], {
+          body: fixture.messageThreaded2.text,
+          format: 'org.matrix.custom.html',
+          formatted_body: fixture.messageThreaded2.html,
+          msgtype: 'm.text',
+          'm.relates_to': {
+            'm.in_reply_to': {
+              event_id: threadReplyMessageEventId1
             }
           }
         });

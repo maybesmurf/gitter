@@ -4,6 +4,7 @@ const debug = require('debug')('gitter:app:matrix-bridge:gitter-bridge');
 const assert = require('assert');
 const StatusError = require('statuserror');
 const appEvents = require('gitter-web-appevents');
+const chatService = require('gitter-web-chats');
 const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
@@ -70,6 +71,7 @@ class GitterBridge {
     return null;
   }
 
+  // eslint-disable-next-line max-statements
   async handleChatMessageCreateEvent(gitterRoomId, model) {
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
     if (!allowedToBridge) {
@@ -90,7 +92,23 @@ class GitterBridge {
     // Handle threaded conversations
     let parentMatrixEventId;
     if (model.parentId) {
-      parentMatrixEventId = await store.getMatrixEventIdByGitterMessageId(model.parentId);
+      // Try to reference the last message in thread
+      // Otherwise, will just reference the thread parent
+      const lastMessagesInThread = await chatService.findThreadChatMessages(
+        gitterRoomId,
+        model.parentId,
+        {
+          beforeId: model.id,
+          limit: 1
+        }
+      );
+
+      let lastMessageId = model.parentId;
+      if (lastMessagesInThread.length) {
+        lastMessageId = lastMessagesInThread[0].id;
+      }
+
+      parentMatrixEventId = await store.getMatrixEventIdByGitterMessageId(lastMessageId);
     }
 
     // Send the message to the Matrix room
