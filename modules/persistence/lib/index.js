@@ -66,6 +66,7 @@ function createExports(schemas) {
 
 var schemas = {
   User: require('./schemas/user-schema'),
+  ReservedUsername: require('./schemas/reserved-username-schema'),
   Identity: require('./schemas/identity-schema'),
   UserTroupeLastAccess: require('./schemas/user-troupe-last-access-schema'),
   UserTroupeFavourites: require('./schemas/user-troupe-favourites-schema'),

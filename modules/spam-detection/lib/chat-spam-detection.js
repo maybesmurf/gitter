@@ -5,22 +5,12 @@ var logger = env.logger.get('spam-detection');
 var Promise = require('bluebird');
 var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 var duplicateChatDetector = require('./duplicate-chat-detector');
-var User = require('gitter-web-persistence').User;
+const userService = require('gitter-web-users');
 var stats = env.stats;
 
 var ONE_DAY_TIME = 24 * 60 * 60 * 1000; // One day
 var PROBATION_PERIOD = 14 * ONE_DAY_TIME;
 
-function hellbanUser(userId) {
-  return User.update(
-    { _id: userId },
-    {
-      $set: {
-        hellbanned: true
-      }
-    }
-  ).exec();
-}
 /**
  * Super basic spam detection
  */
@@ -49,7 +39,7 @@ function detect(user, parsedMessage) {
       userId: user._id
     });
 
-    return hellbanUser(userId);
+    return userService.hellbanUser(userId);
   });
 }
 

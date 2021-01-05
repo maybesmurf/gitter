@@ -31,7 +31,7 @@ async function updateAllRooms() {
   const cursor = persistence.MatrixBridgedRoom.find()
     .lean()
     .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(100)
+    .batchSize(25)
     .cursor();
 
   const iterable = iterableFromMongooseCursor(cursor);

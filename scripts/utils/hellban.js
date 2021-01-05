@@ -26,17 +26,24 @@ var opts = require('yargs')
 
 console.log(opts);
 
-var banned = !opts.unban;
-
 userService
   .findByUsername(opts.username)
   .then(function(user) {
-    user.hellbanned = banned;
-    return user.save();
+    if (!user) {
+      throw new Error(`User does not exist: ${opts.username}`);
+    }
+
+    if (opts.unban) {
+      return userService.unhellbanUser(user.id);
+    }
+
+    return userService.hellbanUser(user.id);
   })
   .delay(5000)
   .then(function() {
-    var action = banned ? 'banned to a special kind of hell' : 'redeemed to walk amongst us again';
+    var action = opts.unban
+      ? 'redeemed to walk amongst us again'
+      : 'banned to a special kind of hell';
     console.log(opts.username, 'has been', action);
   })
   .catch(function(err) {
