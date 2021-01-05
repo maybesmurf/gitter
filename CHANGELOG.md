@@ -1,9 +1,9 @@
-# 21.16.0 - *upcoming*
-
+# 21.16.0 - 2021-01-05
 
 Developer facing:
 
- - Make bridged Matrix room batch processing size smaller to avoid cursor timeout, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2115 
+ - Make bridged Matrix room batch processing size smaller to avoid cursor timeout, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2115
+ - Reserve username when hellbanning trouble user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2117
 
 
 # 21.15.0 - 2020-12-17
