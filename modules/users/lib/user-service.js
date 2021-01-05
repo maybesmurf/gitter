@@ -10,6 +10,31 @@ var uriLookupService = require('gitter-web-uri-resolver/lib/uri-lookup-service')
 var mongooseUtils = require('gitter-web-persistence-utils/lib/mongoose-utils');
 var StatusError = require('statuserror');
 
+async function validateUsername(username) {
+  // If the username is reserved, then you can't have it
+  const reservedUsernameEntry = await persistence.ReservedUsername.findOne({
+    lcUsername: username.toLowerCase()
+  });
+  if (reservedUsernameEntry) {
+    throw new StatusError(
+      403,
+      'You are not allowed to create a user with that username (reserved)'
+    );
+  }
+
+  // Deal with spammer situation of 25 Sep 2016
+  if (
+    /^[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$/.test(
+      username
+    )
+  ) {
+    winston.info('Rejecting spam account', {
+      username
+    });
+    throw new StatusError(403, 'You are not allowed to create a user with that username');
+  }
+}
+
 /** FIXME: the insert fields should simply extend from options or a key in options.
  * Creates a new user
  * @return the promise of a new user
@@ -19,20 +44,6 @@ function newUser(options) {
 
   assert(githubId, 'githubId required');
   assert(options.username, 'username required');
-
-  var hellbanned = undefined;
-
-  // Deal with spammer situation of 25 Sep 2016
-  if (
-    /^[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$/.test(
-      options.username
-    )
-  ) {
-    winston.info('Auto-hellbanning account', {
-      username: options.username
-    });
-    hellbanned = true;
-  }
 
   var insertFields = {
     githubId: githubId,
@@ -44,8 +55,7 @@ function newUser(options) {
     username: options.username,
     invitedByUser: options.invitedByUser,
     displayName: options.displayName,
-    state: options.state,
-    hellbanned: hellbanned
+    state: options.state
   };
 
   if (options.emails && options.emails.length) {
@@ -97,8 +107,10 @@ function sanitiseUserSearchTerm(term) {
 }
 
 var userService = {
-  findOrCreateUserForGithubId: function(options, callback) {
+  findOrCreateUserForGithubId: async function(options, callback) {
     winston.info('Locating or creating user', options);
+
+    await validateUsername(options.username);
 
     return userService
       .findByGithubId(options.githubId)
@@ -124,6 +136,8 @@ var userService = {
     // This is not for GitHub. Only for newer providers. At least until we
     // finally migrate all the github data one day.
     assert.notEqual(identityData.provider, 'github');
+
+    await validateUsername(userData.username);
 
     // TODO: should we assert all the required user and identity fields?
 
@@ -369,12 +383,57 @@ var userService = {
     return persistence.User.update({ _id: userId }, update).exec();
   },
 
-  hellbanUser: function(userId) {
+  reserveUsername: async function(username) {
+    assert(username);
+
+    return mongooseUtils.upsert(
+      persistence.ReservedUsername,
+      {
+        lcUsername: username.toLowerCase()
+      },
+      {
+        $setOnInsert: {
+          username,
+          lcUsername: username.toLowerCase()
+        }
+      }
+    );
+  },
+
+  unreserveUsername: async function(username) {
+    return persistence.ReservedUsername.remove({
+      lcUsername: username.toLowerCase()
+    });
+  },
+
+  hellbanUser: async function(userId) {
+    const username = await this.findUsernameForUserId(userId);
+
+    // Reserve their username to make the ban permanent
+    // so when the bad actor tries to delete/ghost their account and then come back,
+    // it doesn't allow them to create their user again.
+    await this.reserveUsername(username);
+
     return persistence.User.update(
       { _id: userId },
       {
         $set: {
           hellbanned: true
+        }
+      }
+    ).exec();
+  },
+
+  unhellbanUser: async function(userId) {
+    const username = await this.findUsernameForUserId(userId);
+
+    await this.unreserveUsername(username);
+
+    return persistence.User.update(
+      { _id: userId },
+      {
+        $set: {
+          hellbanned: false
         }
       }
     ).exec();
