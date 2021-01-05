@@ -70,7 +70,7 @@ describe('User Service', function() {
 
         return [user, userService.destroyTokensForUserId(user.id)];
       })
-      .spread(function(user) {
+      .then(function([user]) {
         return userService.findById(user.id);
       })
       .then(function(user) {
