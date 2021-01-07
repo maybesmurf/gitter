@@ -1,3 +1,8 @@
+# 21.17.0 - *upcoming*
+
+Make threaded messages reply to last message in thread when bridging to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2108
+
+
 # 21.16.0 - 2021-01-05
 
 Developer facing:
