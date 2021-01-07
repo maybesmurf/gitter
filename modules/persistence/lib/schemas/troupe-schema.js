@@ -5,27 +5,16 @@ var Schema = mongoose.Schema;
 var ObjectId = Schema.ObjectId;
 var installVersionIncMiddleware = require('../install-version-inc-middleware');
 var securityDescriptor = require('./security-descriptor-subdocument');
+const VirtualUserSchema = require('./virtual-user-schema').VirtualUserSchema;
 
 module.exports = {
   install: function(mongooseConnection) {
-    // The bans.virtualUser field allows us to ban users coming from outside bots/bridges
-    const VirtualUserSchema = new Schema({
-      type: {
-        type: String,
-        require: true
-      },
-      externalId: {
-        type: String,
-        require: true
-      }
-    });
-    VirtualUserSchema.schemaTypeName = 'VirtualUserSchema';
-
     //
     // Banned from the room
     //
     var TroupeBannedUserSchema = new Schema({
       userId: { type: ObjectId },
+      // The bans.virtualUser field allows us to ban users coming from outside bots/bridges
       virtualUser: {
         type: VirtualUserSchema,
         required: false

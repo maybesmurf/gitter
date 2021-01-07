@@ -5,17 +5,12 @@ const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const proxyquireNoCallThru = require('proxyquire').noCallThru();
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const vanillaChatReportService = require('../');
 
 const ONE_DAY_TIME = 24 * 60 * 60 * 1000; // One day
 
 describe('chatReportService', function() {
-  let chatReportService;
-  let statsLog = [];
-  let removeAllMessagesForUserIdSpy;
-  let deleteMessageFromRoomSpy;
-  let hellbanUserSpy;
-
   const fixture = fixtureLoader.setupEach({
     userBad1: {},
     user2: {},
@@ -105,26 +100,78 @@ describe('chatReportService', function() {
       weight: vanillaChatReportService.BAD_USER_THRESHOLD
     },
 
-    userGood1: {},
-    messageToReportUserGood1: {
-      user: 'userGood1',
+    userBridge1: {},
+    messageFromBridgeUser1: {
+      user: 'userBridge1',
       troupe: 'troupe1',
-      text: 'over_bad_user_threshold_message',
+      text: 'message from the bridge user itself',
       sent: new Date()
     },
-    messageReportUserGoodOverBadThreshold1: {
+    messageToReportFromVirtualUser1: {
+      user: 'userBridge1',
+      virtualUser: {
+        type: 'matrix',
+        externalId: 'test-person:matrix.org',
+        displayName: 'Tessa'
+      },
+      troupe: 'troupe1',
+      text: 'over_threshold_message1 (virtualUser)'
+    },
+    messageToReportFromVirtualUser2: {
+      user: 'userBridge1',
+      virtualUser: {
+        type: 'matrix',
+        externalId: 'great-test-person:matrix.org',
+        displayName: 'Gretta'
+      },
+      troupe: 'troupe1',
+      text: 'message2 (virtualUser)'
+    },
+    messageToReportOldFromVirtualUser3: {
+      user: 'userBridge1',
+      virtualUser: {
+        type: 'matrix',
+        externalId: 'old:matrix.org',
+        displayName: 'Gale'
+      },
+      troupe: 'troupe1',
+      text: 'over_threshold_message1 (virtualUser)',
+      sent: new Date(Date.now() - 500 * ONE_DAY_TIME)
+    },
+    messageReportVirtualUserOverThreshold1: {
       user: 'user2',
-      message: 'messageToReportUserGood1',
+      message: 'messageToReportFromVirtualUser1',
+      sent: Date.now(),
+      weight: vanillaChatReportService.BAD_USER_THRESHOLD
+    },
+    messageReportOldVirtualUserOverThreshold2: {
+      user: 'user2',
+      message: 'messageToReportOldFromVirtualUser3',
       sent: Date.now(),
       weight: vanillaChatReportService.BAD_USER_THRESHOLD
     }
   });
 
+  let chatReportService;
+  let statsLog = [];
+  let removeAllMessagesForUserIdSpy;
+  let removeAllMessagesForVirtualUserSpy;
+  let deleteMessageFromRoomSpy;
+  let hellbanUserSpy;
+  let matrixBridge;
   beforeEach(function() {
     statsLog = [];
     removeAllMessagesForUserIdSpy = sinon.spy();
+    removeAllMessagesForVirtualUserSpy = sinon.spy();
     deleteMessageFromRoomSpy = sinon.spy();
     hellbanUserSpy = sinon.spy();
+
+    const intentSpies = {
+      ban: sinon.spy()
+    };
+    matrixBridge = {
+      getIntent: (/*userId*/) => intentSpies
+    };
 
     chatReportService = proxyquireNoCallThru('../', {
       'gitter-web-env': Object.assign(require('gitter-web-env'), {
@@ -136,11 +183,13 @@ describe('chatReportService', function() {
       }),
       'gitter-web-chats': Object.assign(require('gitter-web-chats'), {
         removeAllMessagesForUserId: removeAllMessagesForUserIdSpy,
+        removeAllMessagesForVirtualUser: removeAllMessagesForVirtualUserSpy,
         deleteMessageFromRoom: deleteMessageFromRoomSpy
       }),
       'gitter-web-users': Object.assign(require('gitter-web-chats'), {
         hellbanUser: hellbanUserSpy
-      })
+      }),
+      'gitter-web-matrix-bridge/lib/matrix-bridge': matrixBridge
     });
   });
 
@@ -225,19 +274,61 @@ describe('chatReportService', function() {
         });
     });
 
-    it('utilizes good user threshold for good user', function() {
-      chatReportService.GOOD_USER_IDS.push('' + fixture.userGood1._id);
+    it('report a bridge user who has virtualUser reports does not get counted as the same', async () => {
+      const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+      await matrixStore.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
 
-      return (
-        chatReportService
-          // The message already has a report that is over the BAD_USER_THRESHOLD,
-          // but when we report it again, the user is safe because it is in the good user list(GOOD_USER_IDS)
-          .newReport(fixture.user3, fixture.messageToReportUserGood1.id)
-          .then(function() {
-            assert.strictEqual(hellbanUserSpy.callCount, 0);
-            assert.strictEqual(removeAllMessagesForUserIdSpy.callCount, 0);
-          })
+      await chatReportService.newReport(fixture.user3, fixture.messageFromBridgeUser1.id);
+
+      // No Matrix ban
+      assert.strictEqual(matrixBridge.getIntent().ban.callCount, 0);
+      // No Gitter ban
+      assert.strictEqual(hellbanUserSpy.callCount, 0);
+      assert.strictEqual(removeAllMessagesForUserIdSpy.callCount, 0);
+    });
+
+    it('detected new bad virtualUser will ban and clear messages', async () => {
+      const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+      await matrixStore.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+      await chatReportService.newReport(fixture.user3, fixture.messageToReportFromVirtualUser1.id);
+
+      assert(
+        statsLog.some(function(entry) {
+          return entry === 'new_bad_user_from_reports';
+        })
       );
+
+      assert.strictEqual(matrixBridge.getIntent().ban.callCount, 1);
+      assert.strictEqual(removeAllMessagesForVirtualUserSpy.callCount, 1);
+    });
+
+    it('detected bad virtualUser but is old enough to not automatically clear messages', async () => {
+      const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+      await matrixStore.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+      await chatReportService.newReport(
+        fixture.user3,
+        fixture.messageToReportOldFromVirtualUser3.id
+      );
+
+      assert(
+        statsLog.some(function(entry) {
+          return entry === 'new_bad_user_from_reports';
+        })
+      );
+
+      assert.strictEqual(matrixBridge.getIntent().ban.callCount, 1);
+      assert.strictEqual(removeAllMessagesForVirtualUserSpy.callCount, 0);
+    });
+
+    it('report a different virtualUser who is not over threshold yet does not get banned', async () => {
+      const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+      await matrixStore.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+      await chatReportService.newReport(fixture.user3, fixture.messageToReportFromVirtualUser2.id);
+
+      assert.strictEqual(matrixBridge.getIntent().ban.callCount, 0);
     });
   });
 });

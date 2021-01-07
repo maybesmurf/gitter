@@ -3,6 +3,7 @@
 const mongoose = require('gitter-web-mongoose-bluebird');
 const Schema = mongoose.Schema;
 const ObjectId = Schema.ObjectId;
+const VirtualUserSchema = require('./virtual-user-schema').VirtualUserSchema;
 
 const ChatMessageReportSchema = new Schema({
   sent: { type: Date },
@@ -10,6 +11,10 @@ const ChatMessageReportSchema = new Schema({
   reporterUserId: { type: ObjectId, required: true },
   messageId: { type: ObjectId, required: true },
   messageUserId: { type: ObjectId, required: true },
+  messageVirtualUser: {
+    type: VirtualUserSchema,
+    required: false
+  },
   text: String
 });
 ChatMessageReportSchema.index({ reporterUserId: 1, sent: -1 });

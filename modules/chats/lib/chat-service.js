@@ -754,6 +754,33 @@ async function removeAllMessagesForUserIdInRoomId(userId, roomId) {
   });
 }
 
+async function removeAllMessagesForVirtualUser(virtualUser) {
+  const messages = await ChatMessage.find({
+    'virtualUser.type': virtualUser.type,
+    'virtualUser.externalId': virtualUser.externalId
+  }).exec();
+
+  logger.info(
+    `removeAllMessagesForVirtualUser(${JSON.stringify(virtualUser)}): Removing ${
+      messages.length
+    } messages`
+  );
+
+  const troupeMap = {};
+  const getTroupe = async id => {
+    if (troupeMap[id]) return troupeMap[id];
+    const troupe = await troupeService.findById(id);
+    troupeMap[troupe._id] = troupe;
+    return troupe;
+  };
+
+  // Clear any unreads and delete the messages
+  for (const message of messages) {
+    const troupe = await getTroupe(message.toTroupeId);
+    await deleteMessageFromRoom(troupe, message);
+  }
+}
+
 async function removeAllMessagesForVirtualUserInRoomId(virtualUser, roomId) {
   const room = await troupeService.findById(roomId);
 
@@ -764,7 +791,7 @@ async function removeAllMessagesForVirtualUserInRoomId(virtualUser, roomId) {
   }).exec();
 
   logger.info(
-    `removeAllMessagesForUserIdInRoomId(${JSON.stringify(virtualUser)}, ${roomId}): Removing ${
+    `removeAllMessagesForVirtualUserInRoomId(${JSON.stringify(virtualUser)}, ${roomId}): Removing ${
       messages.length
     } messages`
   );
@@ -799,6 +826,7 @@ module.exports = {
   searchChatMessagesForRoom,
   removeAllMessagesForUserId,
   removeAllMessagesForUserIdInRoomId,
+  removeAllMessagesForVirtualUser,
   removeAllMessagesForVirtualUserInRoomId,
   deleteMessageFromRoom,
   testOnly

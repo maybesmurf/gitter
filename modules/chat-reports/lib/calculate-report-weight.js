@@ -44,11 +44,11 @@ function calculateMessageAgeWeight(message) {
   return messageAgeWeight;
 }
 
-function calculateReportWeight(fromUser, room, message) {
+function calculateReportWeight(reporterUser, room, message) {
   let baseWeight = 1;
 
   return policyFactory
-    .createPolicyForRoom(fromUser, room)
+    .createPolicyForRoom(reporterUser, room)
     .then(function(policy) {
       return policy.canAdmin();
     })
@@ -57,12 +57,13 @@ function calculateReportWeight(fromUser, room, message) {
         baseWeight = 2.5;
       }
 
-      const userAgeWeight = calculateUserAgeWeight(fromUser);
+      const userAgeWeight = calculateUserAgeWeight(reporterUser);
       const messageAgeWeight = calculateMessageAgeWeight(message);
 
       const resultantWeight = baseWeight * userAgeWeight * messageAgeWeight;
+      const reporterUserId = reporterUser._id || reporterUser.id;
       debug(
-        `calculateReportWeight=${resultantWeight}, baseWeight=${baseWeight}, userAgeWeight=${userAgeWeight}, messageAgeWeight=${messageAgeWeight}`
+        `calculateReportWeight(${reporterUserId}, ${room}, ${message})=${resultantWeight}, baseWeight=${baseWeight}, userAgeWeight=${userAgeWeight}, messageAgeWeight=${messageAgeWeight}`
       );
 
       return resultantWeight;
