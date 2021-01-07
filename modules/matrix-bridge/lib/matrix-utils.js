@@ -178,6 +178,20 @@ class MatrixUtils {
     return mxcUrl;
   }
 
+  async ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom) {
+    const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+    // Set the human-readable room aliases
+    const roomAlias = this.getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
+    await this.ensureRoomAlias(matrixRoomId, `#${roomAlias}:${serverName}`);
+    // Add another alias for the room ID
+    await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${serverName}`);
+    // Add a lowercase alias if necessary
+    if (roomAlias.toLowerCase() !== roomAlias) {
+      await this.ensureRoomAlias(matrixRoomId, `#${roomAlias.toLowerCase()}:${serverName}`);
+    }
+  }
+
   async ensureCorrectRoomState(matrixRoomId, gitterRoomId) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
@@ -204,15 +218,7 @@ class MatrixUtils {
       join_rule: 'public'
     });
 
-    // Set the human-readable room aliases
-    const roomAlias = this.getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
-    await this.ensureRoomAlias(matrixRoomId, `#${roomAlias}:${serverName}`);
-    // Add another alias for the room ID
-    await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${serverName}`);
-    // Add a lowercase alias if necessary
-    if (roomAlias.toLowerCase() !== roomAlias) {
-      await this.ensureRoomAlias(matrixRoomId, `#${roomAlias.toLowerCase()}:${serverName}`);
-    }
+    await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
 
     // Set the room avatar
     const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
