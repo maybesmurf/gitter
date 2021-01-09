@@ -1,0 +1,9 @@
+{
+  "default_server_config": {
+    "m.homeserver": {
+      "base_url": "http://localhost:18008",
+      "server_name": "my.matrix.host"
+    }
+  },
+  "brand": "Element"
+}
