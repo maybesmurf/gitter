@@ -1,6 +1,10 @@
 # 21.17.0 - *upcoming*
 
-Make threaded messages reply to last message in thread when bridging to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2108
+ - Make threaded messages reply to last message in thread when bridging to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2108
+
+Developer facing:
+
+ - Add Element instance for easy local Gitter <-> Matrix bridge testing, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2121
 
 
 # 21.16.0 - 2021-01-05
