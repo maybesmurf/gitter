@@ -51,7 +51,7 @@ class GitterBridge {
 
       if (data.type === 'room') {
         const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)/) || [];
-        if (gitterRoomId && data.operation === 'patch') {
+        if (gitterRoomId && (data.operation === 'patch' || data.operation === 'update')) {
           await this.handleRoomUpdateEvent(gitterRoomId, data.model);
         }
       }
