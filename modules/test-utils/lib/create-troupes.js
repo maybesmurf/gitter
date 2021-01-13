@@ -135,6 +135,7 @@ function createTroupe(fixtureName, f, fixture) {
   var doc = {
     uri: uri,
     lcUri: lcUri,
+    topic: f.topic,
     githubId: f.githubId === true ? fixtureUtils.generateGithubId() : f.githubId || null,
     groupId: groupId,
     status: f.status || 'ACTIVE',

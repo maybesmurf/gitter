@@ -38,13 +38,22 @@ class GitterBridge {
         );
       }
 
-      const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/chatMessages/) || [];
-      if (gitterRoomId && data.operation === 'create') {
-        await this.handleChatMessageCreateEvent(gitterRoomId, data.model);
-      } else if (gitterRoomId && data.operation === 'update') {
-        await this.handleChatMessageEditEvent(gitterRoomId, data.model);
-      } else if (gitterRoomId && data.operation === 'remove') {
-        await this.handleChatMessageRemoveEvent(gitterRoomId, data.model);
+      if (data.type === 'chatMessage') {
+        const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/chatMessages/) || [];
+        if (gitterRoomId && data.operation === 'create') {
+          await this.handleChatMessageCreateEvent(gitterRoomId, data.model);
+        } else if (gitterRoomId && data.operation === 'update') {
+          await this.handleChatMessageEditEvent(gitterRoomId, data.model);
+        } else if (gitterRoomId && data.operation === 'remove') {
+          await this.handleChatMessageRemoveEvent(gitterRoomId, data.model);
+        }
+      }
+
+      if (data.type === 'room') {
+        const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)/) || [];
+        if (gitterRoomId && data.operation === 'patch') {
+          await this.handleRoomUpdateEvent(gitterRoomId, data.model);
+        }
       }
 
       // TODO: Handle user data change and update Matrix user
@@ -277,6 +286,17 @@ class GitterBridge {
     await senderIntent.getClient().redactEvent(matrixRoomId, matrixEventId);
 
     return null;
+  }
+
+  async handleRoomUpdateEvent(gitterRoomId /*, model*/) {
+    const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
+    if (!allowedToBridge) {
+      return null;
+    }
+
+    const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+
+    await this.matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
   }
 }
 
