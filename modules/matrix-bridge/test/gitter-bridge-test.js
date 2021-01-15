@@ -651,7 +651,7 @@ describe('gitter-bridge', () => {
         }
       });
 
-      it('room edit gets sent off to Matrix', async () => {
+      it('room patch gets sent off to Matrix', async () => {
         const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
         await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
 
@@ -684,12 +684,50 @@ describe('gitter-bridge', () => {
         ]);
       });
 
-      it('private room is not bridged', async () => {
+      it('private room patch is not bridged', async () => {
         await gitterBridge.onDataChange({
           type: 'room',
           url: `/rooms/${fixture.troupePrivate1.id}`,
           operation: 'patch',
           model: { id: fixture.troupePrivate1.id, topic: 'bar' }
+        });
+
+        // No room updates propagated across
+        assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
+      });
+
+      it('room update gets sent off to Matrix', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        const strategy = new restSerializer.TroupeStrategy();
+        const serializedRoom = await restSerializer.serializeObject(fixture.troupe1, strategy);
+
+        await gitterBridge.onDataChange({
+          type: 'room',
+          url: `/rooms/${fixture.troupe1.id}`,
+          operation: 'update',
+          model: serializedRoom
+        });
+
+        // Find the spy call where the topic was updated
+
+        const sendStateEventCalls = matrixBridge.getIntent().sendStateEvent.getCalls();
+        assert(
+          sendStateEventCalls.length > 0,
+          `sendStateEvent was called ${sendStateEventCalls.length} times, expected at least 1 call`
+        );
+      });
+
+      it('private room update is not bridged', async () => {
+        const strategy = new restSerializer.TroupeStrategy();
+        const serializedRoom = await restSerializer.serializeObject(fixture.troupe1, strategy);
+
+        await gitterBridge.onDataChange({
+          type: 'room',
+          url: `/rooms/${fixture.troupePrivate1.id}`,
+          operation: 'update',
+          model: serializedRoom
         });
 
         // No room updates propagated across
