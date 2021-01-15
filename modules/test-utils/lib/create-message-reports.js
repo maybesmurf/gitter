@@ -13,6 +13,7 @@ function createReport(fixtureName, f) {
     reporterUserId: f.reporterUserId,
     messageId: f.messageId,
     messageUserId: f.messageUserId,
+    messageVirtualUser: f.messageVirtualUser,
     text: f.text
   });
 }
@@ -25,6 +26,7 @@ function createReports(expected, fixture) {
       expectedReport.reporterUserId = fixture[expectedReport.user]._id;
       expectedReport.messageId = fixture[expectedReport.message]._id;
       expectedReport.messageUserId = fixture[expectedReport.message].fromUserId;
+      expectedReport.messageVirtualUser = fixture[expectedReport.message].virtualUser;
       expectedReport.text = fixture[expectedReport.message].text;
 
       return createReport(key, expectedReport).then(function(report) {
