@@ -4,35 +4,15 @@ var mongoose = require('gitter-web-mongoose-bluebird');
 var Schema = mongoose.Schema;
 var ObjectId = Schema.ObjectId;
 var installVersionIncMiddleware = require('../install-version-inc-middleware');
-
-// The virtualUser field allows us to have outside bots/bridges emulate a user from another service
-// and bridge in the message so it looks nice and native with their own name and avatar
-const VirtualUserSchema = new Schema({
-  type: {
-    type: String,
-    require: true
-  },
-  externalId: {
-    type: String,
-    require: true
-  },
-  displayName: {
-    type: String,
-    require: true
-  },
-  avatarUrl: {
-    type: String,
-    require: false
-  }
-});
-VirtualUserSchema.schemaTypeName = 'VirtualUserSchema';
-VirtualUserSchema.index({ type: 1, externalId: 1 }, { background: true });
+const VirtualUserSchema = require('./virtual-user-schema').VirtualUserSchema;
 
 var ChatMessageSchema = new Schema({
   fromUserId: {
     type: ObjectId,
     required: true
   },
+  // The virtualUser field allows us to have outside bots/bridges emulate a user from another service
+  // and bridge in the message so it looks nice and native with their own name and avatar
   virtualUser: {
     type: VirtualUserSchema,
     required: false

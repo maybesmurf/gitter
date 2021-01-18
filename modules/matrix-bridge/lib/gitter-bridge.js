@@ -4,6 +4,7 @@ const debug = require('debug')('gitter:app:matrix-bridge:gitter-bridge');
 const assert = require('assert');
 const StatusError = require('statuserror');
 const appEvents = require('gitter-web-appevents');
+const chatService = require('gitter-web-chats');
 const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
@@ -37,13 +38,22 @@ class GitterBridge {
         );
       }
 
-      const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/chatMessages/) || [];
-      if (gitterRoomId && data.operation === 'create') {
-        await this.handleChatMessageCreateEvent(gitterRoomId, data.model);
-      } else if (gitterRoomId && data.operation === 'update') {
-        await this.handleChatMessageEditEvent(gitterRoomId, data.model);
-      } else if (gitterRoomId && data.operation === 'remove') {
-        await this.handleChatMessageRemoveEvent(gitterRoomId, data.model);
+      if (data.type === 'chatMessage') {
+        const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/chatMessages/) || [];
+        if (gitterRoomId && data.operation === 'create') {
+          await this.handleChatMessageCreateEvent(gitterRoomId, data.model);
+        } else if (gitterRoomId && data.operation === 'update') {
+          await this.handleChatMessageEditEvent(gitterRoomId, data.model);
+        } else if (gitterRoomId && data.operation === 'remove') {
+          await this.handleChatMessageRemoveEvent(gitterRoomId, data.model);
+        }
+      }
+
+      if (data.type === 'room') {
+        const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)/) || [];
+        if (gitterRoomId && (data.operation === 'patch' || data.operation === 'update')) {
+          await this.handleRoomUpdateEvent(gitterRoomId, data.model);
+        }
       }
 
       // TODO: Handle user data change and update Matrix user
@@ -70,6 +80,7 @@ class GitterBridge {
     return null;
   }
 
+  // eslint-disable-next-line max-statements
   async handleChatMessageCreateEvent(gitterRoomId, model) {
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
     if (!allowedToBridge) {
@@ -90,7 +101,23 @@ class GitterBridge {
     // Handle threaded conversations
     let parentMatrixEventId;
     if (model.parentId) {
-      parentMatrixEventId = await store.getMatrixEventIdByGitterMessageId(model.parentId);
+      // Try to reference the last message in thread
+      // Otherwise, will just reference the thread parent
+      const lastMessagesInThread = await chatService.findThreadChatMessages(
+        gitterRoomId,
+        model.parentId,
+        {
+          beforeId: model.id,
+          limit: 1
+        }
+      );
+
+      let lastMessageId = model.parentId;
+      if (lastMessagesInThread.length) {
+        lastMessageId = lastMessagesInThread[0].id;
+      }
+
+      parentMatrixEventId = await store.getMatrixEventIdByGitterMessageId(lastMessageId);
     }
 
     // Send the message to the Matrix room
@@ -259,6 +286,17 @@ class GitterBridge {
     await senderIntent.getClient().redactEvent(matrixRoomId, matrixEventId);
 
     return null;
+  }
+
+  async handleRoomUpdateEvent(gitterRoomId /*, model*/) {
+    const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
+    if (!allowedToBridge) {
+      return null;
+    }
+
+    const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+
+    await this.matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
   }
 }
 

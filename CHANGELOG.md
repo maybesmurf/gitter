@@ -1,3 +1,16 @@
+# 21.17.0 - 2021-1-14
+
+ - Make threaded messages reply to last message in thread when bridging to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2108
+ - Bridge room updates to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2123
+ - Bridge room renames over to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2124
+ - Add chat message report support for virtualUsers, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2120
+
+Developer facing:
+
+ - Add Element instance for easy local Gitter <-> Matrix bridge testing, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2121
+ - Add utility script to migrate plumbed Matrix rooms from the old Gitter bridge, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2119
+
+
 # 21.16.0 - 2021-01-05
 
 Developer facing:

@@ -91,6 +91,12 @@ describe('gitter-bridge', () => {
           text: 'my gitter threaded message1',
           parent: 'message1'
         },
+        messageThreaded2: {
+          user: 'user1',
+          troupe: 'troupe1',
+          text: 'my gitter threaded message2',
+          parent: 'message1'
+        },
         messageFromVirtualUser1: {
           user: 'userBridge1',
           virtualUser: {
@@ -113,6 +119,7 @@ describe('gitter-bridge', () => {
         const serializedMessage = await restSerializer.serializeObject(fixture.message1, strategy);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'create',
           model: serializedMessage
@@ -139,6 +146,7 @@ describe('gitter-bridge', () => {
         );
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'create',
           model: serializedMessage
@@ -163,12 +171,14 @@ describe('gitter-bridge', () => {
         const serializedMessage2 = await restSerializer.serializeObject(fixture.message2, strategy);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'create',
           model: serializedMessage1
         });
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'create',
           model: serializedMessage2
@@ -199,6 +209,7 @@ describe('gitter-bridge', () => {
         await store.storeBridgedMessage(fixture.message1, matrixRoomId, parentMessageEventId);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'create',
           model: serializedMessage
@@ -214,6 +225,46 @@ describe('gitter-bridge', () => {
           'm.relates_to': {
             'm.in_reply_to': {
               event_id: parentMessageEventId
+            }
+          }
+        });
+      });
+
+      it('threaded conversation replies to last message in thread gets sent off to Matrix', async () => {
+        const strategy = new restSerializer.ChatStrategy();
+        const serializedMessage = await restSerializer.serializeObject(
+          fixture.messageThreaded2,
+          strategy
+        );
+
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+        const parentMessageEventId = `$${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedMessage(fixture.message1, matrixRoomId, parentMessageEventId);
+        const threadReplyMessageEventId1 = `$${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedMessage(
+          fixture.messageThreaded1,
+          matrixRoomId,
+          threadReplyMessageEventId1
+        );
+
+        await gitterBridge.onDataChange({
+          type: 'chatMessage',
+          url: `/rooms/${fixture.troupe1.id}/chatMessages`,
+          operation: 'create',
+          model: serializedMessage
+        });
+
+        // Message is sent to the new room
+        assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
+        assert.deepEqual(matrixBridge.getIntent().sendMessage.getCall(0).args[1], {
+          body: fixture.messageThreaded2.text,
+          format: 'org.matrix.custom.html',
+          formatted_body: fixture.messageThreaded2.html,
+          msgtype: 'm.text',
+          'm.relates_to': {
+            'm.in_reply_to': {
+              event_id: threadReplyMessageEventId1
             }
           }
         });
@@ -237,6 +288,7 @@ describe('gitter-bridge', () => {
         //await store.storeBridgedMessage(fixture.message1, matrixRoomId, parentMessageEventId);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'create',
           model: serializedMessage
@@ -260,6 +312,7 @@ describe('gitter-bridge', () => {
         );
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'create',
           model: serializedVirtualUserMessage
@@ -279,6 +332,7 @@ describe('gitter-bridge', () => {
         );
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupePrivate1.id}/chatMessages`,
           operation: 'create',
           model: serializedMessage
@@ -339,6 +393,7 @@ describe('gitter-bridge', () => {
         const serializedMessage = await restSerializer.serializeObject(fixture.message1, strategy);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'update',
           model: {
@@ -377,6 +432,7 @@ describe('gitter-bridge', () => {
         const serializedMessage = await restSerializer.serializeObject(fixture.message1, strategy);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'update',
           model: serializedMessage
@@ -396,6 +452,7 @@ describe('gitter-bridge', () => {
         //await store.storeBridgedMessage(fixture.message1, matrixRoomId, matrixMessageEventId);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'update',
           model: serializedMessage
@@ -421,6 +478,7 @@ describe('gitter-bridge', () => {
         );
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'update',
           model: serializedVirtualUserMessage
@@ -446,6 +504,7 @@ describe('gitter-bridge', () => {
         );
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupePrivate1.id}/chatMessages`,
           operation: 'update',
           model: serializedMessage
@@ -491,6 +550,7 @@ describe('gitter-bridge', () => {
         await store.storeBridgedMessage(fixture.message1, matrixRoomId, matrixMessageEventId);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'remove',
           model: { id: fixture.message1.id }
@@ -514,6 +574,7 @@ describe('gitter-bridge', () => {
         //await store.storeBridgedMessage(fixture.message1, matrixRoomId, matrixMessageEventId);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'remove',
           model: { id: fixture.message1.id }
@@ -533,6 +594,7 @@ describe('gitter-bridge', () => {
         );
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupePrivate1.id}/chatMessages`,
           operation: 'remove',
           model: { id: fixture.message1.id }
@@ -553,6 +615,7 @@ describe('gitter-bridge', () => {
         await store.storeBridgedMessage(fixture.message1, matrixRoomId, matrixMessageEventId);
 
         await gitterBridge.onDataChange({
+          type: 'chatMessage',
           url: `/rooms/${fixture.troupe1.id}/chatMessages`,
           operation: 'remove',
           model: { id: fixture.message1.id }
@@ -567,6 +630,108 @@ describe('gitter-bridge', () => {
             .redactEvent.getCall(0).args[1],
           matrixMessageEventId
         );
+      });
+    });
+
+    describe('handleRoomUpdateEvent', () => {
+      const fixture = fixtureLoader.setupEach({
+        group1: {},
+        troupe1: {
+          group: 'group1',
+          topic: 'foo'
+        },
+        troupePrivate1: {
+          group: 'group1',
+          users: ['user1'],
+          securityDescriptor: {
+            members: 'INVITE',
+            admins: 'MANUAL',
+            public: false
+          }
+        }
+      });
+
+      it('room patch gets sent off to Matrix', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        await gitterBridge.onDataChange({
+          type: 'room',
+          url: `/rooms/${fixture.troupe1.id}`,
+          operation: 'patch',
+          model: { id: fixture.troupe1.id, topic: 'bar' }
+        });
+
+        // Find the spy call where the topic was updated
+        const topicCall = matrixBridge
+          .getIntent()
+          .sendStateEvent.getCalls()
+          .find(call => {
+            const [mid, eventType] = call.args;
+            if (mid === matrixRoomId && eventType === 'm.room.topic') {
+              return true;
+            }
+          });
+        assert.deepEqual(topicCall.args, [
+          matrixRoomId,
+          'm.room.topic',
+          '',
+          {
+            // This value should really be 'bar' no worries, this is just a side-effect of mocking the `onDataChange`
+            // instead of actually making an update to the room in the databse
+            topic: 'foo'
+          }
+        ]);
+      });
+
+      it('private room patch is not bridged', async () => {
+        await gitterBridge.onDataChange({
+          type: 'room',
+          url: `/rooms/${fixture.troupePrivate1.id}`,
+          operation: 'patch',
+          model: { id: fixture.troupePrivate1.id, topic: 'bar' }
+        });
+
+        // No room updates propagated across
+        assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
+      });
+
+      it('room update gets sent off to Matrix', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        const strategy = new restSerializer.TroupeStrategy();
+        const serializedRoom = await restSerializer.serializeObject(fixture.troupe1, strategy);
+
+        await gitterBridge.onDataChange({
+          type: 'room',
+          url: `/rooms/${fixture.troupe1.id}`,
+          operation: 'update',
+          model: serializedRoom
+        });
+
+        // Find the spy call where the topic was updated
+
+        const sendStateEventCalls = matrixBridge.getIntent().sendStateEvent.getCalls();
+        assert(
+          sendStateEventCalls.length > 0,
+          `sendStateEvent was called ${sendStateEventCalls.length} times, expected at least 1 call`
+        );
+      });
+
+      it('private room update is not bridged', async () => {
+        const strategy = new restSerializer.TroupeStrategy();
+        const serializedRoom = await restSerializer.serializeObject(fixture.troupe1, strategy);
+
+        await gitterBridge.onDataChange({
+          type: 'room',
+          url: `/rooms/${fixture.troupePrivate1.id}`,
+          operation: 'update',
+          model: serializedRoom
+        });
+
+        // No room updates propagated across
+        assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
       });
     });
   });

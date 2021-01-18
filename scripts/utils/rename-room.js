@@ -6,6 +6,7 @@ var shutdown = require('shutdown');
 var uriLookupService = require('gitter-web-uri-resolver/lib/uri-lookup-service');
 var troupeService = require('gitter-web-rooms/lib/troupe-service');
 var groupService = require('gitter-web-groups/lib/group-service');
+const installBridge = require('gitter-web-matrix-bridge');
 
 var readline = require('readline');
 var Promise = require('bluebird');
@@ -57,11 +58,16 @@ function confirm() {
   });
 }
 
-Promise.join(
-  troupeService.findByUri(lcOld),
-  troupeService.findByUri(lcNew),
-  groupService.findByUri(lcNewGroup),
-  function(room, clashRoom, newGroup) {
+// eslint-disable-next-line max-statements
+async function run() {
+  try {
+    console.log('Setting up Matrix bridge to propagate any change over to Matrix after the rename');
+    await installBridge();
+
+    const room = await troupeService.findByUri(lcOld);
+    const clashRoom = await troupeService.findByUri(lcNew);
+    const newGroup = await groupService.findByUri(lcNewGroup);
+
     if (clashRoom) {
       throw new Error('URI Clash: ' + lcNew);
     }
@@ -105,23 +111,32 @@ Promise.join(
       renamedLcUris: room.renamedLcUris
     });
 
-    return confirm().return(room);
-  }
-)
-  .then(function(room) {
-    console.log('Updating');
+    await confirm();
 
-    return room
-      .save()
-      .then(function() {
-        return uriLookupService.removeBadUri(lcOld);
-      })
-      .then(function() {
-        return uriLookupService.reserveUriForTroupeId(room.id, lcNew);
-      });
-  })
-  .delay(5000)
-  .then(function() {
+    console.log('Saving room update');
+    await room.save();
+
+    console.log('Updating URI lookups');
+    await uriLookupService.removeBadUri(lcOld);
+    await uriLookupService.reserveUriForTroupeId(room.id, lcNew);
+
+    console.log(`Successfully renamed: ${oldUri} -> ${newUri}`);
+
+    // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+    // This isn't clean but works
+    // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+    // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    console.log(`Shutting down :)`);
     shutdown.shutdownGracefully();
-  })
-  .done();
+  } catch (err) {
+    console.error('--------------------------------------');
+    console.error('Error: ' + err, err);
+    console.error('--------------------------------------');
+    shutdown.shutdownGracefully(1);
+  }
+}
+
+run();

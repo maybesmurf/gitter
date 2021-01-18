@@ -1,5 +1,6 @@
 'use strict';
 
+const debug = require('debug')('gitter:app:chat-reports');
 const Promise = require('bluebird');
 const env = require('gitter-web-env');
 const stats = env.stats;
@@ -8,17 +9,15 @@ const StatusError = require('statuserror');
 const ObjectID = require('mongodb').ObjectID;
 const mongooseUtils = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const ChatMessage = require('gitter-web-persistence').ChatMessage;
 const ChatMessageReport = require('gitter-web-persistence').ChatMessageReport;
 const chatService = require('gitter-web-chats');
 const userService = require('gitter-web-users');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const calculateReportWeight = require('./lib/calculate-report-weight').calculateReportWeight;
+const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
+const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 
-const GOOD_USER_IDS = [
-  // @matrixbot added by request in #2243
-  '56bb7a56e610378809c0cb2c'
-];
-const GOOD_USER_THRESHOLD = 10;
 const BAD_USER_THRESHOLD = 5;
 const BAD_MESSAGE_THRESHOLD = 2;
 const ONE_DAY_TIME = 24 * 60 * 60 * 1000; // One day
@@ -33,11 +32,25 @@ function sentAfter(objectId) {
   return new Date(objectId.getTimestamp().valueOf() - 1000);
 }
 
-function getReportSumForUser(userInQuestionId) {
-  return ChatMessageReport.find({ messageUserId: userInQuestionId })
+function getReportSumForUser(userInQuestionId, virtualUserInQuestion) {
+  const reportQuery = {
+    messageUserId: userInQuestionId
+  };
+  // Make sure we only select messages from the virtualUser or normal user.
+  // If someone reports `matrixbot` we want to make sure we don't also count
+  // all of the reports against virtualUser.
+  if (virtualUserInQuestion) {
+    reportQuery['messageVirtualUser.type'] = virtualUserInQuestion.type;
+    reportQuery['messageVirtualUser.externalId'] = virtualUserInQuestion.externalId;
+  } else {
+    reportQuery.messageVirtualUser = { $exists: false };
+  }
+
+  return ChatMessageReport.find(reportQuery)
     .lean()
     .exec()
     .then(function(reports) {
+      debug('reports', reports, 'reportQuery', reportQuery);
       const resultantReportMap = reports.reduce(function(reportMap, report) {
         const reportSent = report.sent ? report.sent.valueOf() : Date.now();
         const reportWithinRange = Date.now() - reportSent <= SUM_PERIOD;
@@ -72,126 +85,157 @@ function getReportSumForMessage(messageId) {
     });
 }
 
-function newReport(fromUser, messageId) {
-  const reporterUserId = fromUser._id || fromUser.id;
-  return chatService
-    .findById(messageId)
-    .bind({})
-    .then(function(chatMessage) {
-      this.chatMessage = chatMessage;
+async function newReport(reporterUser, messageId) {
+  const reporterUserId = reporterUser._id || reporterUser.id;
+  const chatMessage = await chatService.findById(messageId);
 
-      if (!chatMessage) {
-        throw new StatusError(404, `Chat message not found (${messageId})`);
-      } else if (mongoUtils.objectIDsEqual(reporterUserId, this.chatMessage.fromUserId)) {
-        throw new StatusError(403, "You can't report your own message");
+  if (!chatMessage) {
+    throw new StatusError(404, `Chat message not found (${messageId})`);
+  } else if (mongoUtils.objectIDsEqual(reporterUserId, chatMessage.fromUserId)) {
+    throw new StatusError(403, "You can't report your own message");
+  }
+
+  const room = await troupeService.findByIdLean(chatMessage.toTroupeId);
+
+  if (!room) {
+    throw new StatusError(404, `Room not found (${chatMessage.toTroupeId})`);
+  }
+
+  const weight = await calculateReportWeight(reporterUser, room, chatMessage);
+
+  const [report, updateExisting] = await mongooseUtils.upsert(
+    ChatMessageReport,
+    { reporterUserId: reporterUserId, messageId: messageId },
+    {
+      $setOnInsert: {
+        sent: new Date(),
+        weight: weight,
+        reporterUserId: reporterUserId,
+        messageId: messageId,
+        messageUserId: chatMessage.fromUserId,
+        messageVirtualUser: chatMessage.virtualUser
+          ? {
+              type: chatMessage.virtualUser.type,
+              externalId: chatMessage.virtualUser.externalId
+            }
+          : undefined,
+        text: chatMessage.text
       }
+    }
+  );
 
-      return troupeService.findByIdLean(this.chatMessage.toTroupeId);
-    })
-    .then(function(room) {
-      this.room = room;
+  let checkUserPromise = Promise.resolve();
+  let checkMessagePromise = Promise.resolve();
 
-      if (!room) {
-        throw new StatusError(404, `Room not found (${this.chatMessage.toTroupeId})`);
-      }
+  if (!updateExisting) {
+    const userThreshold = BAD_USER_THRESHOLD;
 
-      return calculateReportWeight(fromUser, this.room, this.chatMessage);
-    })
-    .then(function(weight) {
-      this.weight = weight;
+    // Send a stat for a new report
+    stats.event('new_chat_message_report', {
+      sent: report.sent,
+      weight: report.weight,
+      reporterUserId: report.reporterUserId,
+      messageId: report.messageId,
+      messageUserId: report.messageUserId,
+      messageVirtualUser: report.messageVirtualUser,
+      text: report.text
+    });
 
-      return mongooseUtils.upsert(
-        ChatMessageReport,
-        { reporterUserId: reporterUserId, messageId: messageId },
-        {
-          $setOnInsert: {
-            sent: new Date(),
-            weight: this.weight,
-            reporterUserId: reporterUserId,
-            messageId: messageId,
-            messageUserId: this.chatMessage.fromUserId,
-            text: this.chatMessage.text
+    checkUserPromise = getReportSumForUser(report.messageUserId, report.messageVirtualUser).then(
+      async sum => {
+        logger.info(
+          `Report from ${report.reporterUserId} with weight=${report.weight} made against user ${report.messageUserId} (messageVirtualUser=${report.messageVirtualUser}), sum=${sum}/${userThreshold}`
+        );
+
+        if (sum >= userThreshold) {
+          stats.event('new_bad_user_from_reports', {
+            userId: report.messageUserId,
+            sum: sum
+          });
+
+          // Only clear messages for new users (spammers)
+          let shouldClearMessages = false;
+          if (report.messageVirtualUser) {
+            const firstMessage = await ChatMessage.findOne({
+              'virtualUser.type': report.messageVirtualUser.type,
+              'virtualUser.externalId': report.messageVirtualUser.externalId
+            }).exec();
+
+            const firstMessageSentOnGitterTimestamp = new Date(firstMessage.sent).getTime();
+            shouldClearMessages =
+              Date.now() - firstMessageSentOnGitterTimestamp < NEW_USER_CLEAR_MESSAGE_PERIOD;
+          } else {
+            const userCreated = mongoUtils.getTimestampFromObjectId(report.messageUserId);
+            shouldClearMessages = Date.now() - userCreated < NEW_USER_CLEAR_MESSAGE_PERIOD;
           }
-        }
-      );
-    })
-    .spread(function(report, updateExisting) {
-      let checkUserPromise = Promise.resolve();
-      let checkMessagePromise = Promise.resolve();
 
-      const isGoodUser = GOOD_USER_IDS.some(goodUserId =>
-        mongoUtils.objectIDsEqual(goodUserId, report.messageUserId)
-      );
-      const userThreshold = isGoodUser ? GOOD_USER_THRESHOLD : BAD_USER_THRESHOLD;
-
-      if (!updateExisting) {
-        const room = this.room;
-        const chatMessage = this.chatMessage;
-
-        // Send a stat for a new report
-        stats.event('new_chat_message_report', {
-          sent: report.sent,
-          weight: report.weight,
-          reporterUserId: report.reporterUserId,
-          messageId: report.messageId,
-          messageUserId: report.messageUserId,
-          text: report.text
-        });
-
-        checkUserPromise = getReportSumForUser(report.messageUserId).then(function(sum) {
           logger.info(
-            `Report from ${report.reporterUserId} with weight=${report.weight} made against user ${report.messageUserId}(isGoodUser=${isGoodUser}), sum=${sum}/${userThreshold}`
+            `Bad user ${report.messageUserId} detected (hellban${
+              shouldClearMessages ? ' and removing all messages' : ''
+            }), sum=${sum}/${userThreshold}`
           );
 
-          if (sum >= userThreshold) {
-            stats.event('new_bad_user_from_reports', {
-              userId: report.messageUserId,
-              sum: sum
-            });
-
-            // Only clear messages for new users (spammers)
-            const userCreated = mongoUtils.getTimestampFromObjectId(chatMessage.fromUserId);
-            const shouldClearMessages = Date.now() - userCreated < NEW_USER_CLEAR_MESSAGE_PERIOD;
-
-            logger.info(
-              `Bad user ${report.messageUserId} detected (hellban${
-                shouldClearMessages ? ' and removing all messages' : ''
-              }), sum=${sum}/${userThreshold}`
+          // Handle banning virtualUsers
+          if (report.messageVirtualUser) {
+            const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(
+              chatMessage.toTroupeId
             );
-            userService.hellbanUser(report.messageUserId);
+
+            if (!matrixRoomId) {
+              throw new StatusError(
+                404,
+                `Bridged Matrix room not found for gitterRoomId=${chatMessage.toTroupeId}`
+              );
+            }
+
+            const bridgeIntent = matrixBridge.getIntent();
+            await bridgeIntent.ban(
+              matrixRoomId,
+              report.messageVirtualUser.externalId,
+              'Reported on Gitter'
+            );
+
             if (shouldClearMessages) {
-              chatService.removeAllMessagesForUserId(report.messageUserId);
+              await chatService.removeAllMessagesForVirtualUser(report.messageVirtualUser);
             }
           }
-
-          return null;
-        });
-
-        checkMessagePromise = getReportSumForMessage(report.messageId).then(function(sum) {
-          logger.info(
-            `Report from ${report.reporterUserId} with weight=${report.weight} made against message ${report.messageId}, sum is now, sum=${sum}/${BAD_MESSAGE_THRESHOLD}`
-          );
-
-          if (sum >= BAD_MESSAGE_THRESHOLD) {
-            stats.event('new_bad_message_from_reports', {
-              messageId: report.messageId,
-              sum: sum
-            });
-
-            logger.info(
-              `Bad message ${report.messageId} detected (removing) sum=${sum}/${BAD_MESSAGE_THRESHOLD}`
-            );
-            chatService.deleteMessageFromRoom(room, chatMessage);
+          // Handle banning normal Gitter users
+          else {
+            await userService.hellbanUser(report.messageUserId);
+            if (shouldClearMessages) {
+              await chatService.removeAllMessagesForUserId(report.messageUserId);
+            }
           }
+        }
 
-          return null;
+        return null;
+      }
+    );
+
+    checkMessagePromise = getReportSumForMessage(report.messageId).then(async sum => {
+      logger.info(
+        `Report from ${report.reporterUserId} with weight=${report.weight} made against message ${report.messageId}, sum is now, sum=${sum}/${BAD_MESSAGE_THRESHOLD}`
+      );
+
+      if (sum >= BAD_MESSAGE_THRESHOLD) {
+        stats.event('new_bad_message_from_reports', {
+          messageId: report.messageId,
+          sum: sum
         });
+
+        logger.info(
+          `Bad message ${report.messageId} detected (removing) sum=${sum}/${BAD_MESSAGE_THRESHOLD}`
+        );
+        await chatService.deleteMessageFromRoom(room, chatMessage);
       }
 
-      return Promise.all([checkUserPromise, checkMessagePromise]).then(function() {
-        return report;
-      });
+      return null;
     });
+  }
+
+  await Promise.all([checkUserPromise, checkMessagePromise]);
+
+  return report;
 }
 
 function findByIds(ids) {
@@ -226,7 +270,6 @@ function findChatMessageReports(options) {
 }
 
 module.exports = {
-  GOOD_USER_IDS,
   BAD_USER_THRESHOLD: BAD_USER_THRESHOLD,
   BAD_MESSAGE_THRESHOLD: BAD_MESSAGE_THRESHOLD,
   getReportSumForUser: getReportSumForUser,

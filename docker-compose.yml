@@ -65,5 +65,14 @@ services:
     volumes:
       - './scripts/docker/matrix/synapse/data/:/data/'
 
+  riot:
+    container_name: 'riot'
+    image: 'vectorim/riot-web:v1.7.8'
+    restart: 'unless-stopped'
+    ports:
+      - '18010:80'
+    volumes:
+      - './scripts/docker/matrix/element/element-config.json:/app/config.json'
+
 volumes:
   gitter-mongodb:

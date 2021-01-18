@@ -80,6 +80,7 @@ scripts/utils/run.txt
 scripts/docker/matrix/synapse/data/media_store/
 scripts/docker/matrix/synapse/data/gitter-matrix-as-registration.yaml
 scripts/docker/matrix/synapse/data/homeserver.db
+homeserver.db-journal
 hostaliases
 config/redis-docker
 config/mongo-docker
