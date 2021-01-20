@@ -39,7 +39,7 @@ const opts = yargs
   .alias('help', 'h').argv;
 
 async function migrateRoom(roomEntry) {
-  console.log('Processing roomEntry', roomEntry);
+  console.log('Migrating roomEntry', roomEntry);
 
   if (!opts.dryRun) {
     const matrixRoomId = roomEntry.matrix_id;
@@ -65,10 +65,7 @@ async function migrateRoom(roomEntry) {
         msgtype: 'm.notice'
       };
       const intent = matrixBridge.getIntent();
-      const { event_id } = await intent.sendMessage(
-        existingPortalBridgeEntry.matrixRoomId,
-        matrixContent
-      );
+      await intent.sendMessage(existingPortalBridgeEntry.matrixRoomId, matrixContent);
     }
 
     await persistence.MatrixBridgedRoom.update(
@@ -85,6 +82,35 @@ async function migrateRoom(roomEntry) {
 }
 
 const FAILED_LOG_PATH = path.resolve('/tmp/failed-migrated-plumbed-matrix-rooms.db');
+
+async function processLine(line) {
+  const roomEntry = JSON.parse(line);
+
+  console.log('Processing roomEntry', roomEntry);
+
+  if (!roomEntry.matrix_id || !roomEntry.remote_id) {
+    return;
+  }
+  // We're only looking for plumbed rooms
+  if (roomEntry && roomEntry.data && roomEntry.data.portal) {
+    return;
+  }
+
+  try {
+    await migrateRoom(roomEntry);
+  } catch (err) {
+    console.error('Error migrating room', err, err.stack);
+    fs.appendFileSync(FAILED_LOG_PATH, JSON.stringify(roomEntry) + '\n');
+  }
+
+  // Put a delay between each time we process a room
+  // to avoid overwhelming and hitting the rate-limits on the Matrix homeserver
+  if (opts.delay > 0) {
+    await new Promise(resolve => {
+      setTimeout(resolve, opts.delay);
+    });
+  }
+}
 
 async function run() {
   try {
@@ -108,29 +134,10 @@ async function run() {
     lr.on('line', async line => {
       lr.pause();
 
-      const roomEntry = JSON.parse(line);
-
-      if (!roomEntry.matrix_id || !roomEntry.remote_id) {
-        return;
-      }
-      // We're only looking for plumbed rooms
-      if (roomEntry && roomEntry.data && roomEntry.data.portal) {
-        return;
-      }
-
       try {
-        await migrateRoom(roomEntry);
+        await processLine(line);
       } catch (err) {
         console.error(err, err.stack);
-        fs.appendFileSync(FAILED_LOG_PATH, JSON.stringify(roomEntry) + '\n');
-      }
-
-      // Put a delay between each time we process a room
-      // to avoid overwhelming and hitting the rate-limits on the Matrix homeserver
-      if (opts.delay > 0) {
-        await new Promise(resolve => {
-          setTimeout(resolve, opts.delay);
-        });
       }
 
       lr.resume();
