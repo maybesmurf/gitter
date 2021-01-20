@@ -59,8 +59,8 @@ async function migrateRoom(roomEntry) {
         `Found portal room that already exists as well ${existingPortalBridgeEntry.matrixRoomId}`
       );
       const matrixContent = {
-        body: `This room is being, you can use [\`/join ${matrixRoomId} matrix.org\`](https://matrix.to/#/${matrixRoomId}&via=matrix.org) to get to the new room`,
-        formatted_body: `This room is being, you can use <a href="https://matrix.to/#/${matrixRoomId}&via=matrix.org"><code>/join ${matrixRoomId} matrix.org</code></a> to get to the new room`,
+        body: `This room is being migrated, you can use [\`/join ${matrixRoomId} matrix.org\`](https://matrix.to/#/${matrixRoomId}&via=matrix.org) to get to the new room`,
+        formatted_body: `This room is being migrated, you can use <a href="https://matrix.to/#/${matrixRoomId}&via=matrix.org"><code>/join ${matrixRoomId} matrix.org</code></a> to get to the new room`,
         format: 'org.matrix.custom.html',
         msgtype: 'm.notice'
       };
