@@ -3,6 +3,8 @@
 
 process.env.DISABLE_API_LISTEN = '1';
 
+const path = require('path');
+const fs = require('fs');
 const yargs = require('yargs');
 const LineByLineReader = require('line-by-line');
 const shutdown = require('shutdown');
@@ -43,10 +45,31 @@ async function migrateRoom(roomEntry) {
     const matrixRoomId = roomEntry.matrix_id;
     const gitterRoomUri = roomEntry.remote_id;
 
+    const gitterRoom = await troupeService.findByUri(gitterRoomUri);
+
     const bridgeIntent = matrixBridge.getIntent();
     await bridgeIntent.join(matrixRoomId, ['matrix.org']);
 
-    const gitterRoom = await troupeService.findByUri(gitterRoomUri);
+    const existingPortalBridgeEntry = await persistence.MatrixBridgedRoom.findOne({
+      troupeId: gitterRoom.id
+    });
+
+    if (existingPortalBridgeEntry) {
+      console.log(
+        `Found portal room that already exists as well ${existingPortalBridgeEntry.matrixRoomId}`
+      );
+      const matrixContent = {
+        body: `This room is being, you can use [\`/join ${matrixRoomId} matrix.org\`](https://matrix.to/#/${matrixRoomId}&via=matrix.org) to get to the new room`,
+        formatted_body: `This room is being, you can use <a href="https://matrix.to/#/${matrixRoomId}&via=matrix.org"><code>/join ${matrixRoomId} matrix.org</code></a> to get to the new room`,
+        format: 'org.matrix.custom.html',
+        msgtype: 'm.notice'
+      };
+      const intent = matrixBridge.getIntent();
+      const { event_id } = await intent.sendMessage(
+        existingPortalBridgeEntry.matrixRoomId,
+        matrixContent
+      );
+    }
 
     await persistence.MatrixBridgedRoom.update(
       { troupeId: gitterRoom.id },
@@ -61,7 +84,16 @@ async function migrateRoom(roomEntry) {
   }
 }
 
+const FAILED_LOG_PATH = path.resolve('/tmp/failed-migrated-plumbed-matrix-rooms.db');
+
 async function run() {
+  try {
+    fs.writeFileSync(FAILED_LOG_PATH, '');
+  } catch (err) {
+    console.log('Failed to create the log file for failed rooms');
+    throw err;
+  }
+
   try {
     console.log('Setting up Matrix bridge');
     await installBridge();
@@ -86,7 +118,12 @@ async function run() {
         return;
       }
 
-      await migrateRoom(roomEntry);
+      try {
+        await migrateRoom(roomEntry);
+      } catch (err) {
+        console.error(err, err.stack);
+        fs.appendFileSync(FAILED_LOG_PATH, JSON.stringify(roomEntry) + '\n');
+      }
 
       // Put a delay between each time we process a room
       // to avoid overwhelming and hitting the rate-limits on the Matrix homeserver
