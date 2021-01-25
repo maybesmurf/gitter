@@ -1,3 +1,10 @@
+# 21.18.0 - 2021-1-25
+
+Developer facing:
+
+ - Better Matrix plumbed room migration, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2126
+
+
 # 21.17.0 - 2021-1-14
 
  - Make threaded messages reply to last message in thread when bridging to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2108
