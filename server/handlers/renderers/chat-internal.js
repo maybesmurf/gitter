@@ -7,6 +7,9 @@ var _ = require('lodash');
 const asyncHandler = require('express-async-handler');
 
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const {
+  getCanonicalAliasForGitterRoomUri
+} = require('gitter-web-matrix-bridge/lib/matrix-alias-utils');
 var contextGenerator = require('../../web/context-generator');
 var restful = require('../../services/restful');
 var burstCalculator = require('../../utils/burst-calculator');
@@ -155,6 +158,9 @@ async function renderChat(req, res, next, options) {
         isMobile: options.isMobile,
         roomMember: uriContext.roomMember,
         isRightToolbarPinned: isRightToolbarPinned,
+        matrixLink: `https://matrix.to/#/${getCanonicalAliasForGitterRoomUri(
+          troupeContext.troupe.uri
+        )}`,
 
         //Feature Switch Left Menu
         troupeTopic: troupeContext.troupe.topic,
