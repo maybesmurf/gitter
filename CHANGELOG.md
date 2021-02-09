@@ -1,3 +1,10 @@
+# 21.19.0 - *upcoming*
+
+Developer facing:
+
+ - Fix `rename-room` utility script to inherit from new group, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2130
+
+
 # 21.18.0 - 2021-01-25
 
 Developer facing:
