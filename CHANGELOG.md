@@ -1,5 +1,7 @@
 # 21.19.0 - *upcoming*
 
+ - Allow anyone to invite someone to the Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2128
+
 Developer facing:
 
  - Fix `rename-room` utility script to inherit from new group, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2130
