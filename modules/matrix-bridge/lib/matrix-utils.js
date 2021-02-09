@@ -218,6 +218,31 @@ class MatrixUtils {
       join_rule: 'public'
     });
 
+    const bridgeMxid = this.getMxidForMatrixBridgeUser();
+    // https://matrix.org/docs/spec/client_server/r0.2.0#m-room-power-levels
+    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+      users_default: 0,
+      users: {
+        [bridgeMxid]: 100
+      },
+      events: {
+        'm.room.avatar': 50,
+        'm.room.canonical_alias': 50,
+        'm.room.encryption': 100,
+        'm.room.history_visibility': 100,
+        'm.room.name': 50,
+        'm.room.power_levels': 100,
+        'm.room.server_acl': 100,
+        'm.room.tombstone': 100
+      },
+      events_default: 0,
+      state_default: 50,
+      ban: 50,
+      kick: 50,
+      redact: 50,
+      invite: 0
+    });
+
     await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
 
     // Set the room avatar
