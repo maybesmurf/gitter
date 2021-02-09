@@ -330,7 +330,9 @@ function TroupeStrategy(options) {
     let matrixRoomLink;
     if (matrixBridgedRoomStrategy) {
       if (matrixBridgedRoomStrategy.map(id)) {
-        matrixRoomLink = `https://matrix.to/#/${getCanonicalAliasForGitterRoomUri(item.uri)}`;
+        matrixRoomLink = `https://matrix.to/#/${getCanonicalAliasForGitterRoomUri(
+          item.uri
+        )}?utm_source=gitter`;
       }
     }
 
