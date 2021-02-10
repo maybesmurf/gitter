@@ -5,7 +5,7 @@ const config = env.config;
 const serverName = config.get('matrix:bridge:serverName');
 
 function getCanonicalAliasLocalpartForGitterRoomUri(uri) {
-  return uri.replace('/', '_');
+  return uri.replace(/\//g, '_');
 }
 
 function getCanonicalAliasForGitterRoomUri(uri) {
