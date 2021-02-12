@@ -99,6 +99,11 @@ async function run() {
     room.groupId = newGroup._id;
     room.lcUri = lcNew;
 
+    // Update the security descriptor to point to the new group
+    if (room.sd.type === 'GROUP') {
+      room.sd.internalId = newGroup._id;
+    }
+
     /* Only add if it's not a case change */
     if (lcOld !== lcNew) {
       room.renamedLcUris.addToSet(lcOld);

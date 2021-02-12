@@ -1,11 +1,20 @@
-# 21.18.0 - 2021-1-25
+# 21.19.0 - 2021-02-10
+
+ - Allow anyone to invite someone to the Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2128
+
+Developer facing:
+
+ - Fix `rename-room` utility script to inherit from new group, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2130
+
+
+# 21.18.0 - 2021-01-25
 
 Developer facing:
 
  - Better Matrix plumbed room migration, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2126
 
 
-# 21.17.0 - 2021-1-14
+# 21.17.0 - 2021-01-14
 
  - Make threaded messages reply to last message in thread when bridging to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2108
  - Bridge room updates to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2123
