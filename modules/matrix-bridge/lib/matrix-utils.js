@@ -13,6 +13,10 @@ const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
+const {
+  getCanonicalAliasLocalpartForGitterRoomUri,
+  getCanonicalAliasForGitterRoomUri
+} = require('./matrix-alias-utils');
 
 const store = require('./store');
 
@@ -62,13 +66,9 @@ class MatrixUtils {
     this.matrixBridge = matrixBridge;
   }
 
-  getCanonicalAliasForGitterRoomUri(uri) {
-    return uri.replace('/', '_');
-  }
-
   async createMatrixRoomByGitterRoomId(gitterRoomId) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
-    const roomAlias = this.getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
+    const roomAlias = getCanonicalAliasLocalpartForGitterRoomUri(gitterRoom.uri);
 
     const bridgeIntent = this.matrixBridge.getIntent();
 
@@ -182,13 +182,13 @@ class MatrixUtils {
     const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
     // Set the human-readable room aliases
-    const roomAlias = this.getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
-    await this.ensureRoomAlias(matrixRoomId, `#${roomAlias}:${serverName}`);
+    const roomAlias = getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
+    await this.ensureRoomAlias(matrixRoomId, roomAlias);
     // Add another alias for the room ID
     await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${serverName}`);
     // Add a lowercase alias if necessary
     if (roomAlias.toLowerCase() !== roomAlias) {
-      await this.ensureRoomAlias(matrixRoomId, `#${roomAlias.toLowerCase()}:${serverName}`);
+      await this.ensureRoomAlias(matrixRoomId, roomAlias.toLowerCase());
     }
   }
 
