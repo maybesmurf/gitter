@@ -3,7 +3,7 @@
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 
 function MatrixBridgedRoomStrategy() {
-  let bridgeMap = {};
+  const bridgeMap = {};
 
   this.preload = async function(troupeIds) {
     for (const troupeId of troupeIds.toArray()) {
