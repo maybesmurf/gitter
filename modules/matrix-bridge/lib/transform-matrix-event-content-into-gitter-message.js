@@ -6,12 +6,12 @@ const userService = require('gitter-web-users');
 const env = require('gitter-web-env');
 const config = env.config;
 
+const parseGitterMxid = require('./parse-gitter-mxid');
+
 const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
 const configuredServerName = config.get('matrix:bridge:serverName');
 
 const PILL_REGEX = /<a href="https:\/\/matrix\.to\/#\/(#|@|\+)([^"]+)">([^<]+)<\/a>/g;
-
-const GITTER_MXID_LOCALPART_REGEX = /@(.*?)-([a-f0-9]+)/;
 
 // via https://github.com/matrix-org/matrix-appservice-slack/blob/47d5af9caad2f21983e429f9868c70d702707410/src/substitutions.ts#L213-L241
 function getPillMapFromHtml(htmlBody) {
@@ -45,20 +45,18 @@ async function replacePills(content) {
   let resultantBody = content.body;
   for (const user of pillMap.users) {
     // Only replace pill mentions for `*:gitter.im`
-    const [localPart, serverName] = user.id.split(':');
+    const [, serverName] = user.id.split(':');
 
     let replacementText;
-    // If the MXID is from the Gitter homeserver, it's probably a bridged user from Gitter.
-    // So we need to replace that MXID with their actual Gitter mention
+
+    // If the MXID is a bridged Gitter user,
+    // we need to replace that MXID with their actual Gitter mention
     if (serverName === configuredServerName) {
-      // We're matching against the MXID @madlittlemods-5f762e89986e461e663059c2:gitter.im
-      // where the localPart is `@madlittlemods-5f762e89986e461e663059c2`
-      const localPartMatches = localPart.match(GITTER_MXID_LOCALPART_REGEX);
-      if (!localPartMatches) {
+      const parsedMxid = parseGitterMxid(user.id);
+      if (!parsedMxid) {
         continue;
       }
-      const fallbackUsername = localPartMatches[1];
-      const userId = localPartMatches[2];
+      const { username: fallbackUsername, userId } = parsedMxid;
 
       let username = fallbackUsername;
       try {

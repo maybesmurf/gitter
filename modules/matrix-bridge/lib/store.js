@@ -58,11 +58,28 @@ async function getGitterMessageIdByMatrixEventId(matrixRoomId, matrixEventId) {
   }
 }
 
+// Stores a bridge room entry and overwrites any existing entry with the same gitterRoomId or matrixRoomId
 async function storeBridgedRoom(gitterRoomId, matrixRoomId) {
-  return persistence.MatrixBridgedRoom.create({
-    troupeId: gitterRoomId,
-    matrixRoomId: matrixRoomId
-  });
+  return persistence.MatrixBridgedRoom.update(
+    {
+      $or: [
+        {
+          troupeId: gitterRoomId
+        },
+        {
+          matrixRoomId
+        }
+      ]
+    },
+    {
+      troupeId: gitterRoomId,
+      matrixRoomId
+    },
+    {
+      upsert: true,
+      new: true
+    }
+  );
 }
 
 async function storeBridgedUser(gitterUserId, matrixId) {

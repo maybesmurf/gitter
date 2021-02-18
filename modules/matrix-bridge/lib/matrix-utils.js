@@ -325,6 +325,11 @@ class MatrixUtils {
     }
 
     const gitterUser = await userService.findById(gitterUserId);
+    if (!gitterUser) {
+      throw new Error(
+        `Unable to get or create Gitter user because we were unable to find a Gitter user with gitterUserId=${gitterUserId}`
+      );
+    }
     const mxid = this.getMxidForGitterUser(gitterUser);
     await this.ensureCorrectMxidProfile(mxid, gitterUserId);
 

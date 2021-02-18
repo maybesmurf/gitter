@@ -89,7 +89,7 @@ const matrixBridge = new Bridge({
       let data;
       try {
         data = request.getData();
-        eventHandler.onEventData(data);
+        await eventHandler.onEventData(data);
         stats.eventHF('matrix-bridge.event.success');
       } catch (err) {
         logger.error(
