@@ -19,6 +19,11 @@ var TroupePermissionsStrategy = require('./troupes/troupe-permissions-strategy')
 var GroupIdStrategy = require('./group-id-strategy');
 var SecurityDescriptorStrategy = require('./security-descriptor-strategy');
 var AssociatedRepoStrategy = require('./troupes/associated-repo-strategy');
+const MatrixBridgedRoomStrategy = require('./troupes/matrix-bridged-room-strategy');
+const {
+  getCanonicalAliasForGitterRoomUri
+} = require('gitter-web-matrix-bridge/lib/matrix-alias-utils');
+
 /*
   room-based-feature-toggle
   We used to use this strategy for the threadedConversations feature toggle but don't need it now that is generally available.
@@ -139,7 +144,9 @@ function TroupeStrategy(options) {
   var groupIdStrategy;
   var securityDescriptorStrategy;
   var associatedRepoStrategy;
+  let matrixBridgedRoomStrategy;
 
+  // eslint-disable-next-line max-statements
   this.preload = function(items) {
     // eslint-disable-line max-statements
     if (items.isEmpty()) return;
@@ -226,6 +233,9 @@ function TroupeStrategy(options) {
     // troupeMetaIdStrategy = new TroupeMetaIdStrategy();
     // strategies.push(troupeMetaIdStrategy.preload(troupeIds));
 
+    matrixBridgedRoomStrategy = new MatrixBridgedRoomStrategy();
+    strategies.push(matrixBridgedRoomStrategy.preload(troupeIds));
+
     return Promise.all(strategies);
   };
 
@@ -260,7 +270,7 @@ function TroupeStrategy(options) {
     return otherUser;
   }
 
-  // eslint-disable-next-line complexity
+  // eslint-disable-next-line complexity, max-statements
   this.map = function(item) {
     var id = item.id || item._id;
     var uri = item.uri;
@@ -317,6 +327,15 @@ function TroupeStrategy(options) {
       user: otherUser
     });
 
+    let matrixRoomLink;
+    if (matrixBridgedRoomStrategy) {
+      if (matrixBridgedRoomStrategy.map(id)) {
+        matrixRoomLink = `https://matrix.to/#/${getCanonicalAliasForGitterRoomUri(
+          item.uri
+        )}?utm_source=gitter`;
+      }
+    }
+
     return {
       id: id,
       name: troupeName,
@@ -351,6 +370,7 @@ function TroupeStrategy(options) {
       backend: securityDescriptorStrategy ? securityDescriptorStrategy.map(item.sd) : undefined,
       public: isPublic,
       exists: options.includeExists ? !!id : undefined,
+      matrixRoomLink,
       /* room-based-feature-toggle */
       // meta: troupeMetaIdStrategy.map(id) || {},
       v: getVersion(item)

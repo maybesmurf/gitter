@@ -155,6 +155,7 @@ async function renderChat(req, res, next, options) {
         isMobile: options.isMobile,
         roomMember: uriContext.roomMember,
         isRightToolbarPinned: isRightToolbarPinned,
+        matrixRoomLink: troupeContext.troupe.matrixRoomLink,
 
         //Feature Switch Left Menu
         troupeTopic: troupeContext.troupe.topic,

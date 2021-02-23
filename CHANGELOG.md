@@ -1,3 +1,8 @@
+# 21.20.0 - 2021-02-17
+
+ - Add chat via Matrix button, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2129
+
+
 # 21.19.0 - 2021-02-10
 
  - Allow anyone to invite someone to the Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2128
