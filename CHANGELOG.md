@@ -1,3 +1,11 @@
+# 21.21.0 - *upcoming*
+
+
+Developer facing:
+
+ - Stop Bluebird promise created but not returned warning when sending a message in a room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2133
+
+
 # 21.20.0 - 2021-02-17
 
  - Add chat via Matrix button, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2129
