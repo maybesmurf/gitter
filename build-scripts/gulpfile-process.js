@@ -15,6 +15,11 @@ var argv = require('yargs')
     describe:
       'Remotely inspect the Node.js instance with Chrome devtools (adds the `--inspect` flag to the Node.js process)'
   })
+  .option('trace-warnings-node', {
+    type: 'boolean',
+    describe:
+      'Give stack traces when a console warning happens (adds the `--trace-warnings` flag to the Node.js process)'
+  })
   .help('help').argv;
 
 /**
@@ -101,6 +106,13 @@ gulp.task('process:package:tarball', function() {
 gulp.task('process:watch:server', function() {
   var nodemon = require('gulp-nodemon');
 
+  const nodeArgs = [];
+  if (argv.inspectNode) {
+    nodeArgs.push('--inspect');
+  } else if (argv.traceWarningsNode) {
+    nodeArgs.push('--trace-warnings');
+  }
+
   nodemon({
     debug: true,
     script: 'web.js',
@@ -111,7 +123,7 @@ gulp.task('process:watch:server', function() {
       '**/test/**'
     ],
     args: ['--cdn:use', 'true'],
-    nodeArgs: argv.inspectNode ? ['--inspect'] : []
+    nodeArgs
   });
 });
 
