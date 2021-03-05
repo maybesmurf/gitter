@@ -4,6 +4,7 @@
 Developer facing:
 
  - Stop Bluebird promise created but not returned warning when sending a message in a room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2133
+ - Add utility script to update specific bridged Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2135
 
 
 # 21.20.0 - 2021-02-17
