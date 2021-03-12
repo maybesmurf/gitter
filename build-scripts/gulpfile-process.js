@@ -109,7 +109,8 @@ gulp.task('process:watch:server', function() {
   const nodeArgs = [];
   if (argv.inspectNode) {
     nodeArgs.push('--inspect');
-  } else if (argv.traceWarningsNode) {
+  }
+  if (argv.traceWarningsNode) {
     nodeArgs.push('--trace-warnings');
   }
 
