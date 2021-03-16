@@ -22,7 +22,10 @@ class GitterBridge {
     this.matrixBridge = matrixBridge;
     this.matrixUtils = new MatrixUtils(matrixBridge);
 
-    appEvents.onDataChange2(this.onDataChange.bind(this));
+    appEvents.onDataChange2(data => {
+      this.onDataChange(data);
+      return null;
+    });
   }
 
   // eslint-disable-next-line complexity

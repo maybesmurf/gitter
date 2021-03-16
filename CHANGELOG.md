@@ -1,3 +1,12 @@
+# 21.21.0 - 2021-03-04
+
+Developer facing:
+
+ - Stop Bluebird promise created but not returned warning when sending a message in a room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2133
+ - Add utility script to update specific bridged Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2135
+ - Update `matrix-appservice-bridge` to get healthcheck endpoint for monit, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2136
+
+
 # 21.20.0 - 2021-02-17
 
  - Add chat via Matrix button, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2129
