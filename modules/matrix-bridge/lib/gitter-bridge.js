@@ -14,7 +14,7 @@ const store = require('./store');
 const MatrixUtils = require('./matrix-utils');
 const transformGitterTextIntoMatrixMessage = require('./transform-gitter-text-into-matrix-message');
 const checkIfDatesSame = require('./check-if-dates-same');
-const { isGitterRoomIdAllowedToBridge } = require('./gitter-utils');
+const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 
 class GitterBridge {
   constructor(matrixBridge) {

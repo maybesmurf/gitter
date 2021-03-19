@@ -14,11 +14,9 @@ const logger = env.logger;
 const store = require('./store');
 const transformMatrixEventContentIntoGitterMessage = require('./transform-matrix-event-content-into-gitter-message');
 const MatrixUtils = require('./matrix-utils');
-const {
-  isGitterRoomIdAllowedToBridge,
-  getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid
-} = require('./gitter-utils');
+const GitterUtils = require('./gitter-utils');
 const parseGitterMxid = require('./parse-gitter-mxid');
+const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 
 // 30 minutes in milliseconds
 const MAX_EVENT_ACCEPTANCE_WINDOW = 1000 * 60 * 30;
@@ -129,6 +127,7 @@ class MatrixEventHandler {
     this.matrixBridge = matrixBridge;
     this._gitterBridgeUsername = gitterBridgeUsername;
     this.matrixUtils = new MatrixUtils(matrixBridge);
+    this.gitterUtils = new GitterUtils(gitterBridgeUsername);
   }
 
   async onAliasQuery(alias, aliasLocalpart) {
@@ -391,7 +390,7 @@ class MatrixEventHandler {
         `Joined the bridged Gitter user (MXID=${event.state_key}) to the Matrix DM room (${event.room_id})`
       );
 
-      const dmRoom = await getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const dmRoom = await this.gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
         event.room_id,
         parsedGitterMxid.userId,
         event.sender

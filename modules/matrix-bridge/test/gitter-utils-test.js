@@ -4,16 +4,14 @@ const assert = require('assert');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 
-const {
-  isGitterRoomIdAllowedToBridge,
-  getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid
-} = require('../lib/gitter-utils');
+const GitterUtils = require('../lib/gitter-utils');
 const store = require('../lib/store');
 
 const MXID = '@bob:matrix.org';
 
 describe('gitter-utils', () => {
   const fixture = fixtureLoader.setupEach({
+    userBridge1: {},
     user1: {},
     troupe1: {},
     troupePublic1: {},
@@ -37,33 +35,16 @@ describe('gitter-utils', () => {
     }
   });
 
-  describe('isGitterRoomIdAllowedToBridge', () => {
-    it('public room can bridge', async () => {
-      const allowedToBridge = await isGitterRoomIdAllowedToBridge(fixture.troupePublic1.id);
-      assert.strictEqual(allowedToBridge, true);
-    });
-
-    it(`private room can't bridge`, async () => {
-      const allowedToBridge = await isGitterRoomIdAllowedToBridge(fixture.troupePrivate1.id);
-      assert.strictEqual(allowedToBridge, false);
-    });
-
-    it('Matrix DM can bridge', async () => {
-      const allowedToBridge = await isGitterRoomIdAllowedToBridge(fixture.troupeMatrixDm1.id);
-      assert.strictEqual(allowedToBridge, true);
-    });
-
-    it(`Random group with "matrix" in name can't bridge`, async () => {
-      const allowedToBridge = await isGitterRoomIdAllowedToBridge(fixture.troupeFakeMatrixDm1.id);
-      assert.strictEqual(allowedToBridge, false);
-    });
+  let gitterUtils;
+  beforeEach(() => {
+    gitterUtils = new GitterUtils(fixture.userBridge1.username);
   });
 
   describe('getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid', () => {
     it('creates Gitter room for new DM', async () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
 
-      const newDmRoom = await getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
         matrixRoomId,
         fixture.user1.id,
         MXID
@@ -82,7 +63,7 @@ describe('gitter-utils', () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
       await store.storeBridgedRoom(fixture.troupe1._id, matrixRoomId);
 
-      const dmRoom = await getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
         matrixRoomId,
         fixture.user1.id,
         MXID
@@ -97,7 +78,7 @@ describe('gitter-utils', () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
       await store.storeBridgedRoom(mongoUtils.createIdForTimestampString(Date.now()), matrixRoomId);
 
-      const dmRoom = await getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
         matrixRoomId,
         fixture.user1.id,
         MXID
