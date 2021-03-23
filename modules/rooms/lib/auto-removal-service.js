@@ -1,5 +1,6 @@
 'use strict';
 
+var debug = require('debug')('gitter:app:auto-removal-service');
 var Promise = require('bluebird');
 var env = require('gitter-web-env');
 var stats = env.stats;
@@ -13,15 +14,20 @@ var roomMembershipService = require('./room-membership-service');
  * [{ userId: ..., lastAccessTime: ... }]
  */
 function findRemovalCandidates(roomId, options) {
-  var minTimeInDays = options.minTimeInDays || 90;
+  let minTimeInDays = options.minTimeInDays;
+  if (options.minTimeInDays === undefined) {
+    minTimeInDays = 90;
+  }
 
   return roomMembershipService
     .findMembersForRoom(roomId)
     .then(function(userIds) {
+      debug(`found ${userIds.length} users in room`);
       return recentRoomCore.findLastAccessTimesForUsersInRoom(roomId, userIds);
     })
     .then(function(lastAccessDates) {
       var cutoff = Date.now() - minTimeInDays * 86400000;
+      debug(`minTimeInDays=${minTimeInDays} cutoff=${cutoff}`);
       var oldUserIds = Object.keys(lastAccessDates)
         .map(function(userId) {
           var lastAccess = lastAccessDates[userId];
