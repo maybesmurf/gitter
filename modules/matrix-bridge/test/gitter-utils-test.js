@@ -13,6 +13,7 @@ describe('gitter-utils', () => {
   const fixture = fixtureLoader.setupEach({
     userBridge1: {},
     user1: {},
+    group1: {},
     troupe1: {},
     troupePublic1: {},
     troupePrivate1: {
@@ -37,7 +38,7 @@ describe('gitter-utils', () => {
 
   let gitterUtils;
   beforeEach(() => {
-    gitterUtils = new GitterUtils(fixture.userBridge1.username);
+    gitterUtils = new GitterUtils(fixture.userBridge1.username, fixture.group1.uri);
   });
 
   describe('getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid', () => {
@@ -60,9 +61,13 @@ describe('gitter-utils', () => {
     });
 
     it('returns existing room', async () => {
+      // TODO
+    });
+
+    it('is able to update the matrixRoomId in the bridged room entry and return existing Gitter room', async () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
 
-      // Create the DM room
+      // Create the Gitter DM room
       const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
         matrixRoomId,
         fixture.user1.id,
@@ -86,7 +91,7 @@ describe('gitter-utils', () => {
 
       assert(dmRoom);
 
-      // Check that the Gitter room is connected to the new Matrix DM room
+      // Check that the existing Gitter room is connected to the new Matrix DM room
       const storedGitterRoomId2 = await store.getGitterRoomIdByMatrixRoomId(differntMatrixRoomId);
       assert(mongoUtils.objectIDsEqual(storedGitterRoomId2, dmRoom._id));
     });

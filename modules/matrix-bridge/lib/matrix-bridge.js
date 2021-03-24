@@ -112,6 +112,6 @@ const matrixBridge = new Bridge({
   }
 });
 
-eventHandler = new MatrixEventHandler(matrixBridge, gitterBridgeUsername);
+eventHandler = new MatrixEventHandler(matrixBridge, gitterBridgeUsername, 'matrix');
 
 module.exports = matrixBridge;

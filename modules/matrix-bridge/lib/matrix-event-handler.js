@@ -117,7 +117,7 @@ async function findGitterRoomFromAliasLocalPart(aliasLocalpart) {
 }
 
 class MatrixEventHandler {
-  constructor(matrixBridge, gitterBridgeUsername) {
+  constructor(matrixBridge, gitterBridgeUsername, matrixDmGroupUri = 'matrix') {
     assert(matrixBridge, 'Matrix bridge required');
     assert(
       gitterBridgeUsername,
@@ -127,7 +127,7 @@ class MatrixEventHandler {
     this.matrixBridge = matrixBridge;
     this._gitterBridgeUsername = gitterBridgeUsername;
     this.matrixUtils = new MatrixUtils(matrixBridge);
-    this.gitterUtils = new GitterUtils(gitterBridgeUsername);
+    this.gitterUtils = new GitterUtils(gitterBridgeUsername, matrixDmGroupUri);
   }
 
   async onAliasQuery(alias, aliasLocalpart) {

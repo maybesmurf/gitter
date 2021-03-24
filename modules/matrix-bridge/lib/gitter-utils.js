@@ -1,7 +1,6 @@
 'use strict';
 
 const assert = require('assert');
-const StatusError = require('statuserror');
 const groupService = require('gitter-web-groups/lib/group-service');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const roomService = require('gitter-web-rooms');
@@ -13,12 +12,13 @@ const logger = env.logger;
 const store = require('./store');
 
 class GitterUtils {
-  constructor(gitterBridgeUsername) {
+  constructor(gitterBridgeUsername, matrixDmGroupUri = 'matrix') {
     assert(
       gitterBridgeUsername,
       'gitterBridgeUsername required (the bot user on the Gitter side that bridges messages like gitter-badger or matrixbot)'
     );
     this._gitterBridgeUsername = gitterBridgeUsername;
+    this._matrixDmGroupUri = matrixDmGroupUri;
   }
 
   getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid) {
@@ -47,7 +47,9 @@ class GitterUtils {
     const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
     assert(gitterBridgeUser);
 
-    const group = await groupService.findByUri('matrix', { lean: true });
+    const group = await groupService.findByUri(this._matrixDmGroupUri, { lean: true });
+    assert(group);
+
     const roomInfo = {
       uri: gitterRoomUri,
       topic: `A one to one chat room with ${otherPersonMxid} from Matrix`
