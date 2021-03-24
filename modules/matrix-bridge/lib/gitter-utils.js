@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const StatusError = require('statuserror');
 const groupService = require('gitter-web-groups/lib/group-service');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const roomService = require('gitter-web-rooms');
@@ -86,25 +87,22 @@ class GitterUtils {
     assert(gitterUserId);
     assert(otherPersonMxid);
 
-    // Find the existing bridged DM room
-    const existingGitterRoomId = await store.getGitterRoomIdByMatrixRoomId(matrixRoomId);
-    if (existingGitterRoomId) {
-      const gitterRoom = await troupeService.findById(existingGitterRoomId);
-      // Just log a warning if it doesn't exist, we'll recover below by creating a new room
-      if (!gitterRoom) {
-        logger.warn(
-          `Unable to find Gitter room with id=${existingGitterRoomId} for bridged Matrix DM room ${matrixRoomId}`
-        );
-      }
+    // Check to see if the DM room on Gitter already exists with this person
+    const gitterDmRoom = await troupeService.findByUri(
+      this.getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid)
+    );
+    if (gitterDmRoom) {
+      logger.info(
+        `Storing bridged DM room (Gitter room id=${gitterDmRoom._id} -> Matrix room_id=${matrixRoomId}): ${gitterDmRoom.lcUri}`
+      );
+      await store.storeBridgedRoom(gitterDmRoom._id, matrixRoomId);
 
-      if (gitterRoom) {
-        return gitterRoom;
-      }
+      return gitterDmRoom;
     }
 
     // Create the Matrix room if it doesn't already exist
     logger.info(
-      `Existing Gitter room not found for Matrix DM, creating new Gitter room for gitterUserId=${gitterUserId} otherPersonMxid=${otherPersonMxid}`
+      `Existing Gitter room not found for Matrix DM, creating new Gitter room for gitterUserId=${gitterUserId} and otherPersonMxid=${otherPersonMxid}`
     );
 
     const gitterRoom = await this.createGitterDmRoomByGitterUserIdAndOtherPersonMxid(

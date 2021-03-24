@@ -247,6 +247,11 @@ class MatrixEventHandler {
     const matrixRoomId = event.room_id;
 
     const gitterRoomId = await store.getGitterRoomIdByMatrixRoomId(matrixRoomId);
+    if (!gitterRoomId) {
+      debug(`Ignoring message for Matrix room that is not bridged ${matrixRoomId}`);
+      return null;
+    }
+
     const gitterRoom = await troupeService.findById(gitterRoomId);
 
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoom.id || gitterRoom._id);

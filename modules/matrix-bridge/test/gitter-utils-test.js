@@ -61,31 +61,34 @@ describe('gitter-utils', () => {
 
     it('returns existing room', async () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
-      await store.storeBridgedRoom(fixture.troupe1._id, matrixRoomId);
 
-      const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      // Create the DM room
+      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
         matrixRoomId,
         fixture.user1.id,
         MXID
       );
 
-      assert(dmRoom);
-      assert.strictEqual(dmRoom.lcUri, fixture.troupe1.lcUri);
-    });
+      assert(newDmRoom);
 
-    it('creates new Gitter room even when we already have a bridged entry but the Gitter room does not exist', async () => {
-      // Store a bridged room entry but the Gitter room does not exist
-      const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
-      await store.storeBridgedRoom(mongoUtils.createIdForTimestampString(Date.now()), matrixRoomId);
+      // Check that the new Gitter room has a persisted bridged entry for the given matrixRoomId
+      const storedGitterRoomId1 = await store.getGitterRoomIdByMatrixRoomId(matrixRoomId);
+      assert(mongoUtils.objectIDsEqual(storedGitterRoomId1, newDmRoom._id));
 
+      // Try to get the DM with the same users involved but a different Matrix room ID.
+      // This mimics a Matrix user starting a new DM conversation with the same Gitter user
+      const differntMatrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
       const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
-        matrixRoomId,
+        differntMatrixRoomId,
         fixture.user1.id,
         MXID
       );
 
       assert(dmRoom);
-      assert.strictEqual(dmRoom.lcUri, `matrix/${fixture.user1.id}/${MXID}`);
+
+      // Check that the Gitter room is connected to the new Matrix DM room
+      const storedGitterRoomId2 = await store.getGitterRoomIdByMatrixRoomId(differntMatrixRoomId);
+      assert(mongoUtils.objectIDsEqual(storedGitterRoomId2, dmRoom._id));
     });
   });
 });
