@@ -61,7 +61,32 @@ describe('gitter-utils', () => {
     });
 
     it('returns existing room', async () => {
-      // TODO
+      const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+
+      // Create the Gitter DM room
+      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+        matrixRoomId,
+        fixture.user1.id,
+        MXID
+      );
+
+      assert(newDmRoom);
+
+      // Check that the new Gitter room has a persisted bridged entry for the given matrixRoomId
+      const storedGitterRoomId1 = await store.getGitterRoomIdByMatrixRoomId(matrixRoomId);
+      assert(mongoUtils.objectIDsEqual(storedGitterRoomId1, newDmRoom._id));
+
+      // Try to get the same already existing room
+      const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+        matrixRoomId,
+        fixture.user1.id,
+        MXID
+      );
+
+      assert(dmRoom);
+
+      // Make sure the room ID's are the same
+      assert(mongoUtils.objectIDsEqual(newDmRoom._id, dmRoom._id));
     });
 
     it('is able to update the matrixRoomId in the bridged room entry and return existing Gitter room', async () => {
