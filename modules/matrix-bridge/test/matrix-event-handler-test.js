@@ -741,7 +741,11 @@ describe('matrix-event-handler', () => {
         assert.strictEqual(matrixBridge.getIntent().join.callCount, 1);
 
         // Gitter user joins the new DM room on Gitter
-        const gitterUtils = new GitterUtils(fixture.userBridge1.username, fixture.group1.uri);
+        const gitterUtils = new GitterUtils(
+          matrixBridge,
+          fixture.userBridge1.username,
+          fixture.group1.uri
+        );
         const newDmRoom = await troupeService.findByUri(
           gitterUtils.getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(
             fixture.user1.id,

@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 
@@ -36,18 +37,26 @@ describe('gitter-utils', () => {
     }
   });
 
+  let matrixBridge;
   let gitterUtils;
   beforeEach(() => {
-    gitterUtils = new GitterUtils(fixture.userBridge1.username, fixture.group1.uri);
+    const intentSpies = {
+      sendMessage: sinon.spy()
+    };
+    matrixBridge = {
+      getIntent: (/*userId*/) => intentSpies
+    };
+
+    gitterUtils = new GitterUtils(matrixBridge, fixture.userBridge1.username, fixture.group1.uri);
   });
 
-  describe('getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid', () => {
+  describe('getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid', () => {
     it('creates Gitter room for new DM', async () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
 
-      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
         matrixRoomId,
-        fixture.user1.id,
+        fixture.user1,
         MXID
       );
 
@@ -64,9 +73,9 @@ describe('gitter-utils', () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
 
       // Create the Gitter DM room
-      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
         matrixRoomId,
-        fixture.user1.id,
+        fixture.user1,
         MXID
       );
 
@@ -77,9 +86,9 @@ describe('gitter-utils', () => {
       assert(mongoUtils.objectIDsEqual(storedGitterRoomId1, newDmRoom._id));
 
       // Try to get the same already existing room
-      const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
         matrixRoomId,
-        fixture.user1.id,
+        fixture.user1,
         MXID
       );
 
@@ -93,9 +102,9 @@ describe('gitter-utils', () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
 
       // Create the Gitter DM room
-      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
         matrixRoomId,
-        fixture.user1.id,
+        fixture.user1,
         MXID
       );
 
@@ -108,9 +117,9 @@ describe('gitter-utils', () => {
       // Try to get the DM with the same users involved but a different Matrix room ID.
       // This mimics a Matrix user starting a new DM conversation with the same Gitter user
       const differntMatrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
-      const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const dmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
         differntMatrixRoomId,
-        fixture.user1.id,
+        fixture.user1,
         MXID
       );
 
@@ -119,6 +128,9 @@ describe('gitter-utils', () => {
       // Check that the existing Gitter room is connected to the new Matrix DM room
       const storedGitterRoomId2 = await store.getGitterRoomIdByMatrixRoomId(differntMatrixRoomId);
       assert(mongoUtils.objectIDsEqual(storedGitterRoomId2, dmRoom._id));
+
+      // Notice sent in old room that it is no longer briged and to use the new room
+      assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
     });
   });
 });

@@ -127,7 +127,7 @@ class MatrixEventHandler {
     this.matrixBridge = matrixBridge;
     this._gitterBridgeUsername = gitterBridgeUsername;
     this.matrixUtils = new MatrixUtils(matrixBridge);
-    this.gitterUtils = new GitterUtils(gitterBridgeUsername, matrixDmGroupUri);
+    this.gitterUtils = new GitterUtils(matrixBridge, gitterBridgeUsername, matrixDmGroupUri);
   }
 
   async onAliasQuery(alias, aliasLocalpart) {
@@ -395,23 +395,23 @@ class MatrixEventHandler {
         `Joined the bridged Gitter user (MXID=${event.state_key}) to the Matrix DM room (${event.room_id})`
       );
 
-      const dmRoom = await this.gitterUtils.getOrCreateGitterDmRoomByGitterUserIdAndOtherPersonMxid(
+      const gitterDmRoom = await this.gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
         event.room_id,
-        parsedGitterMxid.userId,
+        gitterUser,
         event.sender
       );
 
       logger.info(
-        `Joining Gitter user (username=${gitterUser.username}, userId=${parsedGitterMxid.userId}) to the DM room on Gitter (gitterRoomId=${dmRoom._id}, gitterRoomLcUri=${dmRoom.lcUri})`
+        `Joining Gitter user (username=${gitterUser.username}, userId=${parsedGitterMxid.userId}) to the DM room on Gitter (gitterRoomId=${gitterDmRoom._id}, gitterRoomLcUri=${gitterDmRoom.lcUri})`
       );
 
       // Join the Gitter user to the new Gitter DM room
-      await roomService.joinRoom(dmRoom, gitterUser, {
+      await roomService.joinRoom(gitterDmRoom, gitterUser, {
         tracking: { source: 'matrix-dm' }
       });
 
       logger.info(
-        `Done setting up DM room between Gitter user (username=${gitterUser.username}, userId=${parsedGitterMxid.userId}) and Matrix user (${event.sender}) -> gitterRoomId=${dmRoom._id}, gitterRoomLcUri=${dmRoom.lcUri}`
+        `Done setting up DM room between Gitter user (username=${gitterUser.username}, userId=${parsedGitterMxid.userId}) and Matrix user (${event.sender}) -> gitterRoomId=${gitterDmRoom._id}, gitterRoomLcUri=${gitterDmRoom.lcUri}`
       );
 
       return null;
