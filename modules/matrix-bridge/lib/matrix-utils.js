@@ -198,6 +198,10 @@ class MatrixUtils {
 
     const bridgeIntent = this.matrixBridge.getIntent();
 
+    // Set the aliases first because we can always change our own aliases
+    // But not be able to control the room itself to update the name/topic, etc
+    await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
+
     await this.ensureStateEvent(matrixRoomId, 'm.room.name', {
       name: gitterRoom.uri
     });
@@ -242,8 +246,6 @@ class MatrixUtils {
       redact: 50,
       invite: 0
     });
-
-    await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
 
     // Set the room avatar
     const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
