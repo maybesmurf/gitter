@@ -62,6 +62,12 @@
       "matrix-bridge-prod": "matrix"
     }
   },
+  "spam-detection": {
+    "ethereum-dirty-group-list": [
+      "57542c12c43b8c601976fa66",
+      "57542beec43b8c601976e3c5"
+    ]
+  },
   "notifications": {
     "notificationsSender": "support@gitter.im",
     "replyToAddress": "no-reply@gitter.im",

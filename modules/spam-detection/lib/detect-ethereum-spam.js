@@ -1,47 +1,44 @@
 'use strict';
 
 const assert = require('assert');
-const Promise = require('bluebird');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
-const identityService = require('gitter-web-identity');
 
-// Super basic ethereum spam detection
-// - `Send 3ETH 0x31999626cDc00c877530b64c209707Ad0ED556fE`
-// - `sent 5 ETH 0x519040d1Daa5Ab78b9C87F825A38b5464Cd3828d`
-const ETH_SPAM_RE = /sen[dt]\s+\d+(\s+)?eth\s+0x[0-9a-f]+/i;
+// Super basic Ethereum spam detection
+// - `0x31999626cDc00c877530b64c209707Ad0ED556fE`
+// - `0x519040d1Daa5Ab78b9C87F825A38b5464Cd3828d`
+const ETH_SPAM_RE = /^0x[0-9a-f]{40}$/i;
 
-function detectTwitterUser(user) {
-  return identityService
-    .getIdentityForUser(user, identityService.TWITTER_IDENTITY_PROVIDER)
-    .then(twitterIdentity => {
-      return !!twitterIdentity;
-    });
-}
-
-function detectBadGroup(targetGroupId, groupIdBlackList = []) {
+function detectDirtyGroup(targetGroupId, dirtyGroupList = []) {
   if (!targetGroupId) {
     return false;
   }
 
-  return groupIdBlackList.some(groupId => {
+  return dirtyGroupList.some(groupId => {
     return mongoUtils.objectIDsEqual(groupId, targetGroupId);
   });
 }
 
-function detect({ groupId, groupIdBlackList = [], user, text }) {
+async function detect({
+  groupId,
+  // List of groups that we should clean Ethereum spam in
+  dirtyGroupList = [],
+  user,
+  text
+}) {
   assert(user);
   assert(text);
 
-  return Promise.props({
-    isTwitterUser: detectTwitterUser(user),
-    isBadGroup: detectBadGroup(groupId, groupIdBlackList)
-  }).then(({ isTwitterUser, isBadGroup }) => {
-    if (!isTwitterUser || !isBadGroup) {
-      return false;
-    }
+  if (!dirtyGroupList || dirtyGroupList.length === 0) {
+    return false;
+  }
 
-    return ETH_SPAM_RE.test(text);
-  });
+  const isDirtyGroup = await detectDirtyGroup(groupId, dirtyGroupList);
+
+  if (!isDirtyGroup) {
+    return false;
+  }
+
+  return ETH_SPAM_RE.test(text);
 }
 
 module.exports = detect;
