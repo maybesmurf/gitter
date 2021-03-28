@@ -9,6 +9,7 @@ Developer facing:
  - Be able to provide both debugging Node args (instead of one or the other), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2141
  - Allow 0 minimum days in `scripts/utils/auto-remove-from-room.js` utilty script, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2145
  - Allow setting the group `avatarUrl` to anything, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2146
+ - Ensure Matrix alias updated first, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2148
 
 
 # 21.21.0 - 2021-03-04
