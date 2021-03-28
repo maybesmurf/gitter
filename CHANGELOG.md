@@ -3,6 +3,7 @@
  - Remove deleted Gitter rooms from the homepage, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2143
  - Remove references to `support.gitter.im` (in favor of documentation on GitLab), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2144
  - Update to stable release of `matrix-appservice-bridge@2.6.0` after rc1, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2142
+ - Detect and remove Ethereum spam, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2149
 
 Developer facing:
 
