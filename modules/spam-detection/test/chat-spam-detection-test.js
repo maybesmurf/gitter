@@ -9,13 +9,18 @@ var User = require('gitter-web-persistence').User;
 describe('chat-spam-detection', function() {
   describe('integration tests #slow', function() {
     var fixture = fixtureLoader.setupEach({
-      user1: {}
+      user1: {},
+      troupe1: {}
     });
 
     it('should mark messages from hellbanned user as spam', async () => {
       fixture.user1.hellbanned = true;
-      const isSpammy = await chatSpamDetection.detect(fixture.user1, {
-        text: 'Message from a banned user'
+      const isSpammy = await chatSpamDetection.detect({
+        user: fixture.user1,
+        room: fixture.troupe1,
+        parsedMessage: {
+          text: 'Message from a banned user'
+        }
       });
       assert(isSpammy);
     });
@@ -28,8 +33,12 @@ describe('chat-spam-detection', function() {
 
       return Promise.each(COUNTER, function(v, index) {
         return chatSpamDetection
-          .detect(fixture.user1, {
-            text: '0123456789012345678912'
+          .detect({
+            user: fixture.user1,
+            room: fixture.troupe1,
+            parsedMessage: {
+              text: '0123456789012345678912'
+            }
           })
           .then(function(isSpammy) {
             var expected = index >= 10;
