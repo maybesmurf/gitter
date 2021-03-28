@@ -1,46 +1,89 @@
 'use strict';
 
-var env = require('gitter-web-env');
-var logger = env.logger.get('spam-detection');
-var Promise = require('bluebird');
-var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
-var duplicateChatDetector = require('./duplicate-chat-detector');
+const assert = require('assert');
+const env = require('gitter-web-env');
+const logger = env.logger.get('spam-detection');
+const Promise = require('bluebird');
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const duplicateChatDetector = require('./duplicate-chat-detector');
+const detectEthereumSpam = require('./detect-ethereum-spam');
 const userService = require('gitter-web-users');
-var stats = env.stats;
+const chatService = require('gitter-web-chats');
+const stats = env.stats;
+const config = env.config;
 
-var ONE_DAY_TIME = 24 * 60 * 60 * 1000; // One day
-var PROBATION_PERIOD = 14 * ONE_DAY_TIME;
+const ETHEREUM_DIRTY_GROUP_LIST = config.get('spam-detection:ethereum-dirty-group-list');
+
+const ONE_DAY_TIME = 24 * 60 * 60 * 1000; // One day
+const PROBATION_PERIOD = 14 * ONE_DAY_TIME;
 
 /**
  * Super basic spam detection
  */
-function detect(user, parsedMessage) {
+async function detect({ room, user, parsedMessage }) {
+  assert(room);
+  assert(user);
+  assert(parsedMessage);
+
   // Once a spammer, always a spammer....
   if (user.hellbanned) return true;
 
-  var userId = user._id;
-  var userCreated = mongoUtils.getTimestampFromObjectId(userId);
+  const roomId = room.id || room._id;
+  const userId = user.id || user._id;
+  const userCreated = mongoUtils.getTimestampFromObjectId(userId);
 
   // Outside of the probation period? For now, let them do anything
   if (Date.now() - userCreated > PROBATION_PERIOD) {
     return false;
   }
 
-  return duplicateChatDetector(userId, parsedMessage.text).tap(function(isSpamming) {
-    if (!isSpamming) return;
+  const spamResults = await Promise.all([
+    duplicateChatDetector(userId, parsedMessage.text),
+    detectEthereumSpam({
+      groupId: room && room.groupId,
+      dirtyGroupList: ETHEREUM_DIRTY_GROUP_LIST,
+      user,
+      text: parsedMessage.text
+    })
+  ]);
 
+  const [isBulkSpammer, isEthereumSpammer] = spamResults;
+
+  if (isBulkSpammer) {
+    stats.event('spam_detection.bulk_spam_detected', {
+      userId: userId
+    });
+  }
+
+  if (isEthereumSpammer) {
+    stats.event('spam_detection.ethereum_spam_detected', {
+      userId: userId
+    });
+
+    // Clean up all of their messages in the room
+    // as it is probably just them begging for Ethereum in different ways
+    await chatService.removeAllMessagesForUserIdInRoomId(userId, roomId);
+  }
+
+  const isSpamming = spamResults.some(result => {
+    return result;
+  });
+
+  if (isSpamming) {
     logger.warn('Auto spam detector to hellban user for suspicious activity', {
-      userId: user._id,
+      userId,
       username: user.username,
       text: parsedMessage.text
     });
 
     stats.event('auto_hellban_user', {
-      userId: user._id
+      userId: userId
     });
 
-    return userService.hellbanUser(userId);
-  });
+    await userService.hellbanUser(userId);
+  }
+
+  return isSpamming;
 }
 
 module.exports = {

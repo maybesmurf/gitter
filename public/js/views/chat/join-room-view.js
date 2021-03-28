@@ -65,9 +65,11 @@ var JoinRoomView = Marionette.ItemView.extend({
   serializeData: function() {
     var userProviders = context.user().get('providers');
     var troupeProviders = context.troupe().get('providers');
+    const matrixRoomLink = context.troupe().get('matrixRoomLink');
     return {
       allowJoin: userCanJoinRoom(userProviders, troupeProviders),
-      disallowJoinReason: makeRoomProviderSentence(troupeProviders)
+      disallowJoinReason: makeRoomProviderSentence(troupeProviders),
+      matrixRoomLink
     };
   }
 });

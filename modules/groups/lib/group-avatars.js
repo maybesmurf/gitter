@@ -80,6 +80,9 @@ function getGroupAvatarUrlForSize(group, size) {
 
     return url.format(parsed);
   }
+
+  // Just use the original
+  return avatarUrl;
 }
 
 /**

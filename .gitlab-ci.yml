@@ -340,9 +340,7 @@ deploy_beta:
       when: never
     - <<: *if-develop-branch
   script:
-    - cd $ANSIBLE_DIR
-    - git checkout xenial && git pull origin xenial
-    - ansible-playbook -i beta --vault-password-file "/root/.vault_pass" playbooks/gitter/webapp-deploy.yml
+    - cd $ANSIBLE_DIR && ansible-playbook -i beta --vault-password-file "/root/.vault_pass" playbooks/gitter/webapp-deploy.yml
   environment:
     name: beta
     url: https://beta.gitter.im
@@ -358,9 +356,7 @@ deploy_beta_staging:
     - when: manual
       allow_failure: true
   script:
-    - cd $ANSIBLE_DIR
-    - git checkout xenial && git pull origin xenial
-    - ansible-playbook -i beta --vault-password-file "/root/.vault_pass" playbooks/gitter/webapp-staging-deploy.yml
+    - cd $ANSIBLE_DIR && ansible-playbook -i beta --vault-password-file "/root/.vault_pass" playbooks/gitter/webapp-staging-deploy.yml
   environment:
     name: beta_staging
     url: https://beta.gitter.im?gitter_next=true

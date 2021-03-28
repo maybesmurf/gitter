@@ -13,6 +13,10 @@ const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
+const {
+  getCanonicalAliasLocalpartForGitterRoomUri,
+  getCanonicalAliasForGitterRoomUri
+} = require('./matrix-alias-utils');
 
 const store = require('./store');
 
@@ -62,13 +66,9 @@ class MatrixUtils {
     this.matrixBridge = matrixBridge;
   }
 
-  getCanonicalAliasForGitterRoomUri(uri) {
-    return uri.replace('/', '_');
-  }
-
   async createMatrixRoomByGitterRoomId(gitterRoomId) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
-    const roomAlias = this.getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
+    const roomAlias = getCanonicalAliasLocalpartForGitterRoomUri(gitterRoom.uri);
 
     const bridgeIntent = this.matrixBridge.getIntent();
 
@@ -182,13 +182,13 @@ class MatrixUtils {
     const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
     // Set the human-readable room aliases
-    const roomAlias = this.getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
-    await this.ensureRoomAlias(matrixRoomId, `#${roomAlias}:${serverName}`);
+    const roomAlias = getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
+    await this.ensureRoomAlias(matrixRoomId, roomAlias);
     // Add another alias for the room ID
     await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${serverName}`);
     // Add a lowercase alias if necessary
     if (roomAlias.toLowerCase() !== roomAlias) {
-      await this.ensureRoomAlias(matrixRoomId, `#${roomAlias.toLowerCase()}:${serverName}`);
+      await this.ensureRoomAlias(matrixRoomId, roomAlias.toLowerCase());
     }
   }
 
@@ -197,6 +197,10 @@ class MatrixUtils {
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
 
     const bridgeIntent = this.matrixBridge.getIntent();
+
+    // Set the aliases first because we can always change our own aliases
+    // But not be able to control the room itself to update the name/topic, etc
+    await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
 
     await this.ensureStateEvent(matrixRoomId, 'm.room.name', {
       name: gitterRoom.uri
@@ -218,7 +222,30 @@ class MatrixUtils {
       join_rule: 'public'
     });
 
-    await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
+    const bridgeMxid = this.getMxidForMatrixBridgeUser();
+    // https://matrix.org/docs/spec/client_server/r0.2.0#m-room-power-levels
+    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+      users_default: 0,
+      users: {
+        [bridgeMxid]: 100
+      },
+      events: {
+        'm.room.avatar': 50,
+        'm.room.canonical_alias': 50,
+        'm.room.encryption': 100,
+        'm.room.history_visibility': 100,
+        'm.room.name': 50,
+        'm.room.power_levels': 100,
+        'm.room.server_acl': 100,
+        'm.room.tombstone': 100
+      },
+      events_default: 0,
+      state_default: 50,
+      ban: 50,
+      kick: 50,
+      redact: 50,
+      invite: 0
+    });
 
     // Set the room avatar
     const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);

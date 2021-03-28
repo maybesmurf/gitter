@@ -1,11 +1,49 @@
-# 21.18.0 - 2021-1-25
+# 21.22.0 - 2021-03-27
+
+ - Remove deleted Gitter rooms from the homepage, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2143
+ - Remove references to `support.gitter.im` (in favor of documentation on GitLab), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2144
+ - Update to stable release of `matrix-appservice-bridge@2.6.0` after rc1, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2142
+ - Detect and remove Ethereum spam, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2149
+
+Developer facing:
+
+ - Be able to provide both debugging Node args (instead of one or the other), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2141
+ - Allow 0 minimum days in `scripts/utils/auto-remove-from-room.js` utilty script, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2145
+ - Allow setting the group `avatarUrl` to anything, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2146
+ - Ensure Matrix alias updated first, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2148
+
+
+# 21.21.0 - 2021-03-04
+
+Developer facing:
+
+ - Stop Bluebird promise created but not returned warning when sending a message in a room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2133
+ - Add utility script to update specific bridged Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2135
+ - Update `matrix-appservice-bridge` to get healthcheck endpoint for monit, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2136
+
+
+# 21.20.0 - 2021-02-17
+
+ - Add chat via Matrix button, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2129
+
+
+# 21.19.0 - 2021-02-10
+
+ - Allow anyone to invite someone to the Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2128
+
+Developer facing:
+
+ - Fix `rename-room` utility script to inherit from new group, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2130
+
+
+# 21.18.0 - 2021-01-25
 
 Developer facing:
 
  - Better Matrix plumbed room migration, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2126
 
 
-# 21.17.0 - 2021-1-14
+# 21.17.0 - 2021-01-14
 
  - Make threaded messages reply to last message in thread when bridging to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2108
  - Bridge room updates to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2123

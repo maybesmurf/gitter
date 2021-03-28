@@ -38,12 +38,6 @@ var featuredRooms = [
     language: 'Deep Learning for Java',
     locale: 'en'
   },
-  {
-    uri: 'numenta/public',
-    name: 'Numenta',
-    language: 'Machine Intelligence Research',
-    locale: 'en'
-  },
   { uri: 'Aurelia/Discuss', name: 'Aurelia', language: 'JavaScript', locale: 'en' },
   { uri: 'Dogfalo/materialize', name: 'Materialize', language: 'CSS', locale: 'en' },
   {

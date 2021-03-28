@@ -90,12 +90,15 @@ var HeaderView = Marionette.ItemView.extend({
     var isStaff = context.isStaff();
     var isAdmin = context.isTroupeAdmin();
     var canChangeGroupAvatar = data.groupId && (isStaff || isAdmin);
+    const matrixRoomLink = context.troupe().get('matrixRoomLink');
+
     _.extend(data, {
       headerView: getHeaderViewOptions(data),
       user: !!context.isLoggedIn(),
       archives: this.options.archives,
       shouldShowPlaceholderRoomTopic: data.userCount <= 1,
-      canChangeGroupAvatar: canChangeGroupAvatar
+      canChangeGroupAvatar: canChangeGroupAvatar,
+      matrixRoomLink
     });
 
     return data;
