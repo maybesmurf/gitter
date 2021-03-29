@@ -6,6 +6,7 @@ var _ = require('lodash');
 var unreadItemService = require('gitter-web-unread-items');
 var getVersion = require('gitter-web-serialization/lib/get-model-version');
 var UserIdStrategy = require('./user-id-strategy');
+const TroupeIdStrategy = require('./troupe-id-strategy');
 var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 var Promise = require('bluebird');
 const {
@@ -52,6 +53,7 @@ function ChatStrategy({
   user,
   currentUserId,
   serializeFromUserId = true,
+  serializeToTroupeId = false,
   troupeId,
   initialId
 } = {}) {
@@ -72,7 +74,7 @@ function ChatStrategy({
     }
   }
 
-  var userStrategy, unreadItemStrategy;
+  var userStrategy, troupeStrategy, unreadItemStrategy;
 
   this.preload = function(items) {
     if (items.isEmpty()) return;
@@ -87,6 +89,15 @@ function ChatStrategy({
         return i.fromUserId;
       });
       strategies.push(userStrategy.preload(users));
+    }
+
+    if (serializeToTroupeId) {
+      troupeStrategy = new TroupeIdStrategy({ lean });
+
+      const troupeIds = items.map(function(i) {
+        return i.toTroupeId;
+      });
+      strategies.push(troupeStrategy.preload(troupeIds));
     }
 
     if (currentUserId) {
@@ -185,6 +196,10 @@ function ChatStrategy({
       highlights: item.highlights,
       v: getVersion(item)
     };
+
+    if (troupeStrategy) {
+      serializedData.toTroupe = troupeStrategy.map(item.toTroupeId);
+    }
 
     if (item.virtualUser) {
       serializedData.virtualUser = {
