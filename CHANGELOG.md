@@ -1,3 +1,10 @@
+# 21.23.0 - *upcoming**
+
+Developer facing:
+
+ - Serialize room in report dashboard for easier reference, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2151
+
+
 # 21.22.0 - 2021-03-27
 
  - Remove deleted Gitter rooms from the homepage, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2143
