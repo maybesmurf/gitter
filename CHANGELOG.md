@@ -1,5 +1,7 @@
 # 21.23.0 - *upcoming**
 
+ - Add Matrix DM support so Matrix users can start a DM with a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2134
+
 Developer facing:
 
  - Serialize room in report dashboard for easier reference, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2151
