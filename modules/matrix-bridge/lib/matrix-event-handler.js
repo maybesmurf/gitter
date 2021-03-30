@@ -4,6 +4,7 @@ const debug = require('debug')('gitter:app:matrix-bridge:matrix-event-handler');
 const assert = require('assert');
 const chatService = require('gitter-web-chats');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
+const roomService = require('gitter-web-rooms');
 const userService = require('gitter-web-users');
 const generatePermalink = require('gitter-web-shared/chat/generate-permalink');
 const env = require('gitter-web-env');
@@ -13,7 +14,9 @@ const logger = env.logger;
 const store = require('./store');
 const transformMatrixEventContentIntoGitterMessage = require('./transform-matrix-event-content-into-gitter-message');
 const MatrixUtils = require('./matrix-utils');
-const { isGitterRoomIdAllowedToBridge } = require('./gitter-utils');
+const GitterUtils = require('./gitter-utils');
+const parseGitterMxid = require('./parse-gitter-mxid');
+const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 
 // 30 minutes in milliseconds
 const MAX_EVENT_ACCEPTANCE_WINDOW = 1000 * 60 * 30;
@@ -114,7 +117,7 @@ async function findGitterRoomFromAliasLocalPart(aliasLocalpart) {
 }
 
 class MatrixEventHandler {
-  constructor(matrixBridge, gitterBridgeUsername) {
+  constructor(matrixBridge, gitterBridgeUsername, matrixDmGroupUri = 'matrix') {
     assert(matrixBridge, 'Matrix bridge required');
     assert(
       gitterBridgeUsername,
@@ -124,6 +127,7 @@ class MatrixEventHandler {
     this.matrixBridge = matrixBridge;
     this._gitterBridgeUsername = gitterBridgeUsername;
     this.matrixUtils = new MatrixUtils(matrixBridge);
+    this.gitterUtils = new GitterUtils(matrixBridge, gitterBridgeUsername, matrixDmGroupUri);
   }
 
   async onAliasQuery(alias, aliasLocalpart) {
@@ -171,11 +175,8 @@ class MatrixEventHandler {
       return await this.handleChatMessageDeleteEvent(event);
     }
 
-    if (
-      event.type === 'm.room.member' &&
-      event.state_key === this.matrixUtils.getMxidForMatrixBridgeUser()
-    ) {
-      return await this.handleBotInvitationEvent(event);
+    if (event.type === 'm.room.member' && event.content && event.content.membership === 'invite') {
+      return await this.handleInvitationEvent(event);
     }
   }
 
@@ -246,6 +247,11 @@ class MatrixEventHandler {
     const matrixRoomId = event.room_id;
 
     const gitterRoomId = await store.getGitterRoomIdByMatrixRoomId(matrixRoomId);
+    if (!gitterRoomId) {
+      debug(`Ignoring message for Matrix room that is not bridged ${matrixRoomId}`);
+      return null;
+    }
+
     const gitterRoom = await troupeService.findById(gitterRoomId);
 
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoom.id || gitterRoom._id);
@@ -354,12 +360,64 @@ class MatrixEventHandler {
     return null;
   }
 
-  async handleBotInvitationEvent(event) {
-    logger.info(
-      `Our Matrix bridge bot user was invited to a room, let's join it (room_id=${event.room_id})`
-    );
-    const intent = this.matrixBridge.getIntent();
-    await intent.join(event.room_id);
+  async handleInvitationEvent(event) {
+    if (event.state_key === this.matrixUtils.getMxidForMatrixBridgeUser()) {
+      logger.info(
+        `Our Matrix bridge bot user was invited to a room, let's join it (room_id=${event.room_id})`
+      );
+      const intent = this.matrixBridge.getIntent();
+      await intent.join(event.room_id);
+      return null;
+    }
+
+    // Someone started a DM conversation with a Gitter user on Matrix
+    const parsedGitterMxid = parseGitterMxid(event.state_key);
+    if (event.content.is_direct && parsedGitterMxid) {
+      const gitterUser = await userService.findById(parsedGitterMxid.userId);
+      if (!gitterUser) {
+        throw new Error(
+          `Unable to find Gitter user with userId=${parsedGitterMxid.userId} (MXID=${event.state_key}, parsedGitterMxid=${parsedGitterMxid}) that ${event.sender} is trying to start a one to one (DM) conversation with`
+        );
+      }
+
+      logger.info(
+        `${event.sender} from Matrix started a DM conversation with a Gitter user ${gitterUser.username} (userId=${parsedGitterMxid.userId}, MXID=${event.state_key})`
+      );
+
+      // Join the bridged Gitter user to the Matrix DM room
+      const matrixId = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(
+        parsedGitterMxid.userId
+      );
+      const intent = this.matrixBridge.getIntent(matrixId);
+      await intent.join(event.room_id);
+
+      logger.info(
+        `Joined the bridged Gitter user (MXID=${event.state_key}) to the Matrix DM room (${event.room_id})`
+      );
+
+      const gitterDmRoom = await this.gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+        event.room_id,
+        gitterUser,
+        event.sender
+      );
+
+      logger.info(
+        `Joining Gitter user (username=${gitterUser.username}, userId=${parsedGitterMxid.userId}) to the DM room on Gitter (gitterRoomId=${gitterDmRoom._id}, gitterRoomLcUri=${gitterDmRoom.lcUri})`
+      );
+
+      // Join the Gitter user to the new Gitter DM room
+      await roomService.joinRoom(gitterDmRoom, gitterUser, {
+        tracking: { source: 'matrix-dm' }
+      });
+
+      logger.info(
+        `Done setting up DM room between Gitter user (username=${gitterUser.username}, userId=${parsedGitterMxid.userId}) and Matrix user (${event.sender}) -> gitterRoomId=${gitterDmRoom._id}, gitterRoomLcUri=${gitterDmRoom.lcUri}`
+      );
+
+      return null;
+    }
+
+    return null;
   }
 }
 
