@@ -4,9 +4,11 @@ const Promise = require('bluebird');
 const UserIdStrategy = require('./user-id-strategy');
 const ChatIdStrategy = require('./chat-id-strategy');
 
-function ChatMessageReportStrategy(options) {
-  const userIdStategy = new UserIdStrategy(options);
-  const chatIdStategy = new ChatIdStrategy(options);
+function ChatMessageReportStrategy() {
+  const userIdStategy = new UserIdStrategy();
+  const chatIdStategy = new ChatIdStrategy({
+    serializeToTroupeId: true
+  });
 
   this.preload = function(chatMessageReports) {
     // We can't use a `Array.reduce` because there is some magic `Sequence` methods expected that would get stripped :shrug:
@@ -15,10 +17,12 @@ function ChatMessageReportStrategy(options) {
 
     const chatIds = chatMessageReports.map(report => report.messageId);
 
-    return Promise.all([
+    const strategies = [
       userIdStategy.preload(reporterUserIds.concat(messageUserIds)),
       chatIdStategy.preload(chatIds)
-    ]);
+    ];
+
+    return Promise.all(strategies);
   };
 
   this.map = function(report) {
