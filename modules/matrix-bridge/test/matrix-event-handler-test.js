@@ -4,9 +4,14 @@ const assert = require('assert');
 const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const roomMembershipService = require('gitter-web-rooms/lib/room-membership-service');
+const chatService = require('gitter-web-chats');
+const troupeService = require('gitter-web-rooms/lib/troupe-service');
+
+const MatrixUtils = require('../lib/matrix-utils');
 const MatrixEventHandler = require('../lib/matrix-event-handler');
 const store = require('../lib/store');
-const chatService = require('gitter-web-chats');
+const GitterUtils = require('../lib/gitter-utils');
 
 function createEventData(extraEventData) {
   return {
@@ -21,6 +26,7 @@ function createEventData(extraEventData) {
 }
 
 describe('matrix-event-handler', () => {
+  let matrixUtils;
   let matrixEventHandler;
   let matrixBridge;
   beforeEach(() => {
@@ -34,6 +40,8 @@ describe('matrix-event-handler', () => {
         displayname: 'Alice',
         avatar_url: 'mxc://abcedf1234'
       }),
+      setDisplayName: () => {},
+      setAvatarUrl: () => {},
       getClient: (/*avatarUrl*/) => ({
         mxcUrlToHttp: () => 'myavatar.png'
       })
@@ -42,10 +50,13 @@ describe('matrix-event-handler', () => {
     matrixBridge = {
       getIntent: (/*userId*/) => intentSpies
     };
+
+    matrixUtils = new MatrixUtils(matrixBridge);
   });
 
   describe('onAliasQuery', () => {
     const fixture = fixtureLoader.setupEach({
+      group1: {},
       userBridge1: {},
       troupe1: {
         uri: 'matrixbridgealiasqueryoneunderscore/test'
@@ -77,7 +88,11 @@ describe('matrix-event-handler', () => {
     });
 
     beforeEach(() => {
-      matrixEventHandler = new MatrixEventHandler(matrixBridge, fixture.userBridge1.username);
+      matrixEventHandler = new MatrixEventHandler(
+        matrixBridge,
+        fixture.userBridge1.username,
+        fixture.group1.uri
+      );
     });
 
     it('Normal room is found (#foo_bar:gitter.im)', async () => {
@@ -135,6 +150,7 @@ describe('matrix-event-handler', () => {
     describe('handleChatMessageEditEvent', () => {
       const fixture = fixtureLoader.setupEach({
         userBridge1: {},
+        group1: {},
         troupe1: {},
         messageFromVirtualUser1: {
           user: 'userBridge1',
@@ -171,7 +187,11 @@ describe('matrix-event-handler', () => {
       });
 
       beforeEach(() => {
-        matrixEventHandler = new MatrixEventHandler(matrixBridge, fixture.userBridge1.username);
+        matrixEventHandler = new MatrixEventHandler(
+          matrixBridge,
+          fixture.userBridge1.username,
+          fixture.group1.uri
+        );
       });
 
       it('When we receive message edit from Matrix, update the Gitter message in Gitter room', async () => {
@@ -299,6 +319,7 @@ describe('matrix-event-handler', () => {
       const fixture = fixtureLoader.setupEach({
         userBridge1: {},
         user1: {},
+        group1: {},
         troupe1: {},
         troupeWithThreads1: {},
         troupePrivate1: {
@@ -322,7 +343,11 @@ describe('matrix-event-handler', () => {
       });
 
       beforeEach(() => {
-        matrixEventHandler = new MatrixEventHandler(matrixBridge, fixture.userBridge1.username);
+        matrixEventHandler = new MatrixEventHandler(
+          matrixBridge,
+          fixture.userBridge1.username,
+          fixture.group1.uri
+        );
       });
 
       it('When we receive Matrix message, creates Gitter message in Gitter room', async () => {
@@ -502,7 +527,8 @@ describe('matrix-event-handler', () => {
 
         matrixEventHandler = new MatrixEventHandler(
           failingMatrixBridge,
-          fixture.userBridge1.username
+          fixture.userBridge1.username,
+          fixture.group1.uri
         );
 
         const eventData = createEventData({
@@ -578,6 +604,7 @@ describe('matrix-event-handler', () => {
     describe('handleChatMessageDeleteEvent', () => {
       const fixture = fixtureLoader.setupEach({
         userBridge1: {},
+        group1: {},
         troupe1: {},
         messageFromVirtualUser1: {
           user: 'userBridge1',
@@ -592,7 +619,11 @@ describe('matrix-event-handler', () => {
       });
 
       beforeEach(() => {
-        matrixEventHandler = new MatrixEventHandler(matrixBridge, fixture.userBridge1.username);
+        matrixEventHandler = new MatrixEventHandler(
+          matrixBridge,
+          fixture.userBridge1.username,
+          fixture.group1.uri
+        );
       });
 
       it('When we receive Matrix message redaction/deletion, deletes Gitter message in Gitter room', async () => {
@@ -638,9 +669,11 @@ describe('matrix-event-handler', () => {
       });
     });
 
-    describe('handleBotInvitationEvent', () => {
+    describe('handleInvitationEvent', () => {
       const fixture = fixtureLoader.setupEach({
         userBridge1: {},
+        group1: {},
+        user1: {},
         troupe1: {},
         messageFromVirtualUser1: {
           user: 'userBridge1',
@@ -655,30 +688,129 @@ describe('matrix-event-handler', () => {
       });
 
       beforeEach(() => {
-        matrixEventHandler = new MatrixEventHandler(matrixBridge, fixture.userBridge1.username);
+        matrixEventHandler = new MatrixEventHandler(
+          matrixBridge,
+          fixture.userBridge1.username,
+          fixture.group1.uri
+        );
       });
 
       it('When we receive a Matrix invite, the bridge bot user joins the room', async () => {
         const eventData = createEventData({
           type: 'm.room.member',
-          state_key: '@gitter-badger:my.matrix.host'
+          state_key: '@gitter-badger:my.matrix.host',
+          content: {
+            membership: 'invite'
+          }
         });
 
         await matrixEventHandler.onEventData(eventData);
 
-        // Room is created for something that hasn't been bridged before
+        // Bot joins the room
         assert.strictEqual(matrixBridge.getIntent().join.callCount, 1);
       });
 
       it('When we receive a Matrix invite for another user, does not cause our bot to try to join the room', async () => {
         const eventData = createEventData({
           type: 'm.room.member',
-          state_key: '@some-random-user:my.matrix.host'
+          state_key: '@some-random-user:my.matrix.host',
+          content: {
+            membership: 'invite'
+          }
         });
 
         await matrixEventHandler.onEventData(eventData);
 
-        // Room is created for something that hasn't been bridged before
+        // Bot does not join the room
+        assert.strictEqual(matrixBridge.getIntent().join.callCount, 0);
+      });
+
+      it('When we receive a Matrix DM invite for a Gitter user, creates a Gitter room', async () => {
+        const eventData = createEventData({
+          type: 'm.room.member',
+          state_key: matrixUtils.getMxidForGitterUser(fixture.user1),
+          content: {
+            membership: 'invite',
+            is_direct: true
+          }
+        });
+
+        await matrixEventHandler.onEventData(eventData);
+
+        // Bridged gitter user joins the room on Matrix
+        assert.strictEqual(matrixBridge.getIntent().join.callCount, 1);
+
+        // Gitter user joins the new DM room on Gitter
+        const gitterUtils = new GitterUtils(
+          matrixBridge,
+          fixture.userBridge1.username,
+          fixture.group1.uri
+        );
+        const newDmRoom = await troupeService.findByUri(
+          gitterUtils.getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(
+            fixture.user1.id,
+            eventData.sender
+          )
+        );
+        assert(newDmRoom);
+        const isRoomMember = await roomMembershipService.checkRoomMembership(
+          newDmRoom._id,
+          fixture.user1.id
+        );
+        assert.strictEqual(isRoomMember, true);
+      });
+
+      it('Ignores non-DM invites for Gitter users', async () => {
+        const eventData = createEventData({
+          type: 'm.room.member',
+          state_key: matrixUtils.getMxidForGitterUser(fixture.user1),
+          content: {
+            membership: 'invite'
+            // This is commented out on purpose! We're testing an invite to a normal room
+            //is_direct: true
+          }
+        });
+
+        await matrixEventHandler.onEventData(eventData);
+
+        // Bridged gitter user joins nothing
+        assert.strictEqual(matrixBridge.getIntent().join.callCount, 0);
+      });
+
+      it('Does not work with non-existant Gitter user', async () => {
+        const eventData = createEventData({
+          type: 'm.room.member',
+          state_key: matrixUtils.getMxidForGitterUser({
+            id: '553d437215522ed4b3df8c50',
+            username: 'some-deleted-user'
+          }),
+          content: {
+            membership: 'invite',
+            is_direct: true
+          }
+        });
+
+        try {
+          await matrixEventHandler.onEventData(eventData);
+          assert.ok(false);
+        } catch (err) {
+          assert(err);
+        }
+      });
+
+      it(`Invites for non Gitter MXID's are ignored`, async () => {
+        const eventData = createEventData({
+          type: 'm.room.member',
+          state_key: '@some-random-mxid:matrix.org',
+          content: {
+            membership: 'invite',
+            is_direct: true
+          }
+        });
+
+        await matrixEventHandler.onEventData(eventData);
+
+        // No joins or room creation happen
         assert.strictEqual(matrixBridge.getIntent().join.callCount, 0);
       });
     });
