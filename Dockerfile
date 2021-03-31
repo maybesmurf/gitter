@@ -1,4 +1,4 @@
-FROM node:10.19.0-buster-slim
+FROM node:10.24.0-buster-slim
 
 RUN mkdir -p /app
 RUN mkdir -p /npm_cache
