@@ -1,7 +1,6 @@
 # 21.23.0 - 2021-03-30
 
  - Add Matrix DM support so Matrix users can start a DM with a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2134
- - Try updates in pre-release version of `matrix-appservice-bridge`
 
 Developer facing:
 
