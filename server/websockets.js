@@ -1,7 +1,5 @@
 'use strict';
 
-require('./utils/diagnostics');
-
 var env = require('gitter-web-env');
 var winston = env.logger;
 var nconf = env.config;

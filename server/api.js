@@ -1,7 +1,5 @@
 'use strict';
 
-require('./utils/diagnostics');
-
 /* Configure winston before all else! */
 const env = require('gitter-web-env');
 const winston = env.logger;
