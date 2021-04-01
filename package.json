@@ -223,7 +223,7 @@
     "eslint-plugin-vue": "^5.2.2",
     "faye": "^1.1.2",
     "gulp": "^3.9.1",
-    "gulp-brotli": "^1.1.0",
+    "gulp-brotli": "^1.2.2",
     "gulp-codecov": "^3.0.5",
     "gulp-eslint": "^5.0.0",
     "gulp-filter": "^4.0.0",
