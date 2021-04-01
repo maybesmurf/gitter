@@ -3,6 +3,7 @@
 Developer facing:
 
  - Remove heapdump for easier Node v14 compat -> Remove diagnostics, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2156
+ - Other updates for Node v14 compat: `cld`, `gulp-brotli` (`iltorb`), `graceful-fs` (`gulp@3.9.1`), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2157
 
 
 # 21.23.0 - 2021-03-30
