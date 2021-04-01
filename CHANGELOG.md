@@ -1,3 +1,10 @@
+# 21.24.0 - *upcoming*
+
+Developer facing:
+
+ - Remove heapdump for easier Node v14 compat -> Remove diagnostics, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2156
+
+
 # 21.23.0 - 2021-03-30
 
  - Add Matrix DM support so Matrix users can start a DM with a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2134
