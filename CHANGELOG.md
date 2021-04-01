@@ -1,5 +1,7 @@
 # 21.24.0 - *upcoming*
 
+ - Fix NPE when looking for the associated room for a given message from a report, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2158
+
 Developer facing:
 
  - Remove heapdump for easier Node v14 compat -> Remove diagnostics, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2156
