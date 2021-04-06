@@ -1,5 +1,6 @@
-# 21.24.0 - *upcoming*
+# 21.24.0 - 2021-04-06
 
+ - Fix opt out of the create room notification emails, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2160
  - Fix NPE when looking for the associated room for a given message from a report, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2158
 
 Developer facing:
