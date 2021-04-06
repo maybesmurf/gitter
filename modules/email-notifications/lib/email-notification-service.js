@@ -215,7 +215,18 @@ module.exports = {
    * user     User - the room's owner
    * room     Room - the room
    */
-  createdRoomNotification: Promise.method(function(user, room) {
+  createdRoomNotification: Promise.method(async function(user, room) {
+    const optout = await userSettingsService.getUserSettings(
+      user.id,
+      'unread_notifications_optout'
+    );
+    if (optout) {
+      logger.info(
+        'Skipping email createdRoomNotification for ' + user.username + ' because opt-out'
+      );
+      return;
+    }
+
     var plaintext = user.id + ',' + 'created_room';
     var cipher = crypto.createCipher('aes256', passphrase);
     var hash = cipher.update(plaintext, 'utf8', 'hex') + cipher.final('hex');
