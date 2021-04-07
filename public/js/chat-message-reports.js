@@ -84,7 +84,7 @@ const ReportView = Marionette.ItemView.extend({
           </a>
         </div>
         <div class="admin-chat-report-table-room-cell-id">
-          ${_.escape(data.message && data.message.toTroupe.id)}
+          ${_.escape(data.message && data.message.toTroupe && data.message.toTroupe.id)}
         </div>
       </td>
     `;

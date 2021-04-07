@@ -1,3 +1,14 @@
+# 21.24.0 - 2021-04-06
+
+ - Fix opt out of the create room notification emails, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2160
+ - Fix NPE when looking for the associated room for a given message from a report, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2158
+
+Developer facing:
+
+ - Remove heapdump for easier Node v14 compat -> Remove diagnostics, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2156
+ - Other updates for Node v14 compat: `cld`, `gulp-brotli` (`iltorb`), `graceful-fs` (`gulp@3.9.1`), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2157
+
+
 # 21.23.0 - 2021-03-30
 
  - Add Matrix DM support so Matrix users can start a DM with a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2134
