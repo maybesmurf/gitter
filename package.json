@@ -8,6 +8,7 @@
     "@gitterhq/cal-heatmap": "^3.6.1",
     "@gitterhq/env": "^0.47.0",
     "@gitterhq/faye-redis": "^0.4.4",
+    "@gitterhq/matrix-appservice-bridge": "^2.6.0-pre-rc",
     "@gitterhq/services": "^1.26.0",
     "@gitterhq/styleguide": "^2.3.0",
     "apn": "^1.7.5",
