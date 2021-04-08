@@ -23,8 +23,6 @@ const hsToken = config.get('matrix:bridge:hsToken');
 const asToken = config.get('matrix:bridge:asToken');
 // The bridge user we are using to interact with everything on the Matrix side
 const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLocalpart');
-// The backing user we are sending messages with on the Gitter side
-const gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername');
 
 const registrationConfig = AppServiceRegistration.fromObject({
   id: bridgeId,
@@ -112,6 +110,6 @@ const matrixBridge = new Bridge({
   }
 });
 
-eventHandler = new MatrixEventHandler(matrixBridge, gitterBridgeUsername, 'matrix');
+eventHandler = new MatrixEventHandler(matrixBridge);
 
 module.exports = matrixBridge;

@@ -36,6 +36,17 @@ function discoverUserUri(uri) {
   return persistence.User.findOne({ username: uri }, 'username', { lean: true }).exec();
 }
 
+function discoverMatrixDmUri(uri) {
+  const uriPieces = uri.split('/');
+
+  // We're only looking for `matrix/123abc/@root:matrix.org` which has 3 pieces
+  if (uriPieces.length !== 3 || uriPieces[0] !== 'matrix') {
+    return null;
+  }
+
+  return persistence.User.findOne({ username: uri }, 'username', { lean: true }).exec();
+}
+
 function discoverRoomUri(lcUri) {
   return persistence.Troupe.findOne({ lcUri: lcUri }, 'uri', { lean: true }).exec();
 }
@@ -61,6 +72,7 @@ function discoverUri(uri) {
     discoverUserUri(uri),
     discoverRoomUri(lcUri),
     discoverGroupUri(lcUri),
+    discoverMatrixDmUri(lcUri),
     function(user, troupe, group) {
       debug('Found user=%s troupe=%s group=%s', !!user, !!troupe, !!group);
 

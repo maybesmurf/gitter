@@ -8,12 +8,19 @@ const userService = require('gitter-web-users');
 
 const env = require('gitter-web-env');
 const logger = env.logger;
+const config = env.config;
 
 const store = require('./store');
 const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
+const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
 
 class GitterUtils {
-  constructor(matrixBridge, gitterBridgeUsername, matrixDmGroupUri = 'matrix') {
+  constructor(
+    matrixBridge,
+    // The backing user we are sending messages with on the Gitter side
+    gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername'),
+    matrixDmGroupUri = 'matrix'
+  ) {
     assert(matrixBridge);
     assert(
       gitterBridgeUsername,
@@ -26,24 +33,11 @@ class GitterUtils {
     this._matrixDmGroupUri = matrixDmGroupUri;
   }
 
-  getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid) {
+  async createGitterDmRoomByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid) {
     assert(gitterUserId);
     assert(otherPersonMxid);
 
-    const gitterRoomUri = `matrix/${gitterUserId}/${otherPersonMxid}`;
-    return gitterRoomUri;
-  }
-
-  async createGitterDmRoomByGitterUserIdAndOtherPersonMxid(
-    matrixRoomId,
-    gitterUserId,
-    otherPersonMxid
-  ) {
-    assert(matrixRoomId);
-    assert(gitterUserId);
-    assert(otherPersonMxid);
-
-    const gitterRoomUri = this.getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(
+    const gitterRoomUri = getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(
       gitterUserId,
       otherPersonMxid
     );
@@ -77,20 +71,10 @@ class GitterUtils {
       }
     );
 
-    logger.info(
-      `Storing bridged DM room (Gitter room id=${newDmRoom._id} -> Matrix room_id=${matrixRoomId}): ${newDmRoom.lcUri}`
-    );
-    await store.storeBridgedRoom(newDmRoom._id, matrixRoomId);
-
     return newDmRoom;
   }
 
-  async getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
-    matrixRoomId,
-    gitterUser,
-    otherPersonMxid
-  ) {
-    assert(matrixRoomId);
+  async getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
     assert(gitterUser);
     assert(otherPersonMxid);
 
@@ -98,35 +82,9 @@ class GitterUtils {
 
     // Check to see if the DM room on Gitter already exists with this person
     const gitterDmRoom = await troupeService.findByUri(
-      this.getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid)
+      getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid)
     );
     if (gitterDmRoom) {
-      // If the Matrix user previously DM'ed the Gitter user from a different room,
-      // send a notice that the old room won't bridge anymore and to use the new room.
-      const previousMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterDmRoom._id);
-      if (previousMatrixRoomId && previousMatrixRoomId !== matrixRoomId) {
-        const matrixContent = {
-          body: `This DM will no longer bridge to Gitter. Please use the new DM room -> https://matrix.to/#/${matrixRoomId}`,
-          msgtype: 'm.notice'
-        };
-
-        logger.info(
-          `Sending notice to previousMatrixRoomId=${previousMatrixRoomId} that it will no longer bridge because matrixRoomId=${matrixRoomId} is the new DM room`
-        );
-        // We have to use the Gitter user intent because the bridge bot
-        // is not in the DM conversation. Only 2 people can be in the `is_direct`
-        // DM for it to be catogorized under the "people" heading in Element.
-        const mxid = getMxidForGitterUser(gitterUser);
-        const intent = this.matrixBridge.getIntent(mxid);
-        await intent.sendMessage(previousMatrixRoomId, matrixContent);
-      }
-
-      // And store the new association
-      logger.info(
-        `Storing bridged DM room (Gitter room id=${gitterDmRoom._id} -> Matrix room_id=${matrixRoomId}): ${gitterDmRoom.lcUri}`
-      );
-      await store.storeBridgedRoom(gitterDmRoom._id, matrixRoomId);
-
       return gitterDmRoom;
     }
 
@@ -136,7 +94,6 @@ class GitterUtils {
     );
 
     const gitterRoom = await this.createGitterDmRoomByGitterUserIdAndOtherPersonMxid(
-      matrixRoomId,
       gitterUserId,
       otherPersonMxid
     );

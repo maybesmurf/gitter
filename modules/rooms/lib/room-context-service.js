@@ -10,6 +10,9 @@ var Promise = require('bluebird');
 var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 var policyFactory = require('gitter-web-permissions/lib/policy-factory');
 var groupService = require('gitter-web-groups/lib/group-service');
+const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
+const matrixStore = require('gitter-web-matrix-bridge/lib/store');
+const GitterUtils = require('gitter-web-matrix-bridge/lib/gitter-utils');
 
 /**
  * Given a user and a URI returns (promise of) a context object.
@@ -28,7 +31,8 @@ var groupService = require('gitter-web-groups/lib/group-service');
  * 401: login required
  * 404: access denied
  */
-function findContextForUri(user, uri, options) {
+// eslint-disable-next-line complexity, max-statements
+async function findContextForUri(user, uri, options) {
   debug(
     `findRoomContext user=${user && user.username}(${user &&
       user.id}) uri=${uri} options=${options}`
@@ -39,101 +43,136 @@ function findContextForUri(user, uri, options) {
   if (!uri) throw new StatusError(400, 'uri required');
 
   /* First off, try use local data to figure out what this url is for */
-  return uriResolver(user && user.id, uri, options).then(function(resolved) {
-    if (!resolved) throw new StatusError(404);
+  const resolved = await uriResolver(user && user.id, uri, options);
 
-    var resolvedUser = resolved.user;
-    var resolvedTroupe = resolved.room;
-    var roomMember = resolved.roomMember;
-    var resolvedGroup = resolved.group;
+  console.log('resolved awfwa', resolved);
+  if (!resolved) throw new StatusError(404);
 
-    // The uri resolved to a user, we need to do a one-to-one
-    if (resolvedUser) {
-      if (!user) {
-        debug('uriResolver returned user for uri=%s', uri);
-        throw new StatusError(401); // Login required
-      }
+  var resolvedUser = resolved.user;
+  var resolvedTroupe = resolved.room;
+  var roomMember = resolved.roomMember;
+  var resolvedGroup = resolved.group;
 
-      if (mongoUtils.objectIDsEqual(resolvedUser.id, userId)) {
-        return {
-          uri: resolvedUser.username,
-          ownUrl: true
-        };
-      }
-
-      debug('localUriLookup returned user for uri=%s. Finding or creating one-to-one', uri);
-
-      return oneToOneRoomService
-        .findOrCreateOneToOneRoom(user, resolvedUser.id)
-        .spread(function(troupe, resolvedUser) {
-          return policyFactory.createPolicyForRoom(user, troupe).then(function(policy) {
-            return {
-              troupe: troupe,
-              policy: policy,
-              roomMember: true,
-              oneToOneUser: resolvedUser,
-              uri: resolvedUser.username
-            };
-          });
-        });
+  // The uri resolved to a user, we need to do a one-to-one
+  if (resolvedUser) {
+    if (!user) {
+      debug('uriResolver returned user for uri=%s', uri);
+      throw new StatusError(401); // Login required
     }
 
-    if (resolvedTroupe) {
-      return policyFactory.createPolicyForRoom(user, resolvedTroupe).then(function(policy) {
-        return policy.canRead().then(function(access) {
-          if (!access) {
-            // If the user has reached the org room
-            // but does not have access, redirect them
-            // to the group home
-            if (uri.indexOf('/') < 0 && resolvedTroupe.groupId) {
-              debug('Redirecting on ORG room permission denied');
+    if (mongoUtils.objectIDsEqual(resolvedUser.id, userId)) {
+      return {
+        uri: resolvedUser.username,
+        ownUrl: true
+      };
+    }
 
-              return groupService
-                .findById(resolvedTroupe.groupId, { lean: true })
-                .then(function(group) {
-                  if (group && group.homeUri) {
-                    var err = new StatusError(301);
-                    err.path = '/' + group.homeUri;
-                    throw err;
-                  }
+    debug('localUriLookup returned user for uri=%s. Finding or creating one-to-one', uri);
 
-                  throw new StatusError(404);
-                });
-            } else {
-              throw new StatusError(404);
-            }
-          }
-
+    return oneToOneRoomService
+      .findOrCreateOneToOneRoom(user, resolvedUser.id)
+      .spread(function(troupe, resolvedUser) {
+        return policyFactory.createPolicyForRoom(user, troupe).then(function(policy) {
           return {
-            group: resolvedGroup,
-            troupe: resolvedTroupe,
+            troupe: troupe,
             policy: policy,
-            uri: resolvedTroupe.uri,
-            roomMember: roomMember
+            roomMember: true,
+            oneToOneUser: resolvedUser,
+            uri: resolvedUser.username
           };
         });
       });
+  }
+
+  // TODO: afsdf
+  if (false) {
+    const gitterUtils = new GitterUtils(matrixBridge);
+    const gitterDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+      gitterUser,
+      event.sender
+    );
+
+    const previousMatrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterDmRoom._id);
+    if (!previousMatrixRoomId) {
+      // TODO
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixDmRoomByGitterUserAndOtherPersonMxid();
+
+      logger.info(
+        `Storing bridged DM room (Gitter room id=${gitterDmRoom._id} -> Matrix room_id=${matrixRoomId}): ${gitterRoom.lcUri}`
+      );
+      await matrixStore.storeBridgedRoom(gitterDmRoom._id, matrixRoomId);
     }
 
-    if (resolvedGroup) {
-      return policyFactory.createPolicyForGroupId(user, resolvedGroup._id).then(function(policy) {
-        return policy.canRead().then(function(access) {
-          if (!access) {
+    const policy = await policyFactory.createPolicyForRoom(user, gitterDmRoom);
+    const access = policy.canRead();
+    if (!access) {
+      throw new StatusError(404);
+    }
+
+    return {
+      group: gitterDmRoom.groupId,
+      troupe: gitterDmRoom,
+      policy: policy,
+      uri: gitterDmRoom.uri,
+      roomMember: true
+    };
+  }
+
+  if (resolvedTroupe) {
+    return policyFactory.createPolicyForRoom(user, resolvedTroupe).then(function(policy) {
+      return policy.canRead().then(function(access) {
+        if (!access) {
+          // If the user has reached the org room
+          // but does not have access, redirect them
+          // to the group home
+          if (uri.indexOf('/') < 0 && resolvedTroupe.groupId) {
+            debug('Redirecting on ORG room permission denied');
+
+            return groupService
+              .findById(resolvedTroupe.groupId, { lean: true })
+              .then(function(group) {
+                if (group && group.homeUri) {
+                  var err = new StatusError(301);
+                  err.path = '/' + group.homeUri;
+                  throw err;
+                }
+
+                throw new StatusError(404);
+              });
+          } else {
             throw new StatusError(404);
           }
+        }
 
-          return {
-            group: resolvedGroup,
-            policy: policy,
-            uri: resolvedGroup.homeUri
-          };
-        });
+        return {
+          group: resolvedGroup,
+          troupe: resolvedTroupe,
+          policy: policy,
+          uri: resolvedTroupe.uri,
+          roomMember: roomMember
+        };
       });
-    }
+    });
+  }
 
-    // No user, no room. 404
-    throw new StatusError(404);
-  });
+  if (resolvedGroup) {
+    return policyFactory.createPolicyForGroupId(user, resolvedGroup._id).then(function(policy) {
+      return policy.canRead().then(function(access) {
+        if (!access) {
+          throw new StatusError(404);
+        }
+
+        return {
+          group: resolvedGroup,
+          policy: policy,
+          uri: resolvedGroup.homeUri
+        };
+      });
+    });
+  }
+
+  // No user, no room. 404
+  throw new StatusError(404);
 }
 
 /**

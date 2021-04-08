@@ -10,6 +10,7 @@ var context = require('gitter-web-client-context');
 var SyncMixin = require('../../collections/sync-mixin');
 var avatars = require('gitter-web-avatars');
 const checkForMatrixUsername = require('gitter-web-users/lib/virtual-users/check-for-matrix-username');
+const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('gitter-web-matrix-bridge/lib/get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
 
 module.exports = (function() {
   var UserView = Marionette.ItemView.extend({
@@ -36,6 +37,13 @@ module.exports = (function() {
         var username = this.model.get('username');
         appEvents.trigger('dispatchVueAction', 'changeDisplayedRoomByUrl', `/${username}`);
       },
+      'click #button-matrix-dm': function() {
+        this.parentPopover.hide();
+        const userId = context.user().get('id');
+        const targetMxid = `@${this.model.get('username')}`;
+        const uri = getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(userId, targetMxid);
+        appEvents.trigger('dispatchVueAction', 'changeDisplayedRoomByUrl', `/${uri}`);
+      },
       'click #button-mention': function() {
         this.parentPopover.hide();
         var username = this.model.get('username');
@@ -52,7 +60,10 @@ module.exports = (function() {
       var isntSelf = data.username !== context.user().get('username');
       var inactive = data.removed;
       var chatPrivately = data.has_gitter_login && isntSelf && !inactive;
+      const chatPrivatelyMatrixDm = checkForMatrixUsername(data.username);
       var mentionable = isntSelf;
+
+      console.log('data', data);
 
       const removable =
         // Can't remove yourself
@@ -72,6 +83,7 @@ module.exports = (function() {
       data.avatarUrl = data.avatarUrl || avatars.getForUser(data);
       data.inactive = data.removed;
       data.chatPrivately = chatPrivately;
+      data.chatPrivatelyMatrixDm = chatPrivatelyMatrixDm;
       data.mentionable = mentionable;
       data.removable = removable;
       data.loaded = !!this.model.loaded;
@@ -93,14 +105,19 @@ module.exports = (function() {
           displayName: options.displayName
         };
       }
+      console.log('options', options, m);
 
       var username = m.username;
       var ghModel = new Backbone.Model(m);
-      ghModel.sync = SyncMixin.sync; // XXX This is less than ideal
-      ghModel.url = '/v1/users/' + username;
-      ghModel.fetch(function() {
-        ghModel.loaded = true;
-      });
+
+      // No extra data to fetch for virtualUsers
+      if (!checkForMatrixUsername(username)) {
+        ghModel.sync = SyncMixin.sync; // XXX This is less than ideal
+        ghModel.url = '/v1/users/' + username;
+        ghModel.fetch(function() {
+          ghModel.loaded = true;
+        });
+      }
 
       options.footerView = new UserPopoverFooterView({ model: ghModel });
 

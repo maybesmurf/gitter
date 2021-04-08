@@ -11,7 +11,7 @@ const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const MatrixUtils = require('../lib/matrix-utils');
 const MatrixEventHandler = require('../lib/matrix-event-handler');
 const store = require('../lib/store');
-const GitterUtils = require('../lib/gitter-utils');
+const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('../lib/get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
 
 function createEventData(extraEventData) {
   return {
@@ -741,16 +741,8 @@ describe('matrix-event-handler', () => {
         assert.strictEqual(matrixBridge.getIntent().join.callCount, 1);
 
         // Gitter user joins the new DM room on Gitter
-        const gitterUtils = new GitterUtils(
-          matrixBridge,
-          fixture.userBridge1.username,
-          fixture.group1.uri
-        );
         const newDmRoom = await troupeService.findByUri(
-          gitterUtils.getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(
-            fixture.user1.id,
-            eventData.sender
-          )
+          getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(fixture.user1.id, eventData.sender)
         );
         assert(newDmRoom);
         const isRoomMember = await roomMembershipService.checkRoomMembership(
