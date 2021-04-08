@@ -82,6 +82,10 @@ describe('chat-spam-detection', function() {
     });
 
     it('should use ethereum spam detector', async () => {
+      // Ensure the message exists before we remove it
+      const beforeChatMessage = await chatService.findById(fixture.message1._id);
+      assert(beforeChatMessage);
+
       const isSpammy = await chatSpamDetection.detect({
         user: fixture.user1,
         room: fixture.troupe1,
@@ -97,8 +101,8 @@ describe('chat-spam-detection', function() {
       assert.strictEqual(user.hellbanned, true);
 
       // The spammy user's chat messages are removed from the room
-      const chatMessage = await chatService.findById(fixture.message1._id);
-      assert.strictEqual(chatMessage, null);
+      const afterChatMessage = await chatService.findById(fixture.message1._id);
+      assert.strictEqual(afterChatMessage, null);
     });
   });
 });

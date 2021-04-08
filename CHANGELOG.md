@@ -1,3 +1,8 @@
+# 21.25.0 - 2021-04-07
+
+ - Try updates in pre-release version of `matrix-appservice-bridge`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2153
+
+
 # 21.24.0 - 2021-04-06
 
  - Fix opt out of the create room notification emails, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2160
