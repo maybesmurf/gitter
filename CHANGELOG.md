@@ -1,5 +1,7 @@
 # 21.26.0 - *upcoming*
 
+ - Fix "community" typo in create community flow, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2167
+
 Developer facing:
 
  - Fix `package-lock.json` regressing to various `graceful-fs` versions. Include script to filter and fix the lock file: `scripts/filter-package-lock-json-to-update-graceful-fs-for-gulp.js`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2166
