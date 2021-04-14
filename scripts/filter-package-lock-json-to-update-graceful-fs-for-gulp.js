@@ -1,5 +1,12 @@
 'use strict';
 
+// To use:
+// ```
+// node scripts/filter-package-lock-json-to-update-graceful-fs-for-gulp.js
+// rm -rf ./node_modules
+// npm i
+// ```
+
 // See https://stackoverflow.com/a/58394828/796832
 //
 // We're removing all of the resolved entries in `package-lock.json`
