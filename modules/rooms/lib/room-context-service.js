@@ -13,6 +13,9 @@ var groupService = require('gitter-web-groups/lib/group-service');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const GitterUtils = require('gitter-web-matrix-bridge/lib/gitter-utils');
+const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
+
+const matrixUtils = new MatrixUtils(matrixBridge);
 
 /**
  * Given a user and a URI returns (promise of) a context object.
@@ -48,10 +51,57 @@ async function findContextForUri(user, uri, options) {
   console.log('resolved awfwa', resolved);
   if (!resolved) throw new StatusError(404);
 
+  const resolvedVirtualUser = resolved.virtualUser;
   var resolvedUser = resolved.user;
   var resolvedTroupe = resolved.room;
   var roomMember = resolved.roomMember;
   var resolvedGroup = resolved.group;
+
+  if (resolvedVirtualUser && resolvedUser) {
+    if (!user) {
+      debug('uriResolver returned user for uri=%s', uri);
+      // Login required
+      throw new StatusError(401);
+    }
+
+    // You can only create a Matrix DM for your own user
+    if (!mongoUtils.objectIDsEqual(resolvedUser.id, userId)) {
+      throw new StatusError(403);
+    }
+
+    const gitterUtils = new GitterUtils(matrixBridge);
+    const gitterDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+      resolvedUser,
+      resolvedVirtualUser.externalId
+    );
+
+    const previousMatrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterDmRoom._id);
+    if (!previousMatrixRoomId) {
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixDmRoomByGitterUserAndOtherPersonMxid(
+        resolvedUser,
+        resolvedVirtualUser.externalId
+      );
+
+      logger.info(
+        `Storing bridged DM room (Gitter room id=${gitterDmRoom._id} -> Matrix room_id=${matrixRoomId}): ${gitterDmRoom.lcUri}`
+      );
+      await matrixStore.storeBridgedRoom(gitterDmRoom._id, matrixRoomId);
+    }
+
+    const policy = await policyFactory.createPolicyForRoom(user, gitterDmRoom);
+    const access = policy.canRead();
+    if (!access) {
+      throw new StatusError(404);
+    }
+
+    return {
+      group: gitterDmRoom.groupId,
+      troupe: gitterDmRoom,
+      policy: policy,
+      uri: gitterDmRoom.uri,
+      roomMember: true
+    };
+  }
 
   // The uri resolved to a user, we need to do a one-to-one
   if (resolvedUser) {
@@ -82,40 +132,6 @@ async function findContextForUri(user, uri, options) {
           };
         });
       });
-  }
-
-  // TODO: afsdf
-  if (false) {
-    const gitterUtils = new GitterUtils(matrixBridge);
-    const gitterDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
-      gitterUser,
-      event.sender
-    );
-
-    const previousMatrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterDmRoom._id);
-    if (!previousMatrixRoomId) {
-      // TODO
-      const matrixRoomId = await matrixUtils.getOrCreateMatrixDmRoomByGitterUserAndOtherPersonMxid();
-
-      logger.info(
-        `Storing bridged DM room (Gitter room id=${gitterDmRoom._id} -> Matrix room_id=${matrixRoomId}): ${gitterRoom.lcUri}`
-      );
-      await matrixStore.storeBridgedRoom(gitterDmRoom._id, matrixRoomId);
-    }
-
-    const policy = await policyFactory.createPolicyForRoom(user, gitterDmRoom);
-    const access = policy.canRead();
-    if (!access) {
-      throw new StatusError(404);
-    }
-
-    return {
-      group: gitterDmRoom.groupId,
-      troupe: gitterDmRoom,
-      policy: policy,
-      uri: gitterDmRoom.uri,
-      roomMember: true
-    };
   }
 
   if (resolvedTroupe) {
