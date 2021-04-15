@@ -44,7 +44,10 @@ function discoverMatrixDmUri(uri) {
     return null;
   }
 
-  return persistence.User.findOne({ username: uri }, 'username', { lean: true }).exec();
+  return {
+    gitterUserId: uriPieces[1],
+    virtualUserId: uriPieces[2]
+  };
 }
 
 function discoverRoomUri(lcUri) {
@@ -73,7 +76,7 @@ function discoverUri(uri) {
     discoverRoomUri(lcUri),
     discoverGroupUri(lcUri),
     discoverMatrixDmUri(lcUri),
-    function(user, troupe, group) {
+    function(user, troupe, group, matrixDm) {
       debug('Found user=%s troupe=%s group=%s', !!user, !!troupe, !!group);
 
       /* Found user. Add to cache and continue */
@@ -87,6 +90,14 @@ function discoverUri(uri) {
 
       if (group) {
         return reserveUriForGroupId(group._id, group.homeUri);
+      }
+
+      if (matrixDm) {
+        return {
+          uri,
+          virtualUserId: matrixDm.virtualUserId,
+          userId: matrixDm.gitterUserId
+        };
       }
 
       /* Last ditch attempt. Look for a room that has been renamed */

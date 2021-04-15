@@ -10,8 +10,6 @@ const env = require('gitter-web-env');
 const logger = env.logger;
 const config = env.config;
 
-const store = require('./store');
-const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
 const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
 
 class GitterUtils {
