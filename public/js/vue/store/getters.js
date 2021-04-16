@@ -54,7 +54,7 @@ export const displayedRooms = state => {
 
 export const isDisplayedRoomAdmin = state => {
   const room = displayedRoom(state);
-  return room.permissions && room.permissions.admin === true;
+  return room && room.permissions && room.permissions.admin === true;
 };
 
 export const hasAnyUnreads = state => {

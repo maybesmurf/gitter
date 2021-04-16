@@ -77,7 +77,10 @@ describe('spa-room-switcher', function() {
   });
 
   it('should replace the URL when the room cannot be found', function() {
-    window.location.assign = jest.fn();
+    // via https://remarkablemark.org/blog/2018/11/17/mock-window-location/#update-for-jsdom-14
+    // and https://www.benmvp.com/blog/mocking-window-location-methods-jest-jsdom/
+    delete window.location;
+    window.location = { assign: jest.fn() };
 
     const roomSwitcher = new SPARoomSwitcher(
       fixtureTroupes(),
@@ -112,7 +115,10 @@ describe('spa-room-switcher', function() {
   });
 
   it('should replace the URL when the frame being switched to not a chat', function() {
-    window.location.assign = jest.fn();
+    // via https://remarkablemark.org/blog/2018/11/17/mock-window-location/#update-for-jsdom-14
+    // and https://www.benmvp.com/blog/mocking-window-location-methods-jest-jsdom/
+    delete window.location;
+    window.location = { assign: jest.fn() };
 
     var roomSwitcher = new SPARoomSwitcher(
       fixtureTroupes(),
@@ -264,8 +270,11 @@ describe('spa-room-switcher', function() {
   /**
    * https://github.com/troupe/gitter-webapp/issues/683
    */
-  it('should not have issues with the dev-ua room ', function() {
-    window.location.assign = jest.fn();
+  it('should not have issues with the dev-ua room', function() {
+    // via https://remarkablemark.org/blog/2018/11/17/mock-window-location/#update-for-jsdom-14
+    // and https://www.benmvp.com/blog/mocking-window-location-methods-jest-jsdom/
+    delete window.location;
+    window.location = { assign: jest.fn() };
 
     var roomSwitcher = new SPARoomSwitcher(
       fixtureTroupes(),

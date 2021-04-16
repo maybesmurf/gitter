@@ -13,7 +13,7 @@ describe('SecuritySelectSection', () => {
       store.state.createRoom.roomSecurity = 'PRIVATE';
     });
 
-    wrapper.find({ ref: 'publicSecurityRadio' }).trigger('click');
+    wrapper.findComponent({ ref: 'publicSecurityRadio' }).setChecked();
 
     expect(stubbedMutations.createRoom[types.SET_ROOM_SECURITY]).toHaveBeenCalledWith(
       expect.anything(),
@@ -26,7 +26,7 @@ describe('SecuritySelectSection', () => {
       store.state.createRoom.roomSecurity = 'PUBLIC';
     });
 
-    wrapper.find({ ref: 'privateSecurityRadio' }).trigger('click');
+    wrapper.findComponent({ ref: 'privateSecurityRadio' }).setChecked();
 
     expect(stubbedMutations.createRoom[types.SET_ROOM_SECURITY]).toHaveBeenCalledWith(
       expect.anything(),

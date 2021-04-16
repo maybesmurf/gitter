@@ -34,7 +34,7 @@ describe('StepBackingEntity', () => {
       const { wrapper, stubbedActions } = mount(StepBackingEntity, DEFAULT_PROPS, store => {
         store.state.createCommunity.entityTypeTabState = CREATE_COMMUNITY_ENTITY_TYPE_TAB_REPOS_STATE;
       });
-      wrapper.find({ ref: 'orgTabButton' }).trigger('click');
+      wrapper.findComponent({ ref: 'orgTabButton' }).trigger('click');
 
       expect(stubbedActions.createCommunity.setEntityTypeTabState).toHaveBeenCalledWith(
         expect.anything(),
@@ -47,7 +47,7 @@ describe('StepBackingEntity', () => {
       const { wrapper, stubbedActions } = mount(StepBackingEntity, DEFAULT_PROPS, store => {
         store.state.createCommunity.entityTypeTabState = CREATE_COMMUNITY_ENTITY_TYPE_TAB_ORGS_STATE;
       });
-      wrapper.find({ ref: 'repoTabButton' }).trigger('click');
+      wrapper.findComponent({ ref: 'repoTabButton' }).trigger('click');
 
       expect(stubbedActions.createCommunity.setEntityTypeTabState).toHaveBeenCalledWith(
         expect.anything(),
@@ -59,7 +59,7 @@ describe('StepBackingEntity', () => {
 
   it('should go back to main view with back button clicked', () => {
     const { wrapper, stubbedActions } = mount(StepBackingEntity, DEFAULT_PROPS);
-    wrapper.find({ ref: 'backButton' }).trigger('click');
+    wrapper.findComponent({ ref: 'backButton' }).trigger('click');
 
     expect(stubbedActions.createCommunity.moveToStep).toHaveBeenCalledWith(
       expect.anything(),

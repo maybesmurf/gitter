@@ -614,7 +614,10 @@ describe('create community store', () => {
 
     describe('submitCommunity', () => {
       beforeEach(() => {
-        window.location.assign = jest.fn();
+        // via https://remarkablemark.org/blog/2018/11/17/mock-window-location/#update-for-jsdom-14
+        // and https://www.benmvp.com/blog/mocking-window-location-methods-jest-jsdom/
+        delete window.location;
+        window.location = { assign: jest.fn() };
       });
 
       it('plain old community submit', async () => {

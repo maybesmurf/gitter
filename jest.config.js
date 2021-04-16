@@ -11,5 +11,5 @@ module.exports = {
     '^.+\\.vue$': 'vue-jest',
     '^.+\\.hbs$': 'jest-handlebars'
   },
-  browser: true
+  resolver: '<rootDir>/test/jest-browser-resolver.js'
 };
