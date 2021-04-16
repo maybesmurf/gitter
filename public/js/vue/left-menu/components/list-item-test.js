@@ -101,7 +101,7 @@ describe('list-item', () => {
       item: room
     });
 
-    wrapper.find({ ref: 'link' }).trigger('click');
+    wrapper.findComponent({ ref: 'link' }).trigger('click');
 
     expect(stubbedActions.changeDisplayedRoomById).toHaveBeenCalledWith(
       expect.anything(),

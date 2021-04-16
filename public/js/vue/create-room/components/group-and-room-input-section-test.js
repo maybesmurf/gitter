@@ -21,8 +21,8 @@ describe('GroupAndRoomInputSection', () => {
     it('Inputing new room name text fires store mutation', () => {
       const { wrapper, stubbedActions } = mount(GroupAndRoomInputSection);
 
-      wrapper.find({ ref: 'roomNameInput' }).element.value = 'my-new-room';
-      wrapper.find({ ref: 'roomNameInput' }).trigger('input');
+      wrapper.findComponent({ ref: 'roomNameInput' }).element.value = 'my-new-room';
+      wrapper.findComponent({ ref: 'roomNameInput' }).trigger('input');
 
       expect(stubbedActions.createRoom.setRoomName).toHaveBeenCalledWith(
         expect.anything(),

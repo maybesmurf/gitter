@@ -10,7 +10,7 @@ describe('Export data modal', () => {
   it('clicking on the modal does NOT close the modal', () => {
     const { wrapper } = mount(Index, { title: 'Export data' });
 
-    wrapper.find({ ref: 'modal' }).trigger('click');
+    wrapper.findComponent({ ref: 'modal' }).trigger('click');
 
     expect(wrapper.emitted().exitModal).toBeFalsy();
   });
@@ -18,7 +18,7 @@ describe('Export data modal', () => {
   it('closes modal when close button is clicked', () => {
     const { wrapper } = mount(Index, { title: 'Export data' });
 
-    wrapper.find({ ref: 'closeButton' }).trigger('click');
+    wrapper.findComponent({ ref: 'closeButton' }).trigger('click');
 
     expect(wrapper.emitted().exitModal).toBeTruthy();
   });
@@ -26,7 +26,7 @@ describe('Export data modal', () => {
   it('closes modal when modal backdrop is clicked', () => {
     const { wrapper } = mount(Index, { title: 'Export data' });
 
-    wrapper.find({ ref: 'root' }).trigger('click');
+    wrapper.findComponent({ ref: 'root' }).trigger('click');
 
     expect(wrapper.emitted().exitModal).toBeTruthy();
   });

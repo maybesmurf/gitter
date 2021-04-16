@@ -16,7 +16,7 @@ describe('menu-bar-item-create', () => {
 
     expect(wrapper.vm.popover).toEqual(undefined);
 
-    wrapper.find({ ref: 'root' }).trigger('click');
+    wrapper.findComponent({ ref: 'root' }).trigger('click');
 
     expect(wrapper.vm.popover).toBeDefined();
   });

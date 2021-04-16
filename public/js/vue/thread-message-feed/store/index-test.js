@@ -24,7 +24,7 @@ describe('thread message feed store', () => {
       apiClient.room.post.mockReset();
     });
 
-    it('open shows TMF, clears state, hides right toolbar, sets parent id ', async () => {
+    it('open shows TMF, clears state, hides right toolbar, sets parent id', async () => {
       await testAction(
         actions.open,
         '5d147ea84dad9dfbc522317a',

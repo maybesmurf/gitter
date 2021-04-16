@@ -35,8 +35,8 @@ describe('StepMain', () => {
   describe('filling out the name/slug', () => {
     it('should update community name when user adds input', () => {
       const { wrapper, stubbedActions } = mount(StepMain, {});
-      wrapper.find({ ref: 'communityNameInput' }).element.value = 'hello';
-      wrapper.find({ ref: 'communityNameInput' }).trigger('input');
+      wrapper.findComponent({ ref: 'communityNameInput' }).element.value = 'hello';
+      wrapper.findComponent({ ref: 'communityNameInput' }).trigger('input');
 
       expect(stubbedActions.createCommunity.setCommunityName).toHaveBeenCalledWith(
         expect.anything(),
@@ -47,8 +47,8 @@ describe('StepMain', () => {
 
     it('should update community slug when user adds input', () => {
       const { wrapper, stubbedActions } = mount(StepMain, {});
-      wrapper.find({ ref: 'communitySlugInput' }).element.value = 'some-slug';
-      wrapper.find({ ref: 'communitySlugInput' }).trigger('input');
+      wrapper.findComponent({ ref: 'communitySlugInput' }).element.value = 'some-slug';
+      wrapper.findComponent({ ref: 'communitySlugInput' }).trigger('input');
 
       expect(stubbedActions.createCommunity.updateCommunitySlug).toHaveBeenCalledWith(
         expect.anything(),
@@ -83,7 +83,7 @@ describe('StepMain', () => {
         };
       });
 
-      wrapper.find({ ref: 'backingEntityPromptGitlabLink' }).trigger('click');
+      wrapper.findComponent({ ref: 'backingEntityPromptGitlabLink' }).trigger('click');
 
       expect(stubbedActions.createCommunity.moveToStep).toHaveBeenCalledWith(
         expect.anything(),
@@ -100,7 +100,7 @@ describe('StepMain', () => {
         };
       });
 
-      wrapper.find({ ref: 'backingEntityPromptGithubLink' }).trigger('click');
+      wrapper.findComponent({ ref: 'backingEntityPromptGithubLink' }).trigger('click');
 
       expect(stubbedActions.createCommunity.moveToStep).toHaveBeenCalledWith(
         expect.anything(),
@@ -137,7 +137,7 @@ describe('StepMain', () => {
         );
       });
 
-      wrapper.find({ ref: 'changeBackingEntityLink' }).trigger('click');
+      wrapper.findComponent({ ref: 'changeBackingEntityLink' }).trigger('click');
 
       expect(stubbedActions.createCommunity.moveToStep).toHaveBeenCalledWith(
         expect.anything(),
@@ -153,7 +153,7 @@ describe('StepMain', () => {
         );
       });
 
-      wrapper.find({ ref: 'clearAssociationButton' }).trigger('click');
+      wrapper.findComponent({ ref: 'clearAssociationButton' }).trigger('click');
 
       expect(stubbedActions.createCommunity.clearBackingEntity).toHaveBeenCalledWith(
         expect.anything(),
@@ -175,7 +175,7 @@ describe('StepMain', () => {
         );
       });
 
-      wrapper.find({ ref: 'allowBadgerCheckbox' }).trigger('click');
+      wrapper.findComponent({ ref: 'allowBadgerCheckbox' }).setChecked(false);
 
       expect(stubbedActions.createCommunity.setAllowBadger).toHaveBeenCalledWith(
         expect.anything(),
@@ -203,7 +203,7 @@ describe('StepMain', () => {
 
     it('clicking submit', () => {
       const { wrapper, stubbedActions } = mount(StepMain, {});
-      wrapper.find({ ref: 'submitButton' }).trigger('click');
+      wrapper.findComponent({ ref: 'submitButton' }).trigger('click');
 
       expect(stubbedActions.createCommunity.submitCommunity).toHaveBeenCalledWith(
         expect.anything(),

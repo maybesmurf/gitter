@@ -85,7 +85,7 @@ describe('left-menu', () => {
         store.state.leftMenuPinnedState = true;
         store.state.leftMenuExpandedState = true;
       });
-      wrapper.find({ ref: 'toggle' }).trigger('click');
+      wrapper.findComponent({ ref: 'toggle' }).trigger('click');
 
       expect(stubbedActions.toggleLeftMenuPinnedState).toHaveBeenCalledWith(
         expect.anything(),
@@ -99,7 +99,7 @@ describe('left-menu', () => {
         store.state.leftMenuPinnedState = false;
         store.state.leftMenuExpandedState = true;
       });
-      wrapper.find({ ref: 'root' }).trigger('mouseleave');
+      wrapper.findComponent({ ref: 'root' }).trigger('mouseleave');
 
       expect(stubbedActions.toggleLeftMenu).toHaveBeenCalledWith(
         expect.anything(),
@@ -125,7 +125,7 @@ describe('left-menu', () => {
         store.state.leftMenuPinnedState = false;
         store.state.leftMenuExpandedState = true;
       });
-      wrapper.find({ ref: 'toggle' }).trigger('click');
+      wrapper.findComponent({ ref: 'toggle' }).trigger('click');
 
       expect(stubbedActions.toggleLeftMenu).toHaveBeenCalledWith(
         expect.anything(),

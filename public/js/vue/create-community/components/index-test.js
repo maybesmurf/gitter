@@ -39,7 +39,7 @@ describe('CreateCommunity', () => {
       });
     });
 
-    wrapper.find({ ref: 'closeButton' }).trigger('click');
+    wrapper.findComponent({ ref: 'closeButton' }).trigger('click');
 
     return expect(destroyCreateCommunityViewEventFiredPromise).resolves.toEqual();
   });

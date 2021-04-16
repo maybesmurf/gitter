@@ -38,7 +38,7 @@ describe('CreateRoomExtraOptions', () => {
         };
       });
 
-      wrapper.find({ ref: 'onlyGitHubUsersCheckbox' }).trigger('click');
+      wrapper.findComponent({ ref: 'onlyGitHubUsersCheckbox' }).setChecked();
 
       expect(stubbedMutations.createRoom[types.SET_ONLY_GITHUB_USERS]).toHaveBeenCalledWith(
         expect.anything(),
@@ -81,7 +81,7 @@ describe('CreateRoomExtraOptions', () => {
         store.state.createRoom.selectedRepoId = null;
       });
 
-      wrapper.find({ ref: 'allowGroupAdminsCheckbox' }).trigger('click');
+      wrapper.findComponent({ ref: 'allowGroupAdminsCheckbox' }).setChecked();
 
       expect(stubbedMutations.createRoom[types.SET_ALLOW_GROUP_ADMINS]).toHaveBeenCalledWith(
         expect.anything(),
@@ -134,7 +134,7 @@ describe('CreateRoomExtraOptions', () => {
         };
       });
 
-      wrapper.find({ ref: 'allowBadgerCheckbox' }).trigger('click');
+      wrapper.findComponent({ ref: 'allowBadgerCheckbox' }).setChecked();
 
       expect(stubbedMutations.createRoom[types.SET_ALLOW_BADGER]).toHaveBeenCalledWith(
         expect.anything(),

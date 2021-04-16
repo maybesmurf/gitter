@@ -28,7 +28,7 @@ describe('thread-message-feed avatar', () => {
     expect(wrapper.element).toMatchSnapshot();
   });
 
-  it('should use fallback image if there is a loading error', () => {
+  it('should use fallback image if there is a loading error', async () => {
     avatars.getDefault.mockImplementation(() => 'https://default.png');
     const { wrapper } = mount(Avatar, {
       user: {
@@ -37,7 +37,7 @@ describe('thread-message-feed avatar', () => {
           'https://secure.gravatar.com/avatar/6042a9152ada74d9fb6a0cdce895337e?s=60&d=identicon'
       }
     });
-    wrapper.find('img').trigger('error');
+    await wrapper.find('img').trigger('error');
     expect(wrapper.element).toMatchSnapshot();
   });
 });

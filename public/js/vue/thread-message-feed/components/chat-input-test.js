@@ -22,8 +22,8 @@ describe('thread-message-feed chat-input', () => {
   describe('sending message', () => {
     it('should update draft message when user adds input', () => {
       const { wrapper, stubbedActions } = mount(ChatInput, defaultProps);
-      wrapper.find({ ref: 'chatInputTextArea' }).element.value = 'hello';
-      wrapper.find({ ref: 'chatInputTextArea' }).trigger('input');
+      wrapper.findComponent({ ref: 'chatInputTextArea' }).element.value = 'hello';
+      wrapper.findComponent({ ref: 'chatInputTextArea' }).trigger('input');
       expect(stubbedActions.threadMessageFeed.updateDraftMessage).toHaveBeenCalledWith(
         expect.anything(),
         'hello',
@@ -37,14 +37,16 @@ describe('thread-message-feed chat-input', () => {
         defaultProps,
         store => (store.state.threadMessageFeed.draftMessage = 'new message')
       );
-      expect(wrapper.find({ ref: 'chatInputTextArea' }).element.value).toEqual('new message');
+      expect(wrapper.findComponent({ ref: 'chatInputTextArea' }).element.value).toEqual(
+        'new message'
+      );
     });
 
     it('should trigger send action when enter key is pressed', () => {
       const { wrapper, stubbedActions } = mount(ChatInput, defaultProps, store => {
         store.state.user = { id: 'userId' };
       });
-      wrapper.find({ ref: 'chatInputTextArea' }).trigger('keydown.enter');
+      wrapper.findComponent({ ref: 'chatInputTextArea' }).trigger('keydown.enter');
       expect(stubbedActions.threadMessageFeed.sendMessage).toHaveBeenCalled();
     });
 
@@ -52,7 +54,7 @@ describe('thread-message-feed chat-input', () => {
       const { wrapper, stubbedActions } = mount(ChatInput, defaultProps, store => {
         store.state.user = { id: 'userId' };
       });
-      wrapper.find({ ref: 'chatInputTextArea' }).trigger('keydown.enter', {
+      wrapper.findComponent({ ref: 'chatInputTextArea' }).trigger('keydown.enter', {
         shiftKey: true
       });
       expect(stubbedActions.threadMessageFeed.sendMessage).not.toHaveBeenCalled();
@@ -63,7 +65,7 @@ describe('thread-message-feed chat-input', () => {
     const { wrapper, stubbedActions } = mount(ChatInput, defaultProps, store => {
       store.state.user = { id: 'userId' };
     });
-    wrapper.find({ ref: 'chatInputTextArea' }).trigger('keyup.up');
+    wrapper.findComponent({ ref: 'chatInputTextArea' }).trigger('keyup.up');
     expect(stubbedActions.threadMessageFeed.editLastMessage).toHaveBeenCalled();
   });
 });

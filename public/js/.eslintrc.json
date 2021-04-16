@@ -68,7 +68,9 @@
         "math": "always"
       }
     ],
-    "vue/component-name-in-template-casing": "off"
+    "vue/component-name-in-template-casing": "off",
+
+    "jest/no-done-callback": "off"
   },
   "settings": {
     "import/resolver": {

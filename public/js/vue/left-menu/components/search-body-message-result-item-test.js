@@ -38,7 +38,7 @@ describe('search-body-message-result-item', () => {
       }
     );
 
-    wrapper.find({ ref: 'root' }).trigger('click');
+    wrapper.findComponent({ ref: 'root' }).trigger('click');
 
     expect(stubbedActions.jumpToMessageId).toHaveBeenCalled();
   });
