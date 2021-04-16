@@ -4,6 +4,7 @@
 Developer facing:
 
  - Update and dedupe `bluebird` to the latest, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2171
+ - Update jest to reduce `npm audit` bulk, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2172
 
 
 # 21.26.0 - 2021-04-13
