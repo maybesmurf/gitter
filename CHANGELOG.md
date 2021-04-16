@@ -1,3 +1,11 @@
+# 21.26.0 - *upcoming*
+
+
+Developer facing:
+
+ - Update and dedupe `bluebird` to the latest, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2171
+
+
 # 21.26.0 - 2021-04-13
 
  - Fix "community" typo in create community flow, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2167
