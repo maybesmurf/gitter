@@ -1,4 +1,4 @@
-/*global describe:true, it:true, beforeEach:true, afterEach:true */
+/*global describe:true, it:true */
 
 'use strict';
 
