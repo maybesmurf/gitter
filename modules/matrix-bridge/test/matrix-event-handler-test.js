@@ -48,7 +48,8 @@ describe('matrix-event-handler', () => {
       setAvatarUrl: () => {},
       getClient: (/*avatarUrl*/) => ({
         mxcUrlToHttp: () => 'myavatar.png'
-      })
+      }),
+      sendMessage: sinon.spy()
     };
 
     matrixBridge = {
@@ -754,6 +755,37 @@ describe('matrix-event-handler', () => {
           fixture.user1.id
         );
         assert.strictEqual(isRoomMember, true);
+      });
+
+      it('is able to update the matrixRoomId in the bridged room entry and return existing Gitter room', async () => {
+        const eventData = createEventData({
+          type: 'm.room.member',
+          state_key: matrixUtils.getMxidForGitterUser(fixture.user1),
+          content: {
+            membership: 'invite',
+            is_direct: true
+          }
+        });
+
+        // Store an existing bridged room entry for the DM room
+        const newDmRoom = await matrixEventHandler.gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+          fixture.user1,
+          eventData.sender
+        );
+        await store.storeBridgedRoom(newDmRoom._id, '!123:some-other-id');
+
+        assert(newDmRoom);
+
+        // Fire off an event that overwrites the Matrix room ID for the DM with the same Gitter user
+        // because the room_id is different than what we already stored
+        await matrixEventHandler.onEventData(eventData);
+
+        // Check that the existing Gitter room is connected to the new Matrix DM room
+        const storedMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(newDmRoom._id);
+        assert(mongoUtils.objectIDsEqual(storedMatrixRoomId, eventData.room_id));
+
+        // Notice sent in old room that it is no longer bridged and to use the new room
+        assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
       });
 
       it('Ignores non-DM invites for Gitter users', async () => {

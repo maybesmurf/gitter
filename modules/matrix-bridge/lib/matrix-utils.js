@@ -99,7 +99,8 @@ class MatrixUtils {
   }
 
   async createMatrixDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
-    const gitterUserMxid = this.getMxidForGitterUser(gitterUser);
+    const gitterUserId = gitterUser.id || gitterUser._id;
+    const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterUserId);
     const intent = this.matrixBridge.getIntent(gitterUserMxid);
 
     let roomName = gitterUser.username;
@@ -117,9 +118,6 @@ class MatrixUtils {
         invite: [otherPersonMxid]
       }
     });
-
-    // TODO: Debug why Gitter MXID not joining the room
-    intent.join(newRoom.room_id);
 
     // Propagate all of the room details over to Matrix like the room topic and avatar
     //await this.ensureCorrectRoomState(newRoom.room_id, gitterRoomId);
