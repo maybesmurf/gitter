@@ -5,11 +5,15 @@ const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const restSerializer = require('../../../server/serializers/rest-serializer');
 const GitterBridge = require('../lib/gitter-bridge');
+const GitterUtils = require('../lib/gitter-utils');
 const store = require('../lib/store');
+
+const strategy = new restSerializer.ChatStrategy();
 
 describe('gitter-bridge', () => {
   let gitterBridge;
   let matrixBridge;
+  let gitterUtils;
   beforeEach(() => {
     const clientSpies = {
       redactEvent: sinon.spy(),
@@ -39,7 +43,8 @@ describe('gitter-bridge', () => {
       uploadContent: sinon.spy(),
       setAvatarUrl: sinon.spy(),
       getRoomDirectoryVisibility: sinon.spy(),
-      setRoomDirectoryVisibility: sinon.spy()
+      setRoomDirectoryVisibility: sinon.spy(),
+      invite: sinon.spy()
     };
 
     matrixBridge = {
@@ -47,6 +52,8 @@ describe('gitter-bridge', () => {
     };
 
     gitterBridge = new GitterBridge(matrixBridge);
+
+    gitterUtils = new GitterUtils(matrixBridge);
   });
 
   describe('onDataChange', () => {
@@ -107,6 +114,11 @@ describe('gitter-bridge', () => {
           troupe: 'troupe1',
           text: 'my virtualUser message'
         },
+        messageFromBridgeBot1: {
+          user: 'userBridge1',
+          troupe: 'troupe1',
+          text: `I'm the badger bridge bot`
+        },
         messagePrivate1: {
           user: 'user1',
           troupe: 'troupePrivate1',
@@ -115,7 +127,6 @@ describe('gitter-bridge', () => {
       });
 
       it('new message gets sent off to Matrix', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(fixture.message1, strategy);
 
         await gitterBridge.onDataChange({
@@ -139,7 +150,6 @@ describe('gitter-bridge', () => {
       });
 
       it('new status(/me) message gets sent off to Matrix', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(
           fixture.messageStatus1,
           strategy
@@ -166,7 +176,6 @@ describe('gitter-bridge', () => {
       });
 
       it('subsequent multiple messages go to the same room', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage1 = await restSerializer.serializeObject(fixture.message1, strategy);
         const serializedMessage2 = await restSerializer.serializeObject(fixture.message2, strategy);
 
@@ -197,7 +206,6 @@ describe('gitter-bridge', () => {
       });
 
       it('threaded conversation reply gets sent off to Matrix', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(
           fixture.messageThreaded1,
           strategy
@@ -231,7 +239,6 @@ describe('gitter-bridge', () => {
       });
 
       it('threaded conversation replies to last message in thread gets sent off to Matrix', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(
           fixture.messageThreaded2,
           strategy
@@ -274,7 +281,6 @@ describe('gitter-bridge', () => {
       // I don't think we need to worry too much about what happens. Just want a test to know
       // something happens.
       it('threaded conversation reply where the parent does not exist on Matrix still gets sent', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(
           fixture.messageThreaded1,
           strategy
@@ -305,7 +311,6 @@ describe('gitter-bridge', () => {
       });
 
       it('new message from virtualUser is suppressed (no echo back and forth)', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedVirtualUserMessage = await restSerializer.serializeObject(
           fixture.messageFromVirtualUser1,
           strategy
@@ -342,6 +347,158 @@ describe('gitter-bridge', () => {
         assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 0);
         // No message sent
         assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 0);
+      });
+
+      describe('inviteMatrixUserToDmRoomIfNeeded', async () => {
+        const otherPersonMxid = '@alice:localhost';
+
+        let matrixRoomId;
+        let serializedMessage;
+        beforeEach(async () => {
+          matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+
+          serializedMessage = await restSerializer.serializeObject(fixture.message1, strategy);
+        });
+
+        it('should invite Matrix user back to Matrix DM room if they have left', async () => {
+          const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+            fixture.user1,
+            otherPersonMxid
+          );
+          await store.storeBridgedRoom(newDmRoom._id, matrixRoomId);
+
+          // Stub the other user as left the room
+          matrixBridge.getIntent().getStateEvent = (targetRoomId, type, stateKey) => {
+            if (
+              targetRoomId === matrixRoomId &&
+              type === 'm.room.member' &&
+              stateKey === otherPersonMxid
+            ) {
+              return {
+                membership: 'leave'
+              };
+            }
+          };
+
+          await gitterBridge.onDataChange({
+            type: 'chatMessage',
+            url: `/rooms/${newDmRoom._id}/chatMessages`,
+            operation: 'create',
+            model: serializedMessage
+          });
+
+          assert.strictEqual(matrixBridge.getIntent().invite.callCount, 1);
+          assert.deepEqual(matrixBridge.getIntent().invite.getCall(0).args[1], otherPersonMxid);
+        });
+
+        it('should work if Matrix user already in DM room (not mess anything up)', async () => {
+          const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+            fixture.user1,
+            otherPersonMxid
+          );
+          await store.storeBridgedRoom(newDmRoom._id, matrixRoomId);
+
+          // Stub the other user as already in the room
+          matrixBridge.getIntent().getStateEvent = (targetRoomId, type, stateKey) => {
+            if (
+              targetRoomId === matrixRoomId &&
+              type === 'm.room.member' &&
+              stateKey === otherPersonMxid
+            ) {
+              return {
+                membership: 'join'
+              };
+            }
+          };
+
+          await gitterBridge.onDataChange({
+            type: 'chatMessage',
+            url: `/rooms/${newDmRoom._id}/chatMessages`,
+            operation: 'create',
+            model: serializedMessage
+          });
+
+          assert.strictEqual(matrixBridge.getIntent().invite.callCount, 0);
+        });
+
+        it('should still allow message to send if Matrix user failed to invite', async () => {
+          const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+            fixture.user1,
+            otherPersonMxid
+          );
+          await store.storeBridgedRoom(newDmRoom._id, matrixRoomId);
+
+          // Stub the other user as left the room
+          matrixBridge.getIntent().getStateEvent = (targetRoomId, type, stateKey) => {
+            if (
+              targetRoomId === matrixRoomId &&
+              type === 'm.room.member' &&
+              stateKey === otherPersonMxid
+            ) {
+              return {
+                membership: 'leave'
+              };
+            }
+          };
+
+          // Force the invitation to fail!
+          matrixBridge.getIntent().invite = () => Promise.reject('Fake failed to invite');
+
+          await gitterBridge.onDataChange({
+            type: 'chatMessage',
+            url: `/rooms/${newDmRoom._id}/chatMessages`,
+            operation: 'create',
+            model: serializedMessage
+          });
+
+          // Message is still sent to the new room
+          assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
+          assert.deepEqual(matrixBridge.getIntent().sendMessage.getCall(0).args[1], {
+            body: fixture.message1.text,
+            format: 'org.matrix.custom.html',
+            formatted_body: fixture.message1.html,
+            msgtype: 'm.text'
+          });
+        });
+
+        it('should not invite anyone for non-DM room', async () => {
+          sinon.spy(gitterBridge, 'inviteMatrixUserToDmRoomIfNeeded');
+          await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+          await gitterBridge.onDataChange({
+            type: 'chatMessage',
+            url: `/rooms/${fixture.troupe1.id}/chatMessages`,
+            operation: 'create',
+            model: serializedMessage
+          });
+
+          // null means no invite was necessary for this room
+          const inviteResult = await gitterBridge.inviteMatrixUserToDmRoomIfNeeded.firstCall
+            .returnValue;
+          assert.strictEqual(inviteResult, null);
+        });
+
+        it('messages from the bridge bot do not trigger invites to be sent out (avoid feedback loop)', async () => {
+          await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+          // Pass in userBridge1 as the bridging user
+          gitterBridge = new GitterBridge(matrixBridge, fixture.userBridge1.username);
+          sinon.spy(gitterBridge, 'inviteMatrixUserToDmRoomIfNeeded');
+
+          // Use a message from userBridge1
+          serializedMessage = await restSerializer.serializeObject(
+            fixture.messageFromBridgeBot1,
+            strategy
+          );
+
+          await gitterBridge.onDataChange({
+            type: 'chatMessage',
+            url: `/rooms/${fixture.troupe1.id}/chatMessages`,
+            operation: 'create',
+            model: serializedMessage
+          });
+
+          assert.strictEqual(gitterBridge.inviteMatrixUserToDmRoomIfNeeded.callCount, 0);
+        });
       });
     });
 
@@ -389,7 +546,6 @@ describe('gitter-bridge', () => {
         const matrixMessageEventId = `$${fixtureLoader.generateGithubId()}`;
         await store.storeBridgedMessage(fixture.message1, matrixRoomId, matrixMessageEventId);
 
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(fixture.message1, strategy);
 
         await gitterBridge.onDataChange({
@@ -428,7 +584,6 @@ describe('gitter-bridge', () => {
         const matrixMessageEventId = `$${fixtureLoader.generateGithubId()}`;
         await store.storeBridgedMessage(fixture.message1, matrixRoomId, matrixMessageEventId);
 
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(fixture.message1, strategy);
 
         await gitterBridge.onDataChange({
@@ -443,7 +598,6 @@ describe('gitter-bridge', () => {
       });
 
       it('non-bridged message that gets an edit is ignored', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(fixture.message1, strategy);
 
         // We purposely do not associate the bridged message. We are testing that the
@@ -463,7 +617,6 @@ describe('gitter-bridge', () => {
       });
 
       it('message edit from virtualUser is suppressed (no echo back and forth)', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedVirtualUserMessage = await restSerializer.serializeObject(
           fixture.messageFromVirtualUser1,
           strategy
@@ -489,7 +642,6 @@ describe('gitter-bridge', () => {
       });
 
       it('private room is not bridged', async () => {
-        const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(
           fixture.messagePrivate1,
           strategy

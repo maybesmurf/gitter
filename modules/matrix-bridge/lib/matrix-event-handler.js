@@ -317,8 +317,14 @@ class MatrixEventHandler {
     }
 
     // The Gitter user may have left the room for the Matrix DM room.
-    // So let's invite them back to the room if there is a new message for them.
-    await this.inviteGitterUserToDmRoomIfNeeded(gitterRoom, matrixRoomId);
+    // So let's invite them back to the room so they can see the new message for them.
+    if (
+      // Suppress any loop that can come from the bridge sending its own messages
+      //  in the room from a result of this action.
+      event.sender !== this.matrixUtils.getMxidForMatrixBridgeUser()
+    ) {
+      await this.inviteGitterUserToDmRoomIfNeeded(gitterRoom, matrixRoomId);
+    }
 
     const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
 
