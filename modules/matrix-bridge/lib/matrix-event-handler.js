@@ -366,7 +366,7 @@ class MatrixEventHandler {
     return null;
   }
 
-  async getOrCreateGitterDmRoomAndHandleAssocation(matrixRoomId, gitterUser, otherPersonMxid) {
+  async getOrCreateGitterDmRoomAndHandleAssociation(matrixRoomId, gitterUser, otherPersonMxid) {
     const gitterDmRoom = await this.gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
       gitterUser,
       otherPersonMxid
@@ -387,7 +387,8 @@ class MatrixEventHandler {
       // We have to use the Gitter user intent because the bridge bot
       // is not in the DM conversation. Only 2 people can be in the `is_direct`
       // DM for it to be catogorized under the "people" heading in Element.
-      const mxid = this.matrixUtils.getMxidForGitterUser(gitterUser);
+      const gitterUserId = gitterUser.id || gitterUser._id;
+      const mxid = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
       const intent = this.matrixBridge.getIntent(mxid);
       await intent.sendMessage(previousMatrixRoomId, matrixContent);
     }
@@ -437,7 +438,7 @@ class MatrixEventHandler {
         `Joined the bridged Gitter user (MXID=${event.state_key}) to the Matrix DM room (${matrixRoomId})`
       );
 
-      const gitterDmRoom = await this.getOrCreateGitterDmRoomAndHandleAssocation(
+      const gitterDmRoom = await this.getOrCreateGitterDmRoomAndHandleAssociation(
         matrixRoomId,
         gitterUser,
         event.sender
