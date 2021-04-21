@@ -11,6 +11,7 @@ var Promise = require('bluebird');
 var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 var debug = require('debug')('gitter:app:uri-lookup-service');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
+const discoverMatrixDmUri = require('gitter-web-matrix-bridge/lib/discover-matrix-dm-uri');
 
 /**
  * For exporting things
@@ -34,20 +35,6 @@ function discoverUserUri(uri) {
   if (repoStyle) return null;
 
   return persistence.User.findOne({ username: uri }, 'username', { lean: true }).exec();
-}
-
-function discoverMatrixDmUri(uri) {
-  const uriPieces = uri.split('/');
-
-  // We're only looking for `matrix/123abc/@root:matrix.org` which has 3 pieces
-  if (uriPieces.length !== 3 || uriPieces[0] !== 'matrix') {
-    return null;
-  }
-
-  return {
-    gitterUserId: uriPieces[1],
-    virtualUserId: uriPieces[2]
-  };
 }
 
 function discoverRoomUri(lcUri) {

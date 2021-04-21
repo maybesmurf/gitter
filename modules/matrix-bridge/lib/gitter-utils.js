@@ -35,6 +35,9 @@ class GitterUtils {
     assert(gitterUserId);
     assert(otherPersonMxid);
 
+    const gitterUser = await userService.findById(gitterUserId);
+    assert(gitterUser);
+
     const gitterRoomUri = getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(
       gitterUserId,
       otherPersonMxid
@@ -68,6 +71,15 @@ class GitterUtils {
         tracking: { source: 'matrix-dm' }
       }
     );
+
+    logger.info(
+      `Joining Gitter user (username=${gitterUser.username}, userId=${gitterUserId}) to the DM room on Gitter (gitterRoomId=${newDmRoom._id}, gitterRoomLcUri=${newDmRoom.lcUri})`
+    );
+
+    // Join the Gitter user to the new Gitter DM room
+    await roomService.joinRoom(newDmRoom, gitterUser, {
+      tracking: { source: 'matrix-dm' }
+    });
 
     return newDmRoom;
   }
