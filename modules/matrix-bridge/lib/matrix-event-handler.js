@@ -18,6 +18,7 @@ const MatrixUtils = require('./matrix-utils');
 const GitterUtils = require('./gitter-utils');
 const parseGitterMxid = require('./parse-gitter-mxid');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
+const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
 
 // 30 minutes in milliseconds
 const MAX_EVENT_ACCEPTANCE_WINDOW = 1000 * 60 * 30;
@@ -242,7 +243,57 @@ class MatrixEventHandler {
     return null;
   }
 
-  // eslint-disable-next-line max-statements
+  // Invite the Gitter user back to the DM room if they left
+  // Returns true if the user was invited, false if failed to invite, null if no inviting needed
+  async inviteGitterUserToDmRoomIfNeeded(gitterRoom, matrixRoomId) {
+    let gitterUserId;
+    try {
+      // We only need to invite people if this is a Matrix DM
+      const matrixDm = discoverMatrixDmUri(gitterRoom.lcUri);
+      if (!matrixDm) {
+        return null;
+      }
+
+      gitterUserId = matrixDm.gitterUserId;
+      const gitterUser = await userService.findById(gitterUserId);
+      assert(gitterUser);
+
+      // Join the Gitter user to the Gitter<->Matrix DM room
+      await roomService.joinRoom(gitterRoom, gitterUser, {
+        tracking: { source: 'matrix-dm' }
+      });
+      return true;
+    } catch (err) {
+      // Let's allow this to fail as sending the message regardless
+      // of the person being there is still important
+      logger.warn(
+        `Unable to invite Gitter user (${gitterUserId}) back to DM room gitterRoom=${gitterRoom.lcUri} (${gitterRoom.id}) matrixRoomId=${matrixRoomId}`,
+        err
+      );
+
+      if (gitterUserId) {
+        logger.info(
+          `Sending notice to matrixRoomId=${matrixRoomId} that we were unable to invite the Gitter user(${gitterUserId}) back to the DM room`
+        );
+
+        const matrixContent = {
+          body: `Unable to invite Gitter user back to DM room (they might have deleted their account). They probably won't know about the message you just sent.`,
+          msgtype: 'm.notice'
+        };
+
+        // We have to use the Gitter user intent because the bridge bot
+        // is not in the DM conversation. Only 2 people can be in the `is_direct`
+        // DM for it to be catogorized under the "people" heading in Element.
+        const mxid = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
+        const intent = this.matrixBridge.getIntent(mxid);
+        await intent.sendMessage(matrixRoomId, matrixContent);
+      }
+    }
+
+    return false;
+  }
+
+  // eslint-disable-next-line max-statements, complexity
   async handleChatMessageCreateEvent(event) {
     // If someone is passing us mangled events, just ignore them.
     if (!validateEventForMessageCreateEvent(event)) {
@@ -264,6 +315,10 @@ class MatrixEventHandler {
     if (!allowedToBridge) {
       return null;
     }
+
+    // The Gitter user may have left the room for the Matrix DM room.
+    // So let's invite them back to the room if there is a new message for them.
+    await this.inviteGitterUserToDmRoomIfNeeded(gitterRoom, matrixRoomId);
 
     const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
 
@@ -443,15 +498,6 @@ class MatrixEventHandler {
         gitterUser,
         event.sender
       );
-
-      logger.info(
-        `Joining Gitter user (username=${gitterUser.username}, userId=${parsedGitterMxid.userId}) to the DM room on Gitter (gitterRoomId=${gitterDmRoom._id}, gitterRoomLcUri=${gitterDmRoom.lcUri})`
-      );
-
-      // Join the Gitter user to the new Gitter DM room
-      await roomService.joinRoom(gitterDmRoom, gitterUser, {
-        tracking: { source: 'matrix-dm' }
-      });
 
       logger.info(
         `Done setting up DM room between Gitter user (username=${gitterUser.username}, userId=${parsedGitterMxid.userId}) and Matrix user (${event.sender}) -> gitterRoomId=${gitterDmRoom._id}, gitterRoomLcUri=${gitterDmRoom.lcUri}`
