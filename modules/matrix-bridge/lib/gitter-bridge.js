@@ -4,10 +4,13 @@ const debug = require('debug')('gitter:app:matrix-bridge:gitter-bridge');
 const assert = require('assert');
 const StatusError = require('statuserror');
 const appEvents = require('gitter-web-appevents');
+const userService = require('gitter-web-users');
 const chatService = require('gitter-web-chats');
+const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
+const config = env.config;
 const errorReporter = env.errorReporter;
 
 const store = require('./store');
@@ -15,12 +18,18 @@ const MatrixUtils = require('./matrix-utils');
 const transformGitterTextIntoMatrixMessage = require('./transform-gitter-text-into-matrix-message');
 const checkIfDatesSame = require('./check-if-dates-same');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
+const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
 
 class GitterBridge {
-  constructor(matrixBridge) {
+  constructor(
+    matrixBridge,
+    // The backing user we are sending messages with on the Gitter side
+    gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername')
+  ) {
     assert(matrixBridge);
     this.matrixBridge = matrixBridge;
     this.matrixUtils = new MatrixUtils(matrixBridge);
+    this._gitterBridgeUsername = gitterBridgeUsername;
 
     appEvents.onDataChange2(data => {
       this.onDataChange(data);
@@ -83,6 +92,62 @@ class GitterBridge {
     return null;
   }
 
+  async inviteMatrixUserToDmRoomIfNeeded(gitterRoomId, matrixRoomId) {
+    let otherPersonMxid;
+    let gitterRoom;
+    try {
+      gitterRoom = await troupeService.findByIdLean(gitterRoomId);
+      assert(gitterRoom);
+
+      // We only need to invite people if this is a Matrix DM
+      const matrixDm = discoverMatrixDmUri(gitterRoom.lcUri);
+      if (!matrixDm) {
+        return null;
+      }
+      const { gitterUserId, virtualUserId: otherPersonMxid } = matrixDm;
+
+      const gitterUserMxid = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(
+        gitterUserId
+      );
+      const intent = this.matrixBridge.getIntent(gitterUserMxid);
+
+      // Only invite back if they have left
+      const memberContent = await intent.getStateEvent(
+        matrixRoomId,
+        'm.room.member',
+        otherPersonMxid,
+        // returnNull=true
+        true
+      );
+      if (memberContent && memberContent.membership === 'leave') {
+        // Invite the Matrix user to the Matrix DM room
+        await intent.invite(matrixRoomId, otherPersonMxid);
+      }
+
+      return true;
+    } catch (err) {
+      // Let's allow this to fail as sending the message regardless
+      // of the person being there is still important
+      logger.warn(
+        `Unable to invite Matrix user (${otherPersonMxid}) back to Matrix DM room matrixRoomId=${matrixRoomId} gitterRoomId=${gitterRoomId}`,
+        err
+      );
+
+      if (gitterRoom) {
+        logger.info(
+          `Sending notice to gitterRoomId=${gitterRoomId} that we were unable to invite the Matrix user(${otherPersonMxid}) back to the DM room`
+        );
+
+        const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
+        await chatService.newChatMessageToTroupe(gitterRoom, gitterBridgeUser, {
+          text: `Unable to invite Matrix user back to DM room. They probably won't know about the message you just sent.`
+        });
+      }
+    }
+
+    return false;
+  }
+
   // eslint-disable-next-line max-statements
   async handleChatMessageCreateEvent(gitterRoomId, model) {
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
@@ -99,6 +164,16 @@ class GitterBridge {
 
     if (!model.fromUser) {
       throw new StatusError(400, 'message.fromUser does not exist');
+    }
+
+    // The Matrix user may have left the Matrix DM room.
+    // So let's invite them back to the room so they can see the new message for them.
+    if (
+      // Suppress any loop that can come from the bridge sending its own messages
+      //  in the room from a result of this action.
+      model.fromUser.username !== this._gitterBridgeUsername
+    ) {
+      await this.inviteMatrixUserToDmRoomIfNeeded(gitterRoomId, matrixRoomId);
     }
 
     // Handle threaded conversations

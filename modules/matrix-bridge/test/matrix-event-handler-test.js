@@ -740,6 +740,23 @@ describe('matrix-event-handler', () => {
             .returnValue;
           assert.strictEqual(inviteResult, null);
         });
+
+        it('messages from the bridge bot do not trigger invites to be sent out (avoid feedback loop)', async () => {
+          const eventData = createEventData({
+            type: 'm.room.message',
+            content: {
+              body: 'my matrix message'
+            },
+            sender: matrixEventHandler.matrixUtils.getMxidForMatrixBridgeUser()
+          });
+          await store.storeBridgedRoom(fixture.troupe1.id, eventData.room_id);
+
+          sinon.spy(matrixEventHandler, 'inviteGitterUserToDmRoomIfNeeded');
+
+          await matrixEventHandler.onEventData(eventData);
+
+          assert.strictEqual(matrixEventHandler.inviteGitterUserToDmRoomIfNeeded.callCount, 0);
+        });
       });
     });
 
