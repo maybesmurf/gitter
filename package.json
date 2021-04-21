@@ -166,7 +166,7 @@
     "request-extensible": "^0.1.1",
     "request-http-cache": "^1.1.0",
     "scriptjs": "^2.5.7",
-    "sechash": "github:suprememoocow/node-sechash#10d6a9f5231c3b4ebad9e99f7a4961cfdedd446c",
+    "sechash": "github:suprememoocow/node-sechash#c55653cafc46f38691a218736236b26cb03f1b28",
     "serve-favicon": "^2.3.0",
     "should-send-same-site-none": "^2.0.5",
     "shutdown": "^0.3.0",
