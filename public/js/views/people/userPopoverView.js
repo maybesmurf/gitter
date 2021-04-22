@@ -63,8 +63,6 @@ module.exports = (function() {
       const chatPrivatelyMatrixDm = checkForMatrixUsername(data.username);
       var mentionable = isntSelf;
 
-      console.log('data', data);
-
       const removable =
         // Can't remove yourself
         isntSelf &&
@@ -105,7 +103,6 @@ module.exports = (function() {
           displayName: options.displayName
         };
       }
-      console.log('options', options, m);
 
       var username = m.username;
       var ghModel = new Backbone.Model(m);
