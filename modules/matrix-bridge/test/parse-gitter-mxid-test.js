@@ -4,19 +4,16 @@ const assert = require('assert');
 const env = require('gitter-web-env');
 const config = env.config;
 
-const matrixBridge = require('../lib/matrix-bridge');
-const MatrixUtils = require('../lib/matrix-utils');
 const parseGitterMxid = require('../lib/parse-gitter-mxid');
+const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
 
 const configuredServerName = config.get('matrix:bridge:serverName');
-
-const matrixUtils = new MatrixUtils(matrixBridge);
 
 describe('parseGitterMxid', () => {
   [
     {
       name: 'works on basic username',
-      mxid: matrixUtils.getMxidForGitterUser({
+      mxid: getMxidForGitterUser({
         id: '553d437215522ed4b3df8c50',
         username: 'myuser'
       }),
@@ -28,7 +25,7 @@ describe('parseGitterMxid', () => {
     },
     {
       name: 'works on hyphenated username',
-      mxid: matrixUtils.getMxidForGitterUser({
+      mxid: getMxidForGitterUser({
         id: '553d437215522ed4b3df8c50',
         username: 'some-random-user'
       }),
@@ -40,7 +37,7 @@ describe('parseGitterMxid', () => {
     },
     {
       name: 'works with hypens and hex characters that appear like Mongo Object ID',
-      mxid: matrixUtils.getMxidForGitterUser({
+      mxid: getMxidForGitterUser({
         id: '553d437215522ed4b3df8c50',
         username: 'some-abcde-user'
       }),
@@ -52,7 +49,7 @@ describe('parseGitterMxid', () => {
     },
     {
       name: 'works on GitLab username',
-      mxid: matrixUtils.getMxidForGitterUser({
+      mxid: getMxidForGitterUser({
         id: '553d437215522ed4b3df8c50',
         username: 'some-user_gitlab'
       }),
@@ -69,7 +66,7 @@ describe('parseGitterMxid', () => {
     },
     {
       name: 'does not work when no user ID',
-      mxid: matrixUtils.getMxidForGitterUser({
+      mxid: getMxidForGitterUser({
         id: '',
         username: 'some-abcde-user'
       }),

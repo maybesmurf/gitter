@@ -84,7 +84,7 @@ class GitterUtils {
     return newDmRoom;
   }
 
-  async getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
+  async getGitterDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
     assert(gitterUser);
     assert(otherPersonMxid);
 
@@ -94,9 +94,20 @@ class GitterUtils {
     const gitterDmRoom = await troupeService.findByUri(
       getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid)
     );
+
+    return gitterDmRoom;
+  }
+
+  async getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
+    const gitterDmRoom = await this.getGitterDmRoomByGitterUserAndOtherPersonMxid(
+      gitterUser,
+      otherPersonMxid
+    );
     if (gitterDmRoom) {
       return gitterDmRoom;
     }
+
+    const gitterUserId = gitterUser.id || gitterUser._id;
 
     // Create the Matrix room if it doesn't already exist
     logger.info(

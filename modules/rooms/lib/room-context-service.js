@@ -48,7 +48,6 @@ async function findContextForUri(user, uri, options) {
   /* First off, try use local data to figure out what this url is for */
   const resolved = await uriResolver(user && user.id, uri, options);
 
-  console.log('resolved awfwa', resolved);
   if (!resolved) throw new StatusError(404);
 
   const resolvedVirtualUser = resolved.virtualUser;
@@ -70,14 +69,36 @@ async function findContextForUri(user, uri, options) {
     }
 
     const gitterUtils = new GitterUtils(matrixBridge);
-    const gitterDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+    // Check for existing Gitter room for this room
+    // We don't want to try to create the Gitter room before the Matrix room in case we are unable to
+    let gitterDmRoom = await gitterUtils.getGitterDmRoomByGitterUserAndOtherPersonMxid(
       resolvedUser,
       resolvedVirtualUser.externalId
     );
 
-    const previousMatrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterDmRoom._id);
+    const previousMatrixRoomId =
+      gitterDmRoom && (await matrixStore.getMatrixRoomIdByGitterRoomId(gitterDmRoom._id));
     if (!previousMatrixRoomId) {
-      const matrixRoomId = await matrixUtils.getOrCreateMatrixDmRoomByGitterUserAndOtherPersonMxid(
+      // Create the Matrix DM room first
+      let matrixRoomId;
+      try {
+        matrixRoomId = await matrixUtils.createMatrixDmRoomByGitterUserAndOtherPersonMxid(
+          resolvedUser,
+          resolvedVirtualUser.externalId
+        );
+      } catch (err) {
+        if (err.errcode === 'M_UNKNOWN') {
+          throw new StatusError(
+            404,
+            `Unable to create Matrix DM. MXID does not exist (${resolvedVirtualUser.externalId})`
+          );
+        }
+
+        throw err;
+      }
+
+      // Then only after we're succesful creating the Matrix room, create the Gitter side of the DM
+      gitterDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
         resolvedUser,
         resolvedVirtualUser.externalId
       );

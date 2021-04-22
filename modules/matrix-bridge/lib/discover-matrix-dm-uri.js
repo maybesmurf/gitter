@@ -1,5 +1,7 @@
 'use strict';
 
+const parseGitterMxid = require('./parse-gitter-mxid');
+
 //const MATRIX_DM_RE = /^matrix\/[0-9a-f]+\/@.*?/;
 
 function discoverMatrixDmUri(uri) {
@@ -16,9 +18,17 @@ function discoverMatrixDmUri(uri) {
     return null;
   }
 
+  const virtualUserId = uriPieces[2];
+
+  // Block starting a DM for any user from the `gitter.im` homeserver
+  const parsedGitterMxid = parseGitterMxid(virtualUserId);
+  if (parsedGitterMxid) {
+    return null;
+  }
+
   return {
     gitterUserId: uriPieces[1],
-    virtualUserId: uriPieces[2]
+    virtualUserId
   };
 }
 

@@ -18,6 +18,7 @@ const {
   getCanonicalAliasForGitterRoomUri
 } = require('./matrix-alias-utils');
 const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
+const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
 
 const store = require('./store');
 
@@ -368,11 +369,6 @@ class MatrixUtils {
     }
   }
 
-  getMxidForGitterUser(gitterUser) {
-    const mxid = `@${gitterUser.username.toLowerCase()}-${gitterUser.id}:${serverName}`;
-    return mxid;
-  }
-
   async getOrCreateMatrixUserByGitterUserId(gitterUserId) {
     const existingMatrixUserId = await store.getMatrixUserIdByGitterUserId(gitterUserId);
     if (existingMatrixUserId) {
@@ -385,7 +381,7 @@ class MatrixUtils {
         `Unable to get or create Gitter user because we were unable to find a Gitter user with gitterUserId=${gitterUserId}`
       );
     }
-    const mxid = this.getMxidForGitterUser(gitterUser);
+    const mxid = getMxidForGitterUser(gitterUser);
     await this.ensureCorrectMxidProfile(mxid, gitterUserId);
 
     logger.info(`Storing bridged user (Gitter user id=${gitterUser.id} -> Matrix mxid=${mxid})`);

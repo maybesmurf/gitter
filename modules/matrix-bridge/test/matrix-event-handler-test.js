@@ -16,6 +16,7 @@ const MatrixUtils = require('../lib/matrix-utils');
 const MatrixEventHandler = require('../lib/matrix-event-handler');
 const store = require('../lib/store');
 const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('../lib/get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
+const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
 
 const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
 
@@ -628,8 +629,8 @@ describe('matrix-event-handler', () => {
 
           // Make sure the user is not in the room before to see if the test is setup correctly
           const beforeMembership = await roomMembershipService.checkRoomMembership(
-            newDmRoom,
-            fixture.user1
+            newDmRoom._id,
+            fixture.user1.id
           );
           assert.strictEqual(beforeMembership, false);
 
@@ -638,8 +639,8 @@ describe('matrix-event-handler', () => {
 
           // The Gitter user is now back in the DM room to know about the new message
           const afterMembership = await roomMembershipService.checkRoomMembership(
-            newDmRoom,
-            fixture.user1
+            newDmRoom._id,
+            fixture.user1.id
           );
           assert.strictEqual(afterMembership, true);
         });
@@ -664,8 +665,8 @@ describe('matrix-event-handler', () => {
 
           // The Gitter user is still in the DM room to know about the new message
           const afterMembership = await roomMembershipService.checkRoomMembership(
-            newDmRoom,
-            fixture.user1
+            newDmRoom._id,
+            fixture.user1.id
           );
           assert.strictEqual(afterMembership, true);
         });
@@ -703,8 +704,8 @@ describe('matrix-event-handler', () => {
 
           // Make sure the user is not in the room before to see if the test is setup correctly
           const beforeMembership = await roomMembershipService.checkRoomMembership(
-            newDmRoom,
-            fixture.user1
+            newDmRoom._id,
+            fixture.user1.id
           );
           assert.strictEqual(beforeMembership, false);
 
@@ -713,8 +714,8 @@ describe('matrix-event-handler', () => {
 
           // The Gitter user was unable to join back so we should not see them in the room
           const afterMembership = await roomMembershipService.checkRoomMembership(
-            newDmRoom,
-            fixture.user1
+            newDmRoom._id,
+            fixture.user1.id
           );
           assert.strictEqual(afterMembership, false);
 
@@ -887,7 +888,7 @@ describe('matrix-event-handler', () => {
       it('When we receive a Matrix DM invite for a Gitter user, creates a Gitter room', async () => {
         const eventData = createEventData({
           type: 'm.room.member',
-          state_key: matrixUtils.getMxidForGitterUser(fixture.user1),
+          state_key: getMxidForGitterUser(fixture.user1),
           content: {
             membership: 'invite',
             is_direct: true
@@ -914,7 +915,7 @@ describe('matrix-event-handler', () => {
       it('when we receive another Matrix DM invite for a DM we already have setup, will update the matrixRoomId in the bridged room entry and use the new Matrix room', async () => {
         const eventData = createEventData({
           type: 'm.room.member',
-          state_key: matrixUtils.getMxidForGitterUser(fixture.user1),
+          state_key: getMxidForGitterUser(fixture.user1),
           content: {
             membership: 'invite',
             is_direct: true
@@ -945,7 +946,7 @@ describe('matrix-event-handler', () => {
       it('Ignores non-DM invites for Gitter users', async () => {
         const eventData = createEventData({
           type: 'm.room.member',
-          state_key: matrixUtils.getMxidForGitterUser(fixture.user1),
+          state_key: getMxidForGitterUser(fixture.user1),
           content: {
             membership: 'invite'
             // This is commented out on purpose! We're testing an invite to a normal room
@@ -962,7 +963,7 @@ describe('matrix-event-handler', () => {
       it('Does not work with non-existant Gitter user', async () => {
         const eventData = createEventData({
           type: 'm.room.member',
-          state_key: matrixUtils.getMxidForGitterUser({
+          state_key: getMxidForGitterUser({
             id: '553d437215522ed4b3df8c50',
             username: 'some-deleted-user'
           }),
