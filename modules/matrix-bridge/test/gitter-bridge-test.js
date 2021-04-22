@@ -11,6 +11,11 @@ const store = require('../lib/store');
 const strategy = new restSerializer.ChatStrategy();
 
 describe('gitter-bridge', () => {
+  const overallFixtures = fixtureLoader.setupEach({
+    userBridge1: {},
+    group1: {}
+  });
+
   let gitterBridge;
   let matrixBridge;
   let gitterUtils;
@@ -53,7 +58,11 @@ describe('gitter-bridge', () => {
 
     gitterBridge = new GitterBridge(matrixBridge);
 
-    gitterUtils = new GitterUtils(matrixBridge);
+    gitterUtils = new GitterUtils(
+      matrixBridge,
+      overallFixtures.userBridge1.username,
+      overallFixtures.group1.uri
+    );
   });
 
   describe('onDataChange', () => {
