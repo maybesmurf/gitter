@@ -106,7 +106,8 @@ class GitterBridge {
       if (!matrixDm) {
         return null;
       }
-      const { gitterUserId, virtualUserId: otherPersonMxid } = matrixDm;
+      const gitterUserId = matrixDm.gitterUserId;
+      otherPersonMxid = matrixDm.virtualUserId;
 
       const gitterUserMxid = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(
         gitterUserId

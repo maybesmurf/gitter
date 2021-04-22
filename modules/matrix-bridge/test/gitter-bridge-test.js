@@ -56,7 +56,7 @@ describe('gitter-bridge', () => {
       getIntent: (/*userId*/) => intentSpies
     };
 
-    gitterBridge = new GitterBridge(matrixBridge);
+    gitterBridge = new GitterBridge(matrixBridge, overallFixtures.userBridge1.username);
 
     gitterUtils = new GitterUtils(
       matrixBridge,
