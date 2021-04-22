@@ -68,11 +68,20 @@ describe('Rooms', function() {
   });
 
   describe('Matrix DMs', () => {
+    const fixtures = fixtureLoader.setup({
+      userBridge1: {},
+      group1: {}
+    });
+
     let gitterUtils;
     before(async () => {
       await installBridge(bridgePortFromConfig + 1);
 
-      gitterUtils = new GitterUtils(matrixBridge);
+      gitterUtils = new GitterUtils(
+        matrixBridge,
+        fixtures.userBridge1.username,
+        fixtures.group1.uri
+      );
     });
 
     // TODO: Fix test (does not pass)
