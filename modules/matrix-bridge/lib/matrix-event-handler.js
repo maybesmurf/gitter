@@ -11,6 +11,7 @@ const env = require('gitter-web-env');
 const stats = env.stats;
 const logger = env.logger;
 const config = env.config;
+const errorReporter = env.errorReporter;
 
 const store = require('./store');
 const transformMatrixEventContentIntoGitterMessage = require('./transform-matrix-event-content-into-gitter-message');
@@ -243,7 +244,7 @@ class MatrixEventHandler {
     return null;
   }
 
-  // Invite the Gitter user back to the DM room if they left
+  // Helper to invite the Gitter user back to the DM room when a new message comes in.
   // Returns true if the user was invited, false if failed to invite, null if no inviting needed
   async inviteGitterUserToDmRoomIfNeeded(gitterRoom, matrixRoomId) {
     let gitterUserId;
@@ -269,6 +270,19 @@ class MatrixEventHandler {
       logger.warn(
         `Unable to invite Gitter user (${gitterUserId}) back to DM room gitterRoom=${gitterRoom.lcUri} (${gitterRoom.id}) matrixRoomId=${matrixRoomId}`,
         err
+      );
+      errorReporter(
+        err,
+        {
+          operation: 'matrixEventHandler.inviteGitterUserToDmRoomIfNeeded',
+          data: {
+            gitterUserId,
+            gitterRoomId: gitterRoom.id,
+            gitterRoomLcUri: gitterRoom.lcUri,
+            matrixRoomId
+          }
+        },
+        { module: 'gitter-to-matrix-bridge' }
       );
 
       if (gitterUserId) {

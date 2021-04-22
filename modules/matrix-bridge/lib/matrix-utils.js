@@ -120,9 +120,6 @@ class MatrixUtils {
       }
     });
 
-    // Propagate all of the room details over to Matrix like the room topic and avatar
-    //await this.ensureCorrectRoomState(newRoom.room_id, gitterRoomId);
-
     return newRoom.room_id;
   }
 

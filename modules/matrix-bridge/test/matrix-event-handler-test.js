@@ -10,7 +10,6 @@ const chatService = require('gitter-web-chats');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const roomService = require('gitter-web-rooms');
 
-const MatrixUtils = require('../lib/matrix-utils');
 const MatrixEventHandler = require('../lib/matrix-event-handler');
 const store = require('../lib/store');
 const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('../lib/get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
@@ -29,7 +28,6 @@ function createEventData(extraEventData) {
 }
 
 describe('matrix-event-handler', () => {
-  let matrixUtils;
   let matrixEventHandler;
   let matrixBridge;
   beforeEach(() => {
@@ -54,8 +52,6 @@ describe('matrix-event-handler', () => {
     matrixBridge = {
       getIntent: (/*userId*/) => intentSpies
     };
-
-    matrixUtils = new MatrixUtils(matrixBridge);
   });
 
   describe('onAliasQuery', () => {

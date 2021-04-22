@@ -69,15 +69,17 @@ async function findContextForUri(user, uri, options) {
     }
 
     const gitterUtils = new GitterUtils(matrixBridge);
-    // Check for existing Gitter room for this room
-    // We don't want to try to create the Gitter room before the Matrix room in case we are unable to
+    // Try to find any pre-existing Matrix Room for this DM.
+    // We first need to look up Gitter room to find the Matrix room,
+    // but we don't want to create the Gitter room before the Matrix room
+    // in case we are unable to actually create the Matrix room (check for M_UNKNOWN MXID's, etc)
     let gitterDmRoom = await gitterUtils.getGitterDmRoomByGitterUserAndOtherPersonMxid(
       resolvedUser,
       resolvedVirtualUser.externalId
     );
-
     const previousMatrixRoomId =
       gitterDmRoom && (await matrixStore.getMatrixRoomIdByGitterRoomId(gitterDmRoom._id));
+
     if (!previousMatrixRoomId) {
       // Create the Matrix DM room first
       let matrixRoomId;
