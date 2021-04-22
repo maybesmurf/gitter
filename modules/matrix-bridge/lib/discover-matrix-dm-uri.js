@@ -18,6 +18,7 @@ function discoverMatrixDmUri(uri) {
     return null;
   }
 
+  const gitterUserId = uriPieces[1];
   const virtualUserId = uriPieces[2];
 
   // Block starting a DM for any user from the `gitter.im` homeserver
@@ -27,7 +28,7 @@ function discoverMatrixDmUri(uri) {
   }
 
   return {
-    gitterUserId: uriPieces[1],
+    gitterUserId,
     virtualUserId
   };
 }

@@ -92,6 +92,8 @@ class GitterBridge {
     return null;
   }
 
+  // Helper to invite the Matrix user back to the DM room when a new message comes in.
+  // Returns true if the user was invited, false if failed to invite, null if no inviting needed
   async inviteMatrixUserToDmRoomIfNeeded(gitterRoomId, matrixRoomId) {
     let otherPersonMxid;
     let gitterRoom;
@@ -131,6 +133,18 @@ class GitterBridge {
       logger.warn(
         `Unable to invite Matrix user (${otherPersonMxid}) back to Matrix DM room matrixRoomId=${matrixRoomId} gitterRoomId=${gitterRoomId}`,
         err
+      );
+      errorReporter(
+        err,
+        {
+          operation: 'gitterBridge.inviteMatrixUserToDmRoomIfNeeded',
+          data: {
+            gitterRoomId,
+            matrixRoomId,
+            otherPersonMxid
+          }
+        },
+        { module: 'gitter-to-matrix-bridge' }
       );
 
       if (gitterRoom) {
