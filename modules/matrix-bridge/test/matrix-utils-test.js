@@ -62,7 +62,6 @@ describe('matrix-utils', () => {
     matrixUtils = new MatrixUtils(matrixBridge, {
       ...bridgeConfig,
       serverName: bridgeConfig.serverName,
-      gitterLogoMxc: 'mxc://gitter.im/123',
       matrixBridgeMxidLocalpart: fixture.userBridge1.username
     });
   });

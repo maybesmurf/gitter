@@ -34,7 +34,7 @@
   },
   "matrix": {
     "bridge": {
-      "homeserverUrl": "http://localhost:18008",
+      "homeserverUrl": "http://synapse:18008",
       "serverName": "my.matrix.host",
       "applicationServiceUrl": "http://localhost:9000",
       "applicationServicePort": 9000,

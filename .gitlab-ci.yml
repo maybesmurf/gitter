@@ -87,6 +87,9 @@ default:
 .webapp_variables: &webapp_variables
   BLUEBIRD_DEBUG: 1
   NEO4J_AUTH: none
+  SYNAPSE_SERVER_NAME: my.matrix.host
+  SYNAPSE_CONFIG_DIR: /builds/scripts/docker/matrix/synapse/data/
+  SYNAPSE_CONFIG_PATH: /builds/scripts/docker/matrix/synapse/data/gitlab-ci-homeserver.yaml
 
 .webapp_services:
   - &webapp_service_mongo
@@ -102,7 +105,7 @@ default:
     name: neo4j:2.3
     alias: neo4j
   - &webapp_service_synapse
-    name: matrixdotorg/synapse:v1.20.1
+    name: matrixdotorg/synapse:v1.32.2
     alias: synapse
 
 .node_job:
@@ -114,6 +117,7 @@ default:
     - npm config set cache /npm_cache
     - mv /app/node_modules ./node_modules
     - npm install
+    - echo $NODE_ENV
   artifacts:
     expire_in: 31d
     when: always
@@ -136,6 +140,7 @@ validate:
   extends: .node_job
   variables:
     <<: *webapp_variables
+    NODE_ENV: test-docker
   stage: build_unit_test
   services:
     - *webapp_service_mongo

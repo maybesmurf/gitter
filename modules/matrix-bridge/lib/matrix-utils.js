@@ -66,7 +66,6 @@ class MatrixUtils {
     assert(this.matrixBridge, 'Matrix bridge required');
     assert(this.bridgeConfig, 'Bridge config required');
     assert(this.bridgeConfig.serverName);
-    assert(this.bridgeConfig.gitterLogoMxc);
     assert(this.bridgeConfig.matrixBridgeMxidLocalpart);
   }
 
@@ -284,15 +283,19 @@ class MatrixUtils {
       });
     }
 
+    const protocolConfig = {
+      id: 'gitter',
+      displayname: 'Gitter',
+      external_url: 'https://gitter.im/'
+    };
+    if (this.bridgeConfig.gitterLogoMxc) {
+      protocolConfig.avatar_url = this.bridgeConfig.gitterLogoMxc;
+    }
+
     // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter
     await this.ensureStateEvent(matrixRoomId, 'uk.half-shot.bridge', {
       bridgebot: this.getMxidForMatrixBridgeUser(),
-      protocol: {
-        id: 'gitter',
-        displayname: 'Gitter',
-        avatar_url: this.bridgeConfig.gitterLogoMxc,
-        external_url: 'https://gitter.im/'
-      },
+      protocol: protocolConfig,
       channel: {
         id: gitterRoom.id,
         displayname: `${gitterGroup.name}/${getRoomNameFromTroupeName(gitterRoom.uri)}`,
