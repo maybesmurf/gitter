@@ -1,4 +1,4 @@
-# 21.26.0 - *upcoming*
+# 21.27.0 - *upcoming*
 
 Developer facing:
 
@@ -12,6 +12,7 @@ Developer facing:
 # 21.26.0 - 2021-04-13
 
  - Fix "community" typo in create community flow, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2167
+ - Fix NPE in Matrix bridge when sending a message in a one to one room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2180
 
 Developer facing:
 
