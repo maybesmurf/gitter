@@ -27,7 +27,7 @@ async function isGitterRoomIdAllowedToBridge(gitterRoomId) {
   }
 
   // Check for a Matrix DM room
-  const matches = gitterRoom.lcUri.match(MATRIX_DM_RE);
+  const matches = gitterRoom.lcUri && gitterRoom.lcUri.match(MATRIX_DM_RE);
   if (matches) {
     return true;
   }
