@@ -3,19 +3,32 @@
 const assert = require('assert');
 const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const env = require('gitter-web-env');
+const config = env.config;
 const restSerializer = require('../../../server/serializers/rest-serializer');
 const GitterBridge = require('../lib/gitter-bridge');
 const GitterUtils = require('../lib/gitter-utils');
 const store = require('../lib/store');
+
+const originalBridgeConfig = config.get('matrix:bridge');
 
 const strategy = new restSerializer.ChatStrategy();
 
 describe('gitter-bridge', () => {
   const overallFixtures = fixtureLoader.setupEach({
     userBridge1: {},
-    group1: {}
+    group1: {},
+    troupe1: {
+      group: 'group1'
+    },
+    messageFromBridgeBot1: {
+      user: 'userBridge1',
+      troupe: 'troupe1',
+      text: `I'm the badger bridge bot`
+    }
   });
 
+  let bridgeConfig;
   let gitterBridge;
   let matrixBridge;
   let gitterUtils;
@@ -56,13 +69,15 @@ describe('gitter-bridge', () => {
       getIntent: (/*userId*/) => intentSpies
     };
 
-    gitterBridge = new GitterBridge(matrixBridge, overallFixtures.userBridge1.username);
+    bridgeConfig = {
+      ...originalBridgeConfig,
+      gitterBridgeUsername: overallFixtures.userBridge1.username,
+      matrixDmGroupUri: overallFixtures.group1.uri
+    };
 
-    gitterUtils = new GitterUtils(
-      matrixBridge,
-      overallFixtures.userBridge1.username,
-      overallFixtures.group1.uri
-    );
+    gitterBridge = new GitterBridge(matrixBridge, bridgeConfig);
+
+    gitterUtils = new GitterUtils(matrixBridge, bridgeConfig);
   });
 
   describe('onDataChange', () => {
@@ -122,11 +137,6 @@ describe('gitter-bridge', () => {
           },
           troupe: 'troupe1',
           text: 'my virtualUser message'
-        },
-        messageFromBridgeBot1: {
-          user: 'userBridge1',
-          troupe: 'troupe1',
-          text: `I'm the badger bridge bot`
         },
         messagePrivate1: {
           user: 'user1',
@@ -490,12 +500,12 @@ describe('gitter-bridge', () => {
         it('messages from the bridge bot do not trigger invites to be sent out (avoid feedback loop)', async () => {
           await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
           // Pass in userBridge1 as the bridging user
-          gitterBridge = new GitterBridge(matrixBridge, fixture.userBridge1.username);
+          gitterBridge = new GitterBridge(matrixBridge, bridgeConfig);
           sinon.spy(gitterBridge, 'inviteMatrixUserToDmRoomIfNeeded');
 
           // Use a message from userBridge1
           serializedMessage = await restSerializer.serializeObject(
-            fixture.messageFromBridgeBot1,
+            overallFixtures.messageFromBridgeBot1,
             strategy
           );
 
@@ -679,7 +689,6 @@ describe('gitter-bridge', () => {
     describe('handleChatMessageRemoveEvent', () => {
       const fixture = fixtureLoader.setupEach({
         user1: {},
-        userBridge1: {},
         group1: {},
         troupe1: {
           group: 'group1'

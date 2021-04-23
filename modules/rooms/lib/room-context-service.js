@@ -2,6 +2,7 @@
 
 var env = require('gitter-web-env');
 var logger = env.logger;
+const config = env.config;
 var uriResolver = require('./uri-resolver');
 var StatusError = require('statuserror');
 var oneToOneRoomService = require('./one-to-one-room-service');
@@ -15,7 +16,9 @@ const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const GitterUtils = require('gitter-web-matrix-bridge/lib/gitter-utils');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 
-const matrixUtils = new MatrixUtils(matrixBridge);
+const bridgeConfig = config.get('matrix:bridge');
+const matrixUtils = new MatrixUtils(matrixBridge, bridgeConfig);
+const gitterUtils = new GitterUtils(matrixBridge, bridgeConfig);
 
 /**
  * Given a user and a URI returns (promise of) a context object.
@@ -68,7 +71,6 @@ async function findContextForUri(user, uri, options) {
       throw new StatusError(403);
     }
 
-    const gitterUtils = new GitterUtils(matrixBridge);
     // Try to find any pre-existing Matrix Room for this DM.
     // We first need to look up Gitter room to find the Matrix room,
     // but we don't want to create the Gitter room before the Matrix room

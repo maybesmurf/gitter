@@ -10,14 +10,10 @@ const matrixBridge = require('./lib/matrix-bridge');
 const GitterBridge = require('./lib/gitter-bridge');
 const MatrixUtils = require('./lib/matrix-utils');
 
-const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
-const hsToken = config.get('matrix:bridge:hsToken');
-const asToken = config.get('matrix:bridge:asToken');
-
 // Ensures the bridge bot user is registered and updates its profile info.
-async function ensureCorrectMatrixBridgeUserProfile() {
+async function ensureCorrectMatrixBridgeUserProfile(bridgeConfig) {
   try {
-    const matrixUtils = new MatrixUtils(matrixBridge);
+    const matrixUtils = new MatrixUtils(matrixBridge, bridgeConfig);
     await matrixUtils.ensureCorrectMatrixBridgeUserProfile();
   } catch (err) {
     logger.error(`Failed to update the bridge user profile`, {
@@ -27,7 +23,11 @@ async function ensureCorrectMatrixBridgeUserProfile() {
   }
 }
 
-async function install(bridgePort = bridgePortFromConfig) {
+async function install(bridgeConfig = config.get('matrix:bridge')) {
+  const bridgePort = bridgeConfig.applicationServicePort;
+  const hsToken = bridgeConfig.hsToken;
+  const asToken = bridgeConfig.asToken;
+
   if (!bridgePort || !hsToken || !asToken) {
     logger.info(
       `No (bridgePort=${bridgePort}, hsToken=${obfuscateToken(hsToken)}, asToken=${obfuscateToken(
@@ -37,16 +37,17 @@ async function install(bridgePort = bridgePortFromConfig) {
     return;
   }
 
-  // config is always null, see https://github.com/matrix-org/matrix-appservice-bridge/issues/262
-  const bridgeConfig = null;
-
-  await matrixBridge.run(bridgePort, bridgeConfig);
+  await matrixBridge.run(
+    bridgePort,
+    // config is always null, see https://github.com/matrix-org/matrix-appservice-bridge/issues/262
+    null
+  );
   logger.info(`Matrix bridge listening on port ${bridgePort}`);
 
-  new GitterBridge(matrixBridge);
+  new GitterBridge(matrixBridge, bridgeConfig);
 
   // Fire and forget this (no need to hold up the process by awaiting it)
-  ensureCorrectMatrixBridgeUserProfile();
+  ensureCorrectMatrixBridgeUserProfile(bridgeConfig);
 }
 
 module.exports = install;

@@ -54,7 +54,8 @@
       "applicationServiceUrl": "https://matrix.gitter.im",
       "matrixBridgeMxidLocalpart": "gitter-badger",
       "gitterBridgeUsername": "matrixbot",
-      "gitterLogoMxc": "mxc://gitter.im/5ca06a9ec041815b7bfe089ec2733507753aa43c"
+      "gitterLogoMxc": "mxc://gitter.im/5ca06a9ec041815b7bfe089ec2733507753aa43c",
+      "matrixDmGroupUri": "matrix"
     }
   },
   "virtualUsers": {

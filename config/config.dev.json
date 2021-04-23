@@ -39,7 +39,8 @@
       "applicationServiceUrl": "http://host.docker.internal:9000",
       "applicationServicePort": 9000,
       "matrixBridgeMxidLocalpart": "gitter-badger",
-      "gitterBridgeUsername": "gitter-badger"
+      "gitterBridgeUsername": "gitter-badger",
+      "matrixDmGroupUri": "matrix"
     }
   },
   "virtualUsers": {

@@ -22,11 +22,6 @@ const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
 
 const store = require('./store');
 
-const serverName = config.get('matrix:bridge:serverName');
-// The bridge user we are using to interact with everything on the Matrix side
-const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLocalpart');
-const gitterLogoMxc = config.get('matrix:bridge:gitterLogoMxc');
-
 /**
  * downloadFile - This function will take a URL and store the resulting data into
  * a buffer.
@@ -64,8 +59,15 @@ async function downloadFileToBuffer(url) {
 }
 
 class MatrixUtils {
-  constructor(matrixBridge) {
+  constructor(matrixBridge, bridgeConfig) {
     this.matrixBridge = matrixBridge;
+    this.bridgeConfig = bridgeConfig;
+
+    assert(this.matrixBridge, 'Matrix bridge required');
+    assert(this.bridgeConfig, 'Bridge config required');
+    assert(this.bridgeConfig.serverName);
+    assert(this.bridgeConfig.gitterLogoMxc);
+    assert(this.bridgeConfig.matrixBridgeMxidLocalpart);
   }
 
   async createMatrixRoomByGitterRoomId(gitterRoomId) {
@@ -211,7 +213,7 @@ class MatrixUtils {
     const roomAlias = getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
     await this.ensureRoomAlias(matrixRoomId, roomAlias);
     // Add another alias for the room ID
-    await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${serverName}`);
+    await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${this.bridgeConfig.serverName}`);
     // Add a lowercase alias if necessary
     if (roomAlias.toLowerCase() !== roomAlias) {
       await this.ensureRoomAlias(matrixRoomId, roomAlias.toLowerCase());
@@ -288,7 +290,7 @@ class MatrixUtils {
       protocol: {
         id: 'gitter',
         displayname: 'Gitter',
-        avatar_url: gitterLogoMxc,
+        avatar_url: this.bridgeConfig.gitterLogoMxc,
         external_url: 'https://gitter.im/'
       },
       channel: {
@@ -388,7 +390,7 @@ class MatrixUtils {
   }
 
   getMxidForMatrixBridgeUser() {
-    const mxid = `@${matrixBridgeMxidLocalpart}:${serverName}`;
+    const mxid = `@${this.bridgeConfig.matrixBridgeMxidLocalpart}:${this.bridgeConfig.serverName}`;
     return mxid;
   }
 
@@ -401,7 +403,9 @@ class MatrixUtils {
 
     await bridgeIntent.ensureRegistered(true);
 
-    const gitterUser = await userService.findByUsername(matrixBridgeMxidLocalpart);
+    const gitterUser = await userService.findByUsername(
+      this.bridgeConfig.matrixBridgeMxidLocalpart
+    );
     await this.ensureCorrectMxidProfile(mxid, gitterUser.id);
   }
 }

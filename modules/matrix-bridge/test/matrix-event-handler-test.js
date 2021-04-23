@@ -4,6 +4,8 @@ const assert = require('assert');
 const sinon = require('sinon');
 const proxyquireNoCallThru = require('proxyquire').noCallThru();
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const env = require('gitter-web-env');
+const config = env.config;
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const roomMembershipService = require('gitter-web-rooms/lib/room-membership-service');
 const chatService = require('gitter-web-chats');
@@ -14,6 +16,8 @@ const MatrixEventHandler = require('../lib/matrix-event-handler');
 const store = require('../lib/store');
 const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('../lib/get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
 const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
+
+const originalBridgeConfig = config.get('matrix:bridge');
 
 function createEventData(extraEventData) {
   return {
@@ -88,11 +92,11 @@ describe('matrix-event-handler', () => {
     });
 
     beforeEach(() => {
-      matrixEventHandler = new MatrixEventHandler(
-        matrixBridge,
-        fixture.userBridge1.username,
-        fixture.group1.uri
-      );
+      matrixEventHandler = new MatrixEventHandler(matrixBridge, {
+        ...originalBridgeConfig,
+        gitterBridgeUsername: fixture.userBridge1.username,
+        matrixDmGroupUri: fixture.group1.uri
+      });
     });
 
     it('Normal room is found (#foo_bar:gitter.im)', async () => {
@@ -187,11 +191,11 @@ describe('matrix-event-handler', () => {
       });
 
       beforeEach(() => {
-        matrixEventHandler = new MatrixEventHandler(
-          matrixBridge,
-          fixture.userBridge1.username,
-          fixture.group1.uri
-        );
+        matrixEventHandler = new MatrixEventHandler(matrixBridge, {
+          ...originalBridgeConfig,
+          gitterBridgeUsername: fixture.userBridge1.username,
+          matrixDmGroupUri: fixture.group1.uri
+        });
       });
 
       it('When we receive message edit from Matrix, update the Gitter message in Gitter room', async () => {
@@ -343,11 +347,11 @@ describe('matrix-event-handler', () => {
       });
 
       beforeEach(() => {
-        matrixEventHandler = new MatrixEventHandler(
-          matrixBridge,
-          fixture.userBridge1.username,
-          fixture.group1.uri
-        );
+        matrixEventHandler = new MatrixEventHandler(matrixBridge, {
+          ...originalBridgeConfig,
+          gitterBridgeUsername: fixture.userBridge1.username,
+          matrixDmGroupUri: fixture.group1.uri
+        });
       });
 
       it('When we receive Matrix message, creates Gitter message in Gitter room', async () => {
@@ -525,11 +529,11 @@ describe('matrix-event-handler', () => {
           })
         };
 
-        matrixEventHandler = new MatrixEventHandler(
-          failingMatrixBridge,
-          fixture.userBridge1.username,
-          fixture.group1.uri
-        );
+        matrixEventHandler = new MatrixEventHandler(failingMatrixBridge, {
+          ...originalBridgeConfig,
+          gitterBridgeUsername: fixture.userBridge1.username,
+          matrixDmGroupUri: fixture.group1.uri
+        });
 
         const eventData = createEventData({
           type: 'm.room.message',
@@ -671,11 +675,11 @@ describe('matrix-event-handler', () => {
             }
           });
 
-          matrixEventHandler = new ProxiedMatrixEventHandler(
-            matrixBridge,
-            fixture.userBridge1.username,
-            fixture.group1.uri
-          );
+          matrixEventHandler = new ProxiedMatrixEventHandler(matrixBridge, {
+            ...originalBridgeConfig,
+            gitterBridgeUsername: fixture.userBridge1.username,
+            matrixDmGroupUri: fixture.group1.uri
+          });
 
           const eventData = createEventData({
             type: 'm.room.message',
@@ -771,11 +775,11 @@ describe('matrix-event-handler', () => {
       });
 
       beforeEach(() => {
-        matrixEventHandler = new MatrixEventHandler(
-          matrixBridge,
-          fixture.userBridge1.username,
-          fixture.group1.uri
-        );
+        matrixEventHandler = new MatrixEventHandler(matrixBridge, {
+          ...originalBridgeConfig,
+          gitterBridgeUsername: fixture.userBridge1.username,
+          matrixDmGroupUri: fixture.group1.uri
+        });
       });
 
       it('When we receive Matrix message redaction/deletion, deletes Gitter message in Gitter room', async () => {
@@ -840,11 +844,11 @@ describe('matrix-event-handler', () => {
       });
 
       beforeEach(() => {
-        matrixEventHandler = new MatrixEventHandler(
-          matrixBridge,
-          fixture.userBridge1.username,
-          fixture.group1.uri
-        );
+        matrixEventHandler = new MatrixEventHandler(matrixBridge, {
+          ...originalBridgeConfig,
+          gitterBridgeUsername: fixture.userBridge1.username,
+          matrixDmGroupUri: fixture.group1.uri
+        });
       });
 
       it('When we receive a Matrix invite, the bridge bot user joins the room', async () => {

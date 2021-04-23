@@ -10,7 +10,6 @@ const generatePermalink = require('gitter-web-shared/chat/generate-permalink');
 const env = require('gitter-web-env');
 const stats = env.stats;
 const logger = env.logger;
-const config = env.config;
 const errorReporter = env.errorReporter;
 
 const store = require('./store');
@@ -120,22 +119,16 @@ async function findGitterRoomFromAliasLocalPart(aliasLocalpart) {
 }
 
 class MatrixEventHandler {
-  constructor(
-    matrixBridge,
-    // The backing user we are sending messages with on the Gitter side
-    gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername'),
-    matrixDmGroupUri = 'matrix'
-  ) {
-    assert(matrixBridge, 'Matrix bridge required');
-    assert(
-      gitterBridgeUsername,
-      'gitterBridgeUsername required (the bot user on the Gitter side that bridges messages like gitter-badger or matrixbot)'
-    );
-
+  constructor(matrixBridge, bridgeConfig) {
     this.matrixBridge = matrixBridge;
-    this._gitterBridgeUsername = gitterBridgeUsername;
-    this.matrixUtils = new MatrixUtils(matrixBridge);
-    this.gitterUtils = new GitterUtils(matrixBridge, gitterBridgeUsername, matrixDmGroupUri);
+    this.bridgeConfig = bridgeConfig;
+
+    assert(this.matrixBridge, 'Matrix bridge required');
+    assert(this.bridgeConfig, 'Bridge config required');
+    assert(this.bridgeConfig.gitterBridgeUsername);
+
+    this.matrixUtils = new MatrixUtils(matrixBridge, this.bridgeConfig);
+    this.gitterUtils = new GitterUtils(matrixBridge, this.bridgeConfig);
   }
 
   async onAliasQuery(alias, aliasLocalpart) {
@@ -209,7 +202,9 @@ class MatrixEventHandler {
       return null;
     }
 
-    const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
+    const gitterBridgeUser = await userService.findByUsername(
+      this.bridgeConfig.gitterBridgeUsername
+    );
 
     stats.event('matrix_bridge.chat_edit', {
       gitterRoomId: chatMessage.toTroupeId,
@@ -340,7 +335,9 @@ class MatrixEventHandler {
       await this.inviteGitterUserToDmRoomIfNeeded(gitterRoom, matrixRoomId);
     }
 
-    const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
+    const gitterBridgeUser = await userService.findByUsername(
+      this.bridgeConfig.gitterBridgeUsername
+    );
 
     stats.event('matrix_bridge.chat_create', {
       gitterRoomId,

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 
+const env = require('gitter-web-env');
+const config = env.config;
+
 const shutdown = require('shutdown');
 const persistence = require('gitter-web-persistence');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
@@ -10,7 +13,8 @@ const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 
-const matrixUtils = new MatrixUtils(matrixBridge);
+const bridgeConfig = config.get('matrix:bridge');
+const matrixUtils = new MatrixUtils(matrixBridge, bridgeConfig);
 
 const opts = require('yargs')
   .option('delay', {

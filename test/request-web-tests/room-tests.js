@@ -18,8 +18,7 @@ const getMxidForGitterUser = require('gitter-web-matrix-bridge/lib/get-mxid-for-
 
 const app = require('../../server/web');
 
-const serverName = config.get('matrix:bridge:serverName');
-const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
+const originalBridgeConfig = config.get('matrix:bridge');
 
 // Finds the regex in the text and creates an excerpt so the test failure message can more easily be understood
 function findInText(text, regex, excerptBufferLength = 16) {
@@ -73,20 +72,24 @@ describe('Rooms', function() {
       group1: {}
     });
 
+    let bridgeConfig;
     let gitterUtils;
     before(async () => {
-      await installBridge(bridgePortFromConfig + 1);
+      bridgeConfig = {
+        ...originalBridgeConfig,
+        applicationServicePort: originalBridgeConfig.applicationServicePort + 1,
+        gitterBridgeUsername: fixtures.userBridge1.username,
+        matrixDmGroupUri: fixtures.group1.uri
+      };
 
-      gitterUtils = new GitterUtils(
-        matrixBridge,
-        fixtures.userBridge1.username,
-        fixtures.group1.uri
-      );
+      await installBridge(bridgeConfig);
+
+      gitterUtils = new GitterUtils(matrixBridge, bridgeConfig);
     });
 
     // TODO: Fix test (does not pass)
     // it(`Creates Matrix DM when visiting URL`, async () => {
-    //   const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${serverName}`;
+    //   const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${bridgeConfig.serverName}`;
     //   console.log('mxid', mxid);
     //   const intent = matrixBridge.getIntent(mxid);
     //   await intent.ensureRegistered();
@@ -98,7 +101,7 @@ describe('Rooms', function() {
     // });
 
     it(`able to look at DM room for youself even when you're not joined`, async () => {
-      const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${serverName}`;
+      const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${bridgeConfig.serverName}`;
 
       const gitterRoom = await gitterUtils.createGitterDmRoomByGitterUserIdAndOtherPersonMxid(
         fixture.user1.id,
@@ -112,7 +115,7 @@ describe('Rooms', function() {
     });
 
     it(`DM room is private`, async () => {
-      const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${serverName}`;
+      const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${bridgeConfig.serverName}`;
 
       const gitterRoom = await gitterUtils.createGitterDmRoomByGitterUserIdAndOtherPersonMxid(
         fixture.user1.id,
@@ -127,7 +130,7 @@ describe('Rooms', function() {
     });
 
     it(`another user can't start a DM for another user by visiting their URL`, async () => {
-      const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${serverName}`;
+      const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${bridgeConfig.serverName}`;
 
       await request(app)
         // DM between user1 and mxid

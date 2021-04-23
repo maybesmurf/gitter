@@ -8,6 +8,8 @@ const fs = require('fs');
 const yargs = require('yargs');
 const LineByLineReader = require('line-by-line');
 const shutdown = require('shutdown');
+const env = require('gitter-web-env');
+const config = env.config;
 const persistence = require('gitter-web-persistence');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 
@@ -15,7 +17,8 @@ const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 
-const matrixUtils = new MatrixUtils(matrixBridge);
+const bridgeConfig = config.get('matrix:bridge');
+const matrixUtils = new MatrixUtils(matrixBridge, bridgeConfig);
 
 const opts = yargs
   .option('room-store-file', {

@@ -7,7 +7,7 @@ const MatrixUtils = require('../lib/matrix-utils');
 const env = require('gitter-web-env');
 const config = env.config;
 
-const serverName = config.get('matrix:bridge:serverName');
+const bridgeConfig = config.get('matrix:bridge');
 
 describe('matrix-utils', () => {
   const fixture = fixtureLoader.setupEach({
@@ -18,6 +18,7 @@ describe('matrix-utils', () => {
     userWithCapitalUsername1: {
       username: `MyTestUser${fixtureLoader.generateGithubId()}`
     },
+    userBridge1: {},
     group1: {},
     troupe1: {
       group: 'group1'
@@ -58,7 +59,12 @@ describe('matrix-utils', () => {
       getIntent: sinon.spy(() => intentSpies)
     };
 
-    matrixUtils = new MatrixUtils(matrixBridge);
+    matrixUtils = new MatrixUtils(matrixBridge, {
+      ...bridgeConfig,
+      serverName: bridgeConfig.serverName,
+      gitterLogoMxc: 'mxc://gitter.im/123',
+      matrixBridgeMxidLocalpart: fixture.userBridge1.username
+    });
   });
 
   describe('getOrCreateMatrixRoomByGitterRoomId', () => {
@@ -98,7 +104,7 @@ describe('matrix-utils', () => {
 
       assert.strictEqual(matrixBridge.getIntent.callCount, 2);
       assert.deepEqual(matrixBridge.getIntent.getCall(0).args, [
-        `@${fixture.user1.username}-${fixture.user1.id}:${serverName}`
+        `@${fixture.user1.username}-${fixture.user1.id}:${bridgeConfig.serverName}`
       ]);
       assert.strictEqual(matrixBridge.getIntent().setDisplayName.callCount, 1);
       // Don't worry about testing the avatar here.
