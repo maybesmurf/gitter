@@ -8,6 +8,7 @@ const isGitterRoomIdAllowedToBridge = require('../lib/is-gitter-room-id-allowed-
 describe('isGitterRoomIdAllowedToBridge', () => {
   const fixture = fixtureLoader.setupEach({
     user1: {},
+    user2: {},
     troupe1: {},
     troupePublic1: {},
     troupePrivate1: {
@@ -16,6 +17,10 @@ describe('isGitterRoomIdAllowedToBridge', () => {
         admins: 'MANUAL',
         public: false
       }
+    },
+    troupeOneToOne: {
+      oneToOne: true,
+      users: ['user1', 'user2']
     },
     troupeMatrixDm1: {
       uri: 'matrix/1234abcde/@bob:matrix.org'
@@ -40,6 +45,11 @@ describe('isGitterRoomIdAllowedToBridge', () => {
     assert.strictEqual(allowedToBridge, false);
   });
 
+  it(`one to one room can't bridge`, async () => {
+    const allowedToBridge = await isGitterRoomIdAllowedToBridge(fixture.troupeOneToOne.id);
+    assert.strictEqual(allowedToBridge, false);
+  });
+
   it('Matrix DM can bridge', async () => {
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(fixture.troupeMatrixDm1.id);
     assert.strictEqual(allowedToBridge, true);
@@ -47,6 +57,11 @@ describe('isGitterRoomIdAllowedToBridge', () => {
 
   it(`Random group with "matrix" in name can't bridge`, async () => {
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(fixture.troupeFakeMatrixDm1.id);
+    assert.strictEqual(allowedToBridge, false);
+  });
+
+  it('Non-existant room can not bridge', async () => {
+    const allowedToBridge = await isGitterRoomIdAllowedToBridge('000000000000000000000000');
     assert.strictEqual(allowedToBridge, false);
   });
 });
