@@ -164,7 +164,7 @@ export default {
     </p>
 
     <p v-if="(hasProvider('gitlab') || hasProvider('github')) && !selectedBackingEntity">
-      do you want to start a communtiy for your
+      do you want to start a community for your
       <a
         ref="backingUserPromptGithubLink"
         href="#0"

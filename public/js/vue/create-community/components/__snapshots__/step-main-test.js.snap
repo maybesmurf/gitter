@@ -71,7 +71,7 @@ exports[`StepMain GitHub user matches snapshot 1`] = `
    
   <p>
     
-    do you want to start a communtiy for your
+    do you want to start a community for your
     
     <a
       data-disable-routing="1"
@@ -173,7 +173,7 @@ exports[`StepMain GitLab user matches snapshot 1`] = `
    
   <p>
     
-    do you want to start a communtiy for your
+    do you want to start a community for your
     
     <a
       data-disable-routing="1"
