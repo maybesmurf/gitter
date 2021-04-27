@@ -2,8 +2,6 @@
 
 const parseGitterMxid = require('./parse-gitter-mxid');
 
-//const MATRIX_DM_RE = /^matrix\/[0-9a-f]+\/@.*?/;
-
 function discoverMatrixDmUri(uri) {
   // This can happen for Gitter one to one rooms that have no URI
   if (!uri) {

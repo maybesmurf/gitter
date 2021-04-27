@@ -104,15 +104,9 @@ class MatrixUtils {
     const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterUserId);
     const intent = this.matrixBridge.getIntent(gitterUserMxid);
 
-    let roomName = gitterUser.username;
-    if (gitterUser.displayname) {
-      roomName = `${gitterUser.username} (${gitterUser.displayname})`;
-    }
-
     const newRoom = await intent.createRoom({
       createAsClient: true,
       options: {
-        name: roomName,
         visibility: 'private',
         preset: 'trusted_private_chat',
         is_direct: true,

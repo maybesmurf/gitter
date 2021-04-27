@@ -84,18 +84,14 @@ describe('Rooms', function() {
       );
     });
 
-    // TODO: Fix test (does not pass)
-    // it(`Creates Matrix DM when visiting URL`, async () => {
-    //   const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${serverName}`;
-    //   console.log('mxid', mxid);
-    //   const intent = matrixBridge.getIntent(mxid);
-    //   await intent.ensureRegistered();
+    it(`Creates Matrix DM when visiting URL`, async () => {
+      const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${serverName}`;
 
-    //   await request(app)
-    //     .get(`/matrix/${fixture.user1.id}/${mxid}`)
-    //     .set('Authorization', `Bearer ${fixture.user1.accessToken}`)
-    //     .expect(200);
-    // });
+      await request(app)
+        .get(`/matrix/${fixture.user1.id}/${mxid}`)
+        .set('Authorization', `Bearer ${fixture.user1.accessToken}`)
+        .expect(200);
+    });
 
     it(`able to look at DM room for youself even when you're not joined`, async () => {
       const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${serverName}`;

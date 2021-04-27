@@ -122,7 +122,7 @@ class GitterBridge {
         // returnNull=true
         true
       );
-      if (memberContent && memberContent.membership === 'leave') {
+      if (!memberContent || (memberContent && memberContent.membership === 'leave')) {
         // Invite the Matrix user to the Matrix DM room
         await intent.invite(matrixRoomId, otherPersonMxid);
       }

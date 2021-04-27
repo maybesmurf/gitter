@@ -400,6 +400,35 @@ describe('gitter-bridge', () => {
           assert.deepEqual(matrixBridge.getIntent().invite.getCall(0).args[1], otherPersonMxid);
         });
 
+        it('should invite Matrix user back to Matrix DM room if they were never in the room', async () => {
+          const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+            fixture.user1,
+            otherPersonMxid
+          );
+          await store.storeBridgedRoom(newDmRoom._id, matrixRoomId);
+
+          // Stub the other user as left the room
+          matrixBridge.getIntent().getStateEvent = (targetRoomId, type, stateKey) => {
+            if (
+              targetRoomId === matrixRoomId &&
+              type === 'm.room.member' &&
+              stateKey === otherPersonMxid
+            ) {
+              return null;
+            }
+          };
+
+          await gitterBridge.onDataChange({
+            type: 'chatMessage',
+            url: `/rooms/${newDmRoom._id}/chatMessages`,
+            operation: 'create',
+            model: serializedMessage
+          });
+
+          assert.strictEqual(matrixBridge.getIntent().invite.callCount, 1);
+          assert.deepEqual(matrixBridge.getIntent().invite.getCall(0).args[1], otherPersonMxid);
+        });
+
         it('should work if Matrix user already in DM room (not mess anything up)', async () => {
           const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
             fixture.user1,

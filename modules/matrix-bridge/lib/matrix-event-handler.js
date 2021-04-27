@@ -248,6 +248,7 @@ class MatrixEventHandler {
   // Returns true if the user was invited, false if failed to invite, null if no inviting needed
   async inviteGitterUserToDmRoomIfNeeded(gitterRoom, matrixRoomId) {
     let gitterUserId;
+    let gitterUser;
     try {
       // We only need to invite people if this is a Matrix DM
       const matrixDm = discoverMatrixDmUri(gitterRoom.lcUri);
@@ -256,7 +257,7 @@ class MatrixEventHandler {
       }
 
       gitterUserId = matrixDm.gitterUserId;
-      const gitterUser = await userService.findById(gitterUserId);
+      gitterUser = await userService.findById(gitterUserId);
       assert(gitterUser);
 
       // Join the Gitter user to the Gitter<->Matrix DM room
@@ -290,8 +291,14 @@ class MatrixEventHandler {
           `Sending notice to matrixRoomId=${matrixRoomId} that we were unable to invite the Gitter user(${gitterUserId}) back to the DM room`
         );
 
+        let unableToInviteErrorMessage = `Unable to invite Gitter user back to DM room. They probably won't know about the message you just sent.`;
+        if (gitterUser.isRemoved && gitterUser.isRemoved()) {
+          unableToInviteErrorMessage =
+            'Unable to invite Gitter user back to DM room because they deleted their account.';
+        }
+
         const matrixContent = {
-          body: `Unable to invite Gitter user back to DM room (they might have deleted their account). They probably won't know about the message you just sent.`,
+          body: unableToInviteErrorMessage,
           msgtype: 'm.notice'
         };
 
