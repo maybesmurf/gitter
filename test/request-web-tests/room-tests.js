@@ -87,6 +87,10 @@ describe('Rooms', function() {
     it(`Creates Matrix DM when visiting URL`, async () => {
       const mxid = `@${fixtureUtils.generateUsername().slice(1)}:${serverName}`;
 
+      // We don't have to register the MXID because Synapse will happily create a DM
+      // with a non-existent MXID on the local homserver. The room is created on Matrix
+      // and an invite event to the specified user. The user just never exists.
+
       await request(app)
         .get(`/matrix/${fixture.user1.id}/${mxid}`)
         .set('Authorization', `Bearer ${fixture.user1.accessToken}`)
