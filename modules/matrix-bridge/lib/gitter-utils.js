@@ -32,8 +32,8 @@ class GitterUtils {
   }
 
   async createGitterDmRoomByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid) {
-    assert(gitterUserId);
-    assert(otherPersonMxid);
+    assert(gitterUserId, 'gitterUserId is required');
+    assert(otherPersonMxid, 'otherPersonMxid is required');
 
     const gitterUser = await userService.findById(gitterUserId);
     assert(gitterUser);
@@ -45,10 +45,13 @@ class GitterUtils {
 
     // Create the DM room on the Gitter side
     const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
-    assert(gitterBridgeUser);
+    assert(
+      gitterBridgeUser,
+      `gitterBridgeUser was not found (gitterBridgeUsername=${this._gitterBridgeUsername})`
+    );
 
     const group = await groupService.findByUri(this._matrixDmGroupUri, { lean: true });
-    assert(group);
+    assert(group, `matrixDmGroupUri was not found (${this._matrixDmGroupUri})`);
 
     const roomInfo = {
       uri: gitterRoomUri,
