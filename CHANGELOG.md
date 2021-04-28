@@ -8,6 +8,7 @@ Developer facing:
  - Reduce `npm audit` bulk by forcing on dev dependencies, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2174
  - `npm dedupe` packages, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2175
  - Hook up Gitter logging functions to `matrix-appservice-bridge`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2177
+ - Make Synapse instance available to communicate in CI tests, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2181
 
 
 # 21.26.0 - 2021-04-13
