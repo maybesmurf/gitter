@@ -6,11 +6,13 @@ process.env.DISABLE_API_WEB_LISTEN = '1';
 
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const fixtureUtils = require('gitter-web-test-utils/lib/fixture-utils');
+const createUsers = require('gitter-web-test-utils/lib/create-users');
 const assert = require('assert');
 const request = require('supertest');
 const env = require('gitter-web-env');
 const config = env.config;
 
+const userService = require('gitter-web-users');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const GitterUtils = require('gitter-web-matrix-bridge/lib/gitter-utils');
@@ -20,6 +22,7 @@ const app = require('../../server/web');
 
 const serverName = config.get('matrix:bridge:serverName');
 const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
+const gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername');
 
 // Finds the regex in the text and creates an excerpt so the test failure message can more easily be understood
 function findInText(text, regex, excerptBufferLength = 16) {
@@ -69,19 +72,34 @@ describe('Rooms', function() {
 
   describe('Matrix DMs', () => {
     const fixtures = fixtureLoader.setup({
-      userBridge1: {},
+      //userBridge1: {},
       group1: {}
     });
 
     let gitterUtils;
     before(async () => {
+      let gitterBridgeUser = await userService.findByUsername(gitterBridgeUsername);
+      // Create the bridge user on the Gitter side if it doesn't already exist.
+      // We don't have access to dependency inject this like we do in the smaller unit tests
+      // so let's just create the user like it exists for real.
+      if (!gitterBridgeUser) {
+        // Re-using the test fixture setup functions
+        let f = {};
+        await createUsers(
+          {
+            userBridge1: {
+              username: gitterBridgeUsername
+            }
+          },
+          f
+        );
+
+        gitterBridgeUser = f.userBridge1;
+      }
+
       await installBridge(bridgePortFromConfig + 1);
 
-      gitterUtils = new GitterUtils(
-        matrixBridge,
-        fixtures.userBridge1.username,
-        fixtures.group1.uri
-      );
+      gitterUtils = new GitterUtils(matrixBridge, gitterBridgeUser.username, fixtures.group1.uri);
     });
 
     it(`Creates Matrix DM when visiting URL`, async () => {
