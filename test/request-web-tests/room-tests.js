@@ -7,11 +7,14 @@ process.env.DISABLE_API_WEB_LISTEN = '1';
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const fixtureUtils = require('gitter-web-test-utils/lib/fixture-utils');
 const createUsers = require('gitter-web-test-utils/lib/create-users');
+const createGroups = require('gitter-web-test-utils/lib/create-groups');
 const assert = require('assert');
 const request = require('supertest');
 const env = require('gitter-web-env');
 const config = env.config;
+const logger = env.logger.get('request-web-tests:room-tests');
 
+const groupService = require('gitter-web-groups');
 const userService = require('gitter-web-users');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
@@ -35,6 +38,44 @@ function findInText(text, regex, excerptBufferLength = 16) {
         Math.min(result.index + result[0].length + excerptBufferLength, text.length - 1)
       )
     };
+  }
+}
+
+async function ensureMatrixFixtures() {
+  let gitterBridgeUser = await userService.findByUsername(gitterBridgeUsername);
+  // Create the bridge user on the Gitter side if it doesn't already exist.
+  // We don't have access to dependency inject this like we do in the smaller unit tests
+  // so let's just create the user like it exists for real.
+  if (!gitterBridgeUser) {
+    logger.info(
+      `Matrix gitterBridgeUser not found, creating test fixture user (${gitterBridgeUsername}) to smooth it over.`
+    );
+    // Re-using the test fixture setup functions
+    let f = {};
+    await createUsers(
+      {
+        userBridge1: {
+          username: gitterBridgeUsername
+        }
+      },
+      f
+    );
+  }
+
+  const matrixDmGroup = await groupService.findByUri('matrix', { lean: true });
+  if (!matrixDmGroup) {
+    logger.info('Matrix DM group not found, creating test fixture group to smooth it over.');
+
+    // Re-using the test fixture setup functions
+    let f = {};
+    await createGroups(
+      {
+        groupMatrix: {
+          uri: 'matrix'
+        }
+      },
+      f
+    );
   }
 }
 
@@ -71,35 +112,13 @@ describe('Rooms', function() {
   });
 
   describe('Matrix DMs', () => {
-    const fixtures = fixtureLoader.setup({
-      //userBridge1: {},
-      group1: {}
-    });
-
     let gitterUtils;
     before(async () => {
-      let gitterBridgeUser = await userService.findByUsername(gitterBridgeUsername);
-      // Create the bridge user on the Gitter side if it doesn't already exist.
-      // We don't have access to dependency inject this like we do in the smaller unit tests
-      // so let's just create the user like it exists for real.
-      if (!gitterBridgeUser) {
-        // Re-using the test fixture setup functions
-        let f = {};
-        await createUsers(
-          {
-            userBridge1: {
-              username: gitterBridgeUsername
-            }
-          },
-          f
-        );
-
-        gitterBridgeUser = f.userBridge1;
-      }
+      await ensureMatrixFixtures();
 
       await installBridge(bridgePortFromConfig + 1);
 
-      gitterUtils = new GitterUtils(matrixBridge, gitterBridgeUser.username, fixtures.group1.uri);
+      gitterUtils = new GitterUtils(matrixBridge);
     });
 
     it(`Creates Matrix DM when visiting URL`, async () => {
