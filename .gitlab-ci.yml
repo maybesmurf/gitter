@@ -85,8 +85,11 @@ default:
     - <<: *if-hotfix-branch
 
 .webapp_variables: &webapp_variables
+  FF_NETWORK_PER_BUILD: 1
   BLUEBIRD_DEBUG: 1
   NEO4J_AUTH: none
+  SYNAPSE_SERVER_NAME: my.matrix.host
+  SYNAPSE_CONFIG_PATH: /data/gitlab-ci-homeserver.yaml
 
 .webapp_services:
   - &webapp_service_mongo
@@ -102,7 +105,7 @@ default:
     name: neo4j:2.3
     alias: neo4j
   - &webapp_service_synapse
-    name: matrixdotorg/synapse:v1.20.1
+    name: $GITTER_CI_REGISTRY_IMAGE/synapse:latest
     alias: synapse
 
 .node_job:
@@ -136,6 +139,7 @@ validate:
   extends: .node_job
   variables:
     <<: *webapp_variables
+    NODE_ENV: test-docker
   stage: build_unit_test
   services:
     - *webapp_service_mongo
@@ -418,6 +422,16 @@ elasticsearch-base:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN registry.gitlab.com
     - docker build -t $GITTER_CI_REGISTRY_IMAGE/elasticsearch:latest scripts/docker/elasticsearch-image/
     - docker push $GITTER_CI_REGISTRY_IMAGE/elasticsearch:latest
+
+synapse-base:
+  extends: .use-docker-in-docker
+  stage: docker_images
+  rules:
+    - <<: *if-schedule
+  script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN registry.gitlab.com
+    - docker build -t $GITTER_CI_REGISTRY_IMAGE/synapse:latest scripts/docker/matrix/synapse/
+    - docker push $GITTER_CI_REGISTRY_IMAGE/synapse:latest
 
 renovate:
   extends: .use-docker-in-docker
