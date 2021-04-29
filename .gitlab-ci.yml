@@ -461,8 +461,6 @@ include:
 dependency_scanning:
   stage: security
   variables:
-    DS_PYTHON_VERSION: 2
-    DS_PIP_VERSION: 20.3.4
     SECURE_LOG_LEVEL: debug
     RETIREJS_ADVISORY_DB_INSECURE: 'true'
 
