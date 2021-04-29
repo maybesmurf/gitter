@@ -28,8 +28,8 @@ describe('SelectDropdown', () => {
       filterPlaceholder: 'Filter items...'
     });
 
-    wrapper.find({ ref: 'filterTextInput' }).element.value = 'lookingforyou';
-    wrapper.find({ ref: 'filterTextInput' }).trigger('input');
+    wrapper.findComponent({ ref: 'filterTextInput' }).element.value = 'lookingforyou';
+    wrapper.findComponent({ ref: 'filterTextInput' }).trigger('input');
 
     expect(wrapper.emitted().filterInput).toBeTruthy();
   });

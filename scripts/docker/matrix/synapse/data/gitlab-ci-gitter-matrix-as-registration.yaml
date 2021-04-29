@@ -1,0 +1,16 @@
+id: ccab233b9517080bcc4a7a853d040042828ffa4e409cea3c5819fea00d974078
+hs_token: 7a5a7a785c89b2adb41cf6311ca81b22b199a5572dd5233ecc7a2412e532004d
+as_token: 6201a8d865ddb8b70a8d5676f3458b9e35a6bc5dd886628702d1ebfffb1f3fa0
+url: 'http://localhost:9000'
+sender_localpart: gitter-badger
+namespaces:
+  users:
+    - exclusive: true
+      regex: '@.*-[0-9a-f]+:my.matrix.host'
+  aliases:
+    - exclusive: true
+      regex: '#.*:my.matrix.host'
+  rooms:
+    - exclusive: true
+      regex: .*
+rate_limited: false

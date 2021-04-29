@@ -1,6 +1,20 @@
+# 21.27.0 - 2021-04-28
+
+Developer facing:
+
+ - Update and dedupe `bluebird` to the latest, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2171
+ - Update jest to reduce `npm audit` bulk, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2172
+ - Remove more `npm audit` bulk, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2173
+ - Reduce `npm audit` bulk by forcing on dev dependencies, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2174
+ - `npm dedupe` packages, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2175
+ - Hook up Gitter logging functions to `matrix-appservice-bridge`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2177
+ - Make Synapse instance available to communicate in CI tests, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2181
+
+
 # 21.26.0 - 2021-04-13
 
  - Fix "community" typo in create community flow, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2167
+ - Fix NPE in Matrix bridge when sending a message in a one to one room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2180
 
 Developer facing:
 

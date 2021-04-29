@@ -136,7 +136,7 @@ describe('mutations', () => {
     });
   });
 
-  it('RECEIVE_ROOM_FAVOURITE_ERROR ', () => {
+  it('RECEIVE_ROOM_FAVOURITE_ERROR', () => {
     const room1 = createSerializedRoomFixture('community/room1');
     state.roomMap = {
       [room1.id]: { ...room1, loading: true }

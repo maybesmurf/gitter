@@ -30,7 +30,7 @@ describe('thread-message-feed chat-item', () => {
     });
     describe('component flags', () => {
       ['useCompactStyles', 'showItemActions'].forEach(flag => {
-        it(flag, () => {
+        it(`${flag}`, () => {
           const { wrapper } = mount(
             ChatItem,
             {
@@ -45,7 +45,7 @@ describe('thread-message-feed chat-item', () => {
     });
     describe('message flags', () => {
       ['error', 'loading', 'unread'].forEach(flag => {
-        it(flag, () => {
+        it(`${flag}`, () => {
           const { wrapper } = mount(
             ChatItem,
             {
@@ -147,11 +147,11 @@ describe('thread-message-feed chat-item', () => {
     });
 
     it('pressing enter submits the message for update', () => {
-      wrapper.find({ ref: 'chatItemEditTextArea' }).trigger('keydown.enter');
+      wrapper.findComponent({ ref: 'chatItemEditTextArea' }).trigger('keydown.enter');
       expect(stubbedActions.threadMessageFeed.updateMessage).toHaveBeenCalled();
     });
     it('pressing esc cancels editing', () => {
-      wrapper.find({ ref: 'chatItemEditTextArea' }).trigger('keydown.esc');
+      wrapper.findComponent({ ref: 'chatItemEditTextArea' }).trigger('keydown.esc');
       expect(stubbedActions.threadMessageFeed.cancelEdit).toHaveBeenCalled();
     });
   });

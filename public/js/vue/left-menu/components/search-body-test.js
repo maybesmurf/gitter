@@ -154,7 +154,7 @@ describe('search-body', () => {
       store.state.search.searchInputValue = searchValue;
     });
 
-    wrapper.find({ ref: 'search-input' }).trigger('input');
+    wrapper.findComponent({ ref: 'search-input' }).trigger('input');
 
     expect(stubbedActions.fetchRoomSearchResults).toHaveBeenCalled();
     expect(stubbedActions.fetchMessageSearchResults).toHaveBeenCalled();

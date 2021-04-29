@@ -12,7 +12,7 @@ const {
 jest.mock('gitter-web-client-context');
 jest.mock('../../utils/appevents', () => {
   return {
-    ...require.requireActual('../../utils/appevents'),
+    ...jest.requireActual('../../utils/appevents'),
     triggerParent: jest.fn()
   };
 });
@@ -582,7 +582,10 @@ describe('actions', () => {
 
       state.roomMap[roomObject.id] = roomObject;
 
-      window.location.assign = jest.fn();
+      // via https://remarkablemark.org/blog/2018/11/17/mock-window-location/#update-for-jsdom-14
+      // and https://www.benmvp.com/blog/mocking-window-location-methods-jest-jsdom/
+      delete window.location;
+      window.location = { assign: jest.fn() };
 
       await testAction(
         actions.changeDisplayedRoomById,
@@ -614,7 +617,10 @@ describe('actions', () => {
       );
     });
     it('falls back to redirecting if the room is not present', async () => {
-      window.location.assign = jest.fn();
+      // via https://remarkablemark.org/blog/2018/11/17/mock-window-location/#update-for-jsdom-14
+      // and https://www.benmvp.com/blog/mocking-window-location-methods-jest-jsdom/
+      delete window.location;
+      window.location = { assign: jest.fn() };
 
       await testAction(actions.changeDisplayedRoomByUrl, '/community/room1', state, [], []);
       expect(window.location.assign).toHaveBeenCalledWith('/community/room1');
@@ -679,7 +685,12 @@ describe('actions', () => {
   describe('joinRoom', () => {
     it('when welcome message and not embed', async () => {
       context.mockImplementation(() => ({}));
-      window.location.assign = jest.fn();
+
+      // via https://remarkablemark.org/blog/2018/11/17/mock-window-location/#update-for-jsdom-14
+      // and https://www.benmvp.com/blog/mocking-window-location-methods-jest-jsdom/
+      delete window.location;
+      window.location = { assign: jest.fn() };
+
       const room = createSerializedRoomFixture('test-room', { meta: { welcomeMessage: 'hey' } });
 
       await testAction(actions.joinRoom, undefined, {

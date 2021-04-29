@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable jest/valid-title */
 
 var isValidRoomUri = require('./valid-room-uri');
 var RESERVED = require('gitter-web-validators/lib/reserved-namespaces').list;

@@ -5,15 +5,13 @@ const fs = require('fs-extra');
 const { Bridge, Logging, AppServiceRegistration } = require('matrix-appservice-bridge');
 const env = require('gitter-web-env');
 const config = env.config;
-const logger = env.logger;
+const logger = env.logger.get('matrix-bridge');
 const stats = env.stats;
 const errorReporter = env.errorReporter;
 
 const MatrixEventHandler = require('./matrix-event-handler');
 
-// Stop the "Attempt to write logs with no transports" messages
-// see https://github.com/matrix-org/matrix-appservice-bridge/issues/243
-Logging.configure({ level: 'silent' });
+Logging.configure({ level: 'warn' });
 
 const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
 const serverName = config.get('matrix:bridge:serverName');
@@ -108,6 +106,13 @@ const matrixBridge = new Bridge({
       }
 
       return null;
+    },
+    onLog: async (line, isError) => {
+      if (isError) {
+        logger.error(line);
+      } else {
+        logger.info(line);
+      }
     }
   }
 });

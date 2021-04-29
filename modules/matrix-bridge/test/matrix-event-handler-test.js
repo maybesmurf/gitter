@@ -7,11 +7,15 @@ const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const roomMembershipService = require('gitter-web-rooms/lib/room-membership-service');
 const chatService = require('gitter-web-chats');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
+const env = require('gitter-web-env');
+const config = env.config;
 
 const MatrixUtils = require('../lib/matrix-utils');
 const MatrixEventHandler = require('../lib/matrix-event-handler');
 const store = require('../lib/store');
 const GitterUtils = require('../lib/gitter-utils');
+
+const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
 
 function createEventData(extraEventData) {
   return {
@@ -510,7 +514,7 @@ describe('matrix-event-handler', () => {
         assert.strictEqual(messages.length, 1);
         assert.strictEqual(
           messages[0].text,
-          '[my-image.jpeg](http://localhost:18008/_matrix/media/v1/download/my.matrix.host/yjyeYJIBdJGkYvYoLuvPfBuS)\n[![my-image.jpeg](http://localhost:18008/_matrix/media/v1/download/my.matrix.host/DSVnwDtcZeNoBEjUnsFxdelN)](http://localhost:18008/_matrix/media/v1/download/my.matrix.host/yjyeYJIBdJGkYvYoLuvPfBuS)'
+          `[my-image.jpeg](${homeserverUrl}/_matrix/media/v1/download/my.matrix.host/yjyeYJIBdJGkYvYoLuvPfBuS)\n[![my-image.jpeg](${homeserverUrl}/_matrix/media/v1/download/my.matrix.host/DSVnwDtcZeNoBEjUnsFxdelN)](${homeserverUrl}/_matrix/media/v1/download/my.matrix.host/yjyeYJIBdJGkYvYoLuvPfBuS)`
         );
         assert.strictEqual(messages[0].virtualUser.externalId, 'alice:localhost');
         assert.strictEqual(messages[0].virtualUser.displayName, 'Alice');

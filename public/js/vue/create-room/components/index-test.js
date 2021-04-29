@@ -31,7 +31,7 @@ describe('CreateRoom', () => {
   it('clicking submit fires store action', () => {
     const { wrapper, stubbedActions } = mount(Index);
 
-    wrapper.find({ ref: 'submitButton' }).trigger('click');
+    wrapper.findComponent({ ref: 'submitButton' }).trigger('click');
 
     expect(stubbedActions.createRoom.submitRoom).toHaveBeenCalledWith(
       expect.anything(),
@@ -43,7 +43,7 @@ describe('CreateRoom', () => {
   it('clicking on the modal does NOT close the modal', () => {
     const { wrapper } = mount(Index);
 
-    wrapper.find({ ref: 'modal' }).trigger('click');
+    wrapper.findComponent({ ref: 'modal' }).trigger('click');
 
     expect(appEvents.trigger.mock.calls[0]).toEqual(undefined);
   });
@@ -51,7 +51,7 @@ describe('CreateRoom', () => {
   it('closes modal when close button is clicked', () => {
     const { wrapper } = mount(Index);
 
-    wrapper.find({ ref: 'closeButton' }).trigger('click');
+    wrapper.findComponent({ ref: 'closeButton' }).trigger('click');
 
     expect(appEvents.trigger.mock.calls[0]).toEqual(['destroy-create-room-view']);
   });
@@ -59,7 +59,7 @@ describe('CreateRoom', () => {
   it('closes modal when modal backdrop is clicked', () => {
     const { wrapper } = mount(Index);
 
-    wrapper.find({ ref: 'root' }).trigger('click');
+    wrapper.findComponent({ ref: 'root' }).trigger('click');
 
     expect(appEvents.trigger.mock.calls[0]).toEqual(['destroy-create-room-view']);
   });

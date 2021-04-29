@@ -1,4 +1,4 @@
-/*global describe:true, it:true, before:false, after:false  */
+/*global describe:true, it:true  */
 'use strict';
 
 var testRequire = require('./../test-require');

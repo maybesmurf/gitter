@@ -26,7 +26,7 @@ describe('menu-bar-item', () => {
       type: leftMenuConstants.LEFT_MENU_ALL_STATE
     });
 
-    wrapper.find({ ref: 'root' }).trigger('click');
+    wrapper.findComponent({ ref: 'root' }).trigger('click');
 
     expect(stubbedActions.setLeftMenuState).toHaveBeenCalledWith(
       expect.anything(),
@@ -48,7 +48,7 @@ describe('menu-bar-item', () => {
       }
     );
 
-    wrapper.find({ ref: 'root' }).trigger('click');
+    wrapper.findComponent({ ref: 'root' }).trigger('click');
 
     expect(stubbedActions.toggleLeftMenu).toHaveBeenCalledWith(
       expect.anything(),
@@ -69,7 +69,7 @@ describe('menu-bar-item', () => {
       }
     );
 
-    wrapper.find({ ref: 'root' }).trigger('click');
+    wrapper.findComponent({ ref: 'root' }).trigger('click');
 
     expect(stubbedActions.toggleLeftMenu).toHaveBeenCalledWith(expect.anything(), true, undefined);
   });

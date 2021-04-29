@@ -8,7 +8,7 @@ describe('thread-message-feed thread-header', () => {
   });
   it('close button calls toggleThreadMessageFeed action', () => {
     const { wrapper, stubbedActions } = mount(ThreadHeader);
-    wrapper.find({ ref: 'close-button' }).trigger('click');
+    wrapper.findComponent({ ref: 'close-button' }).trigger('click');
 
     expect(stubbedActions.threadMessageFeed.close).toHaveBeenCalledWith(
       expect.anything(),
