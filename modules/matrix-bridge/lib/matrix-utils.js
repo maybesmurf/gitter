@@ -105,6 +105,9 @@ class MatrixUtils {
     const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterUserId);
     const intent = this.matrixBridge.getIntent(gitterUserMxid);
 
+    // Make sure the user exists
+    await intent.getProfileInfo(otherPersonMxid);
+
     const newRoom = await intent.createRoom({
       createAsClient: true,
       options: {

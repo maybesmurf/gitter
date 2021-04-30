@@ -89,7 +89,11 @@ async function findContextForUri(user, uri, options) {
           resolvedVirtualUser.externalId
         );
       } catch (err) {
-        if (err.errcode === 'M_UNKNOWN') {
+        if (
+          err.errcode === 'M_NOT_FOUND' ||
+          err.errcode === 'M_UNAUTHORIZED' ||
+          err.errcode === 'M_UNKNOWN'
+        ) {
           throw new StatusError(
             404,
             `Unable to create Matrix DM. MXID does not exist (${resolvedVirtualUser.externalId})`
