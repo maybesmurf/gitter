@@ -17,12 +17,15 @@ const {
   getCanonicalAliasLocalpartForGitterRoomUri,
   getCanonicalAliasForGitterRoomUri
 } = require('./matrix-alias-utils');
+const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
+const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
 
 const store = require('./store');
 
 const serverName = config.get('matrix:bridge:serverName');
 // The bridge user we are using to interact with everything on the Matrix side
 const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLocalpart');
+const gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername');
 const gitterLogoMxc = config.get('matrix:bridge:gitterLogoMxc');
 
 /**
@@ -93,6 +96,27 @@ class MatrixUtils {
 
     // Propagate all of the room details over to Matrix like the room topic and avatar
     await this.ensureCorrectRoomState(newRoom.room_id, gitterRoomId);
+
+    return newRoom.room_id;
+  }
+
+  async createMatrixDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
+    const gitterUserId = gitterUser.id || gitterUser._id;
+    const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterUserId);
+    const intent = this.matrixBridge.getIntent(gitterUserMxid);
+
+    // Make sure the user exists
+    await intent.getProfileInfo(otherPersonMxid);
+
+    const newRoom = await intent.createRoom({
+      createAsClient: true,
+      options: {
+        visibility: 'private',
+        preset: 'trusted_private_chat',
+        is_direct: true,
+        invite: [otherPersonMxid]
+      }
+    });
 
     return newRoom.room_id;
   }
@@ -291,6 +315,31 @@ class MatrixUtils {
     return matrixRoomId;
   }
 
+  async getOrCreateMatrixDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
+    // Find the cached existing bridged room
+    const gitterUserId = gitterUser.id || gitterUser._id;
+    const gitterDmRoom = await troupeService.findByUri(
+      getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid(gitterUserId, otherPersonMxid)
+    );
+    const gitterRoomId = gitterDmRoom.id;
+    const existingMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
+    if (existingMatrixRoomId) {
+      return existingMatrixRoomId;
+    }
+
+    // Create the Matrix room if it doesn't already exist
+    logger.info(
+      `Existing Matrix room not found, creating new Matrix DM room for between gitterUser=${gitterUserId} (${gitterUser.username}) otherPersonMxid=${otherPersonMxid}`
+    );
+
+    const matrixRoomId = await this.createMatrixDmRoomByGitterUserAndOtherPersonMxid(
+      gitterUser,
+      otherPersonMxid
+    );
+
+    return matrixRoomId;
+  }
+
   async ensureCorrectMxidProfile(mxid, gitterUserId) {
     const gitterUser = await userService.findById(gitterUserId);
 
@@ -315,11 +364,6 @@ class MatrixUtils {
     }
   }
 
-  getMxidForGitterUser(gitterUser) {
-    const mxid = `@${gitterUser.username.toLowerCase()}-${gitterUser.id}:${serverName}`;
-    return mxid;
-  }
-
   async getOrCreateMatrixUserByGitterUserId(gitterUserId) {
     const existingMatrixUserId = await store.getMatrixUserIdByGitterUserId(gitterUserId);
     if (existingMatrixUserId) {
@@ -332,7 +376,7 @@ class MatrixUtils {
         `Unable to get or create Gitter user because we were unable to find a Gitter user with gitterUserId=${gitterUserId}`
       );
     }
-    const mxid = this.getMxidForGitterUser(gitterUser);
+    const mxid = getMxidForGitterUser(gitterUser);
     await this.ensureCorrectMxidProfile(mxid, gitterUserId);
 
     logger.info(`Storing bridged user (Gitter user id=${gitterUser.id} -> Matrix mxid=${mxid})`);
@@ -355,7 +399,7 @@ class MatrixUtils {
 
     await bridgeIntent.ensureRegistered(true);
 
-    const gitterUser = await userService.findByUsername(matrixBridgeMxidLocalpart);
+    const gitterUser = await userService.findByUsername(gitterBridgeUsername);
     await this.ensureCorrectMxidProfile(mxid, gitterUser.id);
   }
 }

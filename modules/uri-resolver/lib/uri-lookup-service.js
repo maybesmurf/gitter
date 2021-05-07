@@ -11,6 +11,7 @@ var Promise = require('bluebird');
 var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 var debug = require('debug')('gitter:app:uri-lookup-service');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
+const discoverMatrixDmUri = require('gitter-web-matrix-bridge/lib/discover-matrix-dm-uri');
 
 /**
  * For exporting things
@@ -61,7 +62,8 @@ function discoverUri(uri) {
     discoverUserUri(uri),
     discoverRoomUri(lcUri),
     discoverGroupUri(lcUri),
-    function(user, troupe, group) {
+    discoverMatrixDmUri(lcUri),
+    function(user, troupe, group, matrixDm) {
       debug('Found user=%s troupe=%s group=%s', !!user, !!troupe, !!group);
 
       /* Found user. Add to cache and continue */
@@ -75,6 +77,14 @@ function discoverUri(uri) {
 
       if (group) {
         return reserveUriForGroupId(group._id, group.homeUri);
+      }
+
+      if (matrixDm) {
+        return {
+          uri,
+          virtualUserId: matrixDm.virtualUserId,
+          userId: matrixDm.gitterUserId
+        };
       }
 
       /* Last ditch attempt. Look for a room that has been renamed */
