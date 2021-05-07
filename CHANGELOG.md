@@ -1,4 +1,4 @@
-# 21.28.0 - *upcoming*
+# 21.28.0 - 2021-05-07
 
  - Add support for Gitter users to start DM conversations with Matrix users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2168
 
