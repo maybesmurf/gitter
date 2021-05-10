@@ -6,7 +6,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TEMP_DIR=${TMPDIR-/tmp}
 rm -f $TEMP_DIR/sitemap*
 
-$SCRIPT_DIR/../generate-sitemap.js --tempdir $TEMP_DIR --name sitemap
+# `ns` is nodeselektor
+/usr/bin/ns $SCRIPT_DIR/../generate-sitemap.js --tempdir $TEMP_DIR --name sitemap
 
 gzip -9 $TEMP_DIR/sitemap*
 
