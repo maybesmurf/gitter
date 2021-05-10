@@ -1,6 +1,9 @@
 # 21.289.0 - *upcoming*
 
+Developer facing:
+
  - Fix failing `generate-sitemap` cron, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2185
+ - Add cron to remove old users from massive rooms (replacing `trim-freecodecamp-rooms` with general `trim-large-rooms`), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2186
 
 
 # 21.28.0 - 2021-05-07
