@@ -10,7 +10,7 @@ const matrixBridge = require('./lib/matrix-bridge');
 const GitterBridge = require('./lib/gitter-bridge');
 const MatrixUtils = require('./lib/matrix-utils');
 
-const bridgePort = config.get('matrix:bridge:applicationServicePort');
+const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
 const hsToken = config.get('matrix:bridge:hsToken');
 const asToken = config.get('matrix:bridge:asToken');
 
@@ -27,7 +27,7 @@ async function ensureCorrectMatrixBridgeUserProfile() {
   }
 }
 
-async function install() {
+async function install(bridgePort = bridgePortFromConfig) {
   if (!bridgePort || !hsToken || !asToken) {
     logger.info(
       `No (bridgePort=${bridgePort}, hsToken=${obfuscateToken(hsToken)}, asToken=${obfuscateToken(

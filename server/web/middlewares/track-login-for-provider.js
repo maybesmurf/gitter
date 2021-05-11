@@ -14,6 +14,12 @@ function isRelativeURL(url) {
   return relativeUrl.test(url);
 }
 
+// Stop random input from being tracked
+const ACTION_ALLOWLIST = ['signup', 'login'];
+function validateAction(inputAction) {
+  return ACTION_ALLOWLIST.includes(inputAction);
+}
+
 module.exports = function trackLoginForProvider(provider) {
   return function(req, res, next) {
     var query = req.query;
@@ -28,7 +34,7 @@ module.exports = function trackLoginForProvider(provider) {
     }
 
     //send data to stats service
-    if (query.action) {
+    if (query.action && validateAction(query.action)) {
       stats.event(query.action + '_clicked', {
         method: provider + '_oauth',
         button: query.source

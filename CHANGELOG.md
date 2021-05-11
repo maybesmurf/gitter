@@ -1,3 +1,21 @@
+# 21.29.0 - 2021-05-10
+
+Developer facing:
+
+ - Fix failing `generate-sitemap` cron, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2185
+ - Add cron to remove old users from massive rooms (replacing `trim-freecodecamp-rooms` with general `trim-large-rooms`), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2186
+ - Only track `/login` `action` parameter values we care about, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2187
+
+
+# 21.28.0 - 2021-05-07
+
+ - Add support for Gitter users to start DM conversations with Matrix users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2168
+
+Developer facing:
+
+ - Re-enable security scans after being disabled, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2046
+
+
 # 21.27.0 - 2021-04-28
 
 Developer facing:
