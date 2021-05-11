@@ -10,6 +10,26 @@ var debug = require('debug')('gitter:app:uri-resolver');
 var StatusError = require('statuserror');
 
 function resolveFromLookup(uriLookup, userId) {
+  if (uriLookup.virtualUserId && uriLookup.userId) {
+    return userService.findById(uriLookup.userId).then(function(user) {
+      if (!user) {
+        return null;
+      }
+
+      return {
+        uri: uriLookup.uri,
+        user: user,
+        virtualUser: {
+          type: 'matrix',
+          externalId: uriLookup.virtualUserId
+        },
+        room: null,
+        roomMember: null,
+        group: null
+      };
+    });
+  }
+
   if (uriLookup.userId) {
     /* The uri is for a user */
     return userService.findById(uriLookup.userId).then(function(user) {
@@ -66,7 +86,7 @@ function resolveFromLookup(uriLookup, userId) {
 /**
  * Returns { user, troupe, roomMember, group }
  */
-function uriResolver(userId, uri, options) {
+async function uriResolver(userId, uri, options) {
   debug('uriResolver %s', uri);
   var ignoreCase = options && options.ignoreCase;
 

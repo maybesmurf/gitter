@@ -1,3 +1,12 @@
+# 21.28.0 - 2021-05-07
+
+ - Add support for Gitter users to start DM conversations with Matrix users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2168
+
+Developer facing:
+
+ - Re-enable security scans after being disabled, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2046
+
+
 # 21.27.0 - 2021-04-28
 
 Developer facing:
