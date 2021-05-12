@@ -3,6 +3,10 @@
  - Clarify that delete account does not delete backing account, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2189
      - Thanks to [@CleanMachine1](https://github.com/CleanMachine1) for the contribution
 
+Developer facing:
+
+ - Use `matrix-appservice-bridge` pre RC, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2190
+
 
 # 21.29.0 - 2021-05-10
 
