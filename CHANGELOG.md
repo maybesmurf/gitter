@@ -1,3 +1,9 @@
+# 21.30.0 - 2021-05-11
+
+ - Clarify that delete account does not delete backing account, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2189
+     - Thanks to [@CleanMachine1](https://github.com/CleanMachine1) for the contribution
+
+
 # 21.29.0 - 2021-05-10
 
 Developer facing:
