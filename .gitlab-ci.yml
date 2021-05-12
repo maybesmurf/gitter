@@ -124,16 +124,16 @@ default:
       - /npm_cache/
       - npm_cache/
 
-# validate:
-#   extends: .node_job
-#   stage: build_unit_test
-#   script:
-#     - "echo 'TODO: Skip validation for now because we have new eslint failures'"
-#     - make validate
-#     # TODO: This should be part of `make validate` -> `gulpfile-linter`
-#     # but the prettier API doesn't easily allow glob checking and I want
-#     # to re-use the scripts that GitLab has, https://gitlab.com/gitlab-org/gitlab-ce/issues/57010
-#     - npm run prettier -- --check "**/*.{js,vue}"
+validate:
+  extends: .node_job
+  stage: build_unit_test
+  script:
+    - "echo 'TODO: Skip validation for now because we have new eslint failures'"
+    - make validate
+    # TODO: This should be part of `make validate` -> `gulpfile-linter`
+    # but the prettier API doesn't easily allow glob checking and I want
+    # to re-use the scripts that GitLab has, https://gitlab.com/gitlab-org/gitlab-ce/issues/57010
+    - npm run prettier -- --check "**/*.{js,vue}"
 
 .test_job:
   extends: .node_job
@@ -150,12 +150,12 @@ default:
   script:
     - make ci-test
 
-# test:
-#   extends:
-#     - .test_job
-#   rules:
-#     - when: always
-#   retry: 1
+test:
+  extends:
+    - .test_job
+  rules:
+    - when: always
+  retry: 1
 
 test_e2e:
   extends: .test_job
