@@ -341,7 +341,10 @@ class MatrixUtils {
   }
 
   async ensureCorrectMxidProfile(mxid, gitterUserId) {
+    assert(mxid, 'mxid required');
+    assert(gitterUserId, 'gitterUserId required');
     const gitterUser = await userService.findById(gitterUserId);
+    assert(gitterUser, `gitterUser not found (${gitterUserId})`);
 
     const intent = this.matrixBridge.getIntent(mxid);
 
