@@ -123,5 +123,25 @@ describe('matrix-utils', () => {
 
       assert.strictEqual(mxid, mxid.toLowerCase());
     });
+
+    it('throws when Gitter user does not exist', async () => {
+      try {
+        await matrixUtils.getOrCreateMatrixUserByGitterUserId('does-not-exist-id');
+        assert.fail('expected error to be thrown because Gitter user does not exist');
+      } catch (err) {
+        assert.ok(err);
+      }
+    });
+  });
+
+  describe('ensureCorrectMxidProfile', () => {
+    it('throws when Gitter user does not exist', async () => {
+      try {
+        await matrixUtils.ensureCorrectMxidProfile(undefined, fixture.user1.id);
+        assert.fail('expected error to be thrown because Gitter user does not exist');
+      } catch (err) {
+        assert.ok(err);
+      }
+    });
   });
 });
