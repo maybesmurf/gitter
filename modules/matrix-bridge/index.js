@@ -29,7 +29,7 @@ async function ensureCorrectMatrixBridgeUserProfile() {
 
 async function install(bridgePort = bridgePortFromConfig) {
   if (!bridgePort || !hsToken || !asToken) {
-    logger.info(
+    logger.error(
       `No (bridgePort=${bridgePort}, hsToken=${obfuscateToken(hsToken)}, asToken=${obfuscateToken(
         asToken
       )}) specified for Matrix bridge so we won't start it up`
