@@ -56,7 +56,8 @@
       "serverName": "beta.gitter.im",
       "applicationServiceUrl": "https://matrix-beta.gitter.im",
       "matrixBridgeMxidLocalpart": "gitter-badger",
-      "gitterBridgeUsername": "matrixbot",
+      "gitterBridgeBackingUsername": "matrixbot",
+      "gitterBridgeProfileUsername": "gitter-badger",
       "gitterLogoMxc": "mxc://beta.gitter.im/2b0b9642689e91d0ca46d2d91d612d8485a1e344"
     }
   },

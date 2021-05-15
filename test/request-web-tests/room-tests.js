@@ -26,7 +26,8 @@ const app = require('../../server/web');
 
 const serverName = config.get('matrix:bridge:serverName');
 const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
-const gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername');
+const gitterBridgeBackingUsername = config.get('matrix:bridge:gitterBridgeBackingUsername');
+const gitterBridgeProfileUsername = config.get('matrix:bridge:gitterBridgeProfileUsername');
 
 // Finds the regex in the text and creates an excerpt so the test failure message can more easily be understood
 function findInText(text, regex, excerptBufferLength = 16) {
@@ -43,25 +44,41 @@ function findInText(text, regex, excerptBufferLength = 16) {
 }
 
 async function ensureMatrixFixtures() {
-  let gitterBridgeUser = await userService.findByUsername(gitterBridgeUsername);
-  // Create the bridge user on the Gitter side if it doesn't already exist.
+  const userFixtures = {};
+
+  // Create the backing bridge user on the Gitter side if it doesn't already exist.
   // We don't have access to dependency inject this like we do in the smaller unit tests
   // so let's just create the user like it exists for real.
-  if (!gitterBridgeUser) {
+  const gitterBridgeBackingUser = await userService.findByUsername(gitterBridgeBackingUsername);
+  if (!gitterBridgeBackingUser) {
     logger.info(
-      `Matrix gitterBridgeUser not found, creating test fixture user (${gitterBridgeUsername}) to smooth it over.`
+      `Matrix gitterBridgeBackingUser not found, creating test fixture user (${gitterBridgeBackingUsername}) to smooth it over.`
     );
-    // Re-using the test fixture setup functions
-    let f = {};
-    await createUsers(
-      {
-        userBridge1: {
-          username: gitterBridgeUsername
-        }
-      },
-      f
-    );
+    userFixtures.userBridge1 = {
+      username: gitterBridgeBackingUsername
+    };
   }
+
+  // Create the profile bridge user on the Gitter side if it doesn't already exist.
+  // We don't have access to dependency inject this like we do in the smaller unit tests
+  // so let's just create the user like it exists for real.
+  const gitterBridgeProfileUser = await userService.findByUsername(gitterBridgeProfileUsername);
+  if (
+    !gitterBridgeProfileUser &&
+    // Also make sure we're not trying to create the same user if they are configured to be the same
+    gitterBridgeProfileUsername !== gitterBridgeBackingUsername
+  ) {
+    logger.info(
+      `Matrix gitterBridgeProfileUser not found, creating test fixture user (${gitterBridgeProfileUsername}) to smooth it over.`
+    );
+    userFixtures.userBridgeProfile1 = {
+      username: gitterBridgeProfileUsername
+    };
+  }
+
+  // Re-using the test fixture setup functions
+  let f = {};
+  await createUsers(userFixtures, f);
 
   const matrixDmGroup = await groupService.findByUri('matrix', { lean: true });
   if (!matrixDmGroup) {
