@@ -39,7 +39,8 @@
       "applicationServiceUrl": "http://localhost:9000",
       "applicationServicePort": 9000,
       "matrixBridgeMxidLocalpart": "gitter-badger",
-      "gitterBridgeUsername": "gitter-badger",
+      "gitterBridgeBackingUsername": "gitter-badger",
+      "gitterBridgeProfileUsername": "gitter-badger",
       "testSynapseRegistrationSharedSecret": "n9SkRshHAtx=A&bJFh_Rb1Ee;N~BE+x1y@T=b7jqT#5Cwe@K0r"
     }
   },

@@ -16,18 +16,18 @@ class GitterUtils {
   constructor(
     matrixBridge,
     // The backing user we are sending messages with on the Gitter side
-    gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername'),
+    gitterBridgeBackingUsername = config.get('matrix:bridge:gitterBridgeBackingUsername'),
     matrixDmGroupUri = 'matrix'
   ) {
     assert(matrixBridge);
     assert(
-      gitterBridgeUsername,
-      'gitterBridgeUsername required (the bot user on the Gitter side that bridges messages like gitter-badger or matrixbot)'
+      gitterBridgeBackingUsername,
+      'gitterBridgeBackingUsername required (the bot user on the Gitter side that bridges messages like gitter-badger or matrixbot)'
     );
     assert(matrixDmGroupUri);
 
     this.matrixBridge = matrixBridge;
-    this._gitterBridgeUsername = gitterBridgeUsername;
+    this._gitterBridgeBackingUsername = gitterBridgeBackingUsername;
     this._matrixDmGroupUri = matrixDmGroupUri;
   }
 
@@ -44,10 +44,10 @@ class GitterUtils {
     );
 
     // Create the DM room on the Gitter side
-    const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
+    const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeBackingUsername);
     assert(
       gitterBridgeUser,
-      `gitterBridgeUser was not found (gitterBridgeUsername=${this._gitterBridgeUsername})`
+      `gitterBridgeUser was not found (gitterBridgeBackingUsername=${this._gitterBridgeBackingUsername})`
     );
 
     const group = await groupService.findByUri(this._matrixDmGroupUri, { lean: true });

@@ -123,19 +123,19 @@ class MatrixEventHandler {
   constructor(
     matrixBridge,
     // The backing user we are sending messages with on the Gitter side
-    gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername'),
+    gitterBridgeBackingUsername = config.get('matrix:bridge:gitterBridgeBackingUsername'),
     matrixDmGroupUri = 'matrix'
   ) {
     assert(matrixBridge, 'Matrix bridge required');
     assert(
-      gitterBridgeUsername,
-      'gitterBridgeUsername required (the bot user on the Gitter side that bridges messages like gitter-badger or matrixbot)'
+      gitterBridgeBackingUsername,
+      'gitterBridgeBackingUsername required (the bot user on the Gitter side that bridges messages like gitter-badger or matrixbot)'
     );
 
     this.matrixBridge = matrixBridge;
-    this._gitterBridgeUsername = gitterBridgeUsername;
+    this._gitterBridgeBackingUsername = gitterBridgeBackingUsername;
     this.matrixUtils = new MatrixUtils(matrixBridge);
-    this.gitterUtils = new GitterUtils(matrixBridge, gitterBridgeUsername, matrixDmGroupUri);
+    this.gitterUtils = new GitterUtils(matrixBridge, gitterBridgeBackingUsername, matrixDmGroupUri);
   }
 
   async onAliasQuery(alias, aliasLocalpart) {
@@ -209,7 +209,7 @@ class MatrixEventHandler {
       return null;
     }
 
-    const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
+    const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeBackingUsername);
 
     stats.event('matrix_bridge.chat_edit', {
       gitterRoomId: chatMessage.toTroupeId,
@@ -347,7 +347,7 @@ class MatrixEventHandler {
       await this.inviteGitterUserToDmRoomIfNeeded(gitterRoom, matrixRoomId);
     }
 
-    const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
+    const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeBackingUsername);
 
     stats.event('matrix_bridge.chat_create', {
       gitterRoomId,

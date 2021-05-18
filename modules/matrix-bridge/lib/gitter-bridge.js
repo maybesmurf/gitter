@@ -24,12 +24,12 @@ class GitterBridge {
   constructor(
     matrixBridge,
     // The backing user we are sending messages with on the Gitter side
-    gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername')
+    gitterBridgeBackingUsername = config.get('matrix:bridge:gitterBridgeBackingUsername')
   ) {
     assert(matrixBridge);
     this.matrixBridge = matrixBridge;
     this.matrixUtils = new MatrixUtils(matrixBridge);
-    this._gitterBridgeUsername = gitterBridgeUsername;
+    this._gitterBridgeBackingUsername = gitterBridgeBackingUsername;
 
     appEvents.onDataChange2(data => {
       this.onDataChange(data);
@@ -153,7 +153,9 @@ class GitterBridge {
           `Sending notice to gitterRoomId=${gitterRoomId} that we were unable to invite the Matrix user(${otherPersonMxid}) back to the DM room`
         );
 
-        const gitterBridgeUser = await userService.findByUsername(this._gitterBridgeUsername);
+        const gitterBridgeUser = await userService.findByUsername(
+          this._gitterBridgeBackingUsername
+        );
         await chatService.newChatMessageToTroupe(gitterRoom, gitterBridgeUser, {
           text: `Unable to invite Matrix user back to DM room. They probably won't know about the message you just sent.`
         });
@@ -186,7 +188,7 @@ class GitterBridge {
     if (
       // Suppress any loop that can come from the bridge sending its own messages
       //  in the room from a result of this action.
-      model.fromUser.username !== this._gitterBridgeUsername
+      model.fromUser.username !== this._gitterBridgeBackingUsername
     ) {
       await this.inviteMatrixUserToDmRoomIfNeeded(gitterRoomId, matrixRoomId);
     }

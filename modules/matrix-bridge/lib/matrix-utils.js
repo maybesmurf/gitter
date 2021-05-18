@@ -25,7 +25,8 @@ const store = require('./store');
 const serverName = config.get('matrix:bridge:serverName');
 // The bridge user we are using to interact with everything on the Matrix side
 const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLocalpart');
-const gitterBridgeUsername = config.get('matrix:bridge:gitterBridgeUsername');
+// The Gitter user we are pulling profile information from to populate the Matrix bridge user profile
+const gitterBridgeProfileUsername = config.get('matrix:bridge:gitterBridgeProfileUsername');
 const gitterLogoMxc = config.get('matrix:bridge:gitterLogoMxc');
 
 /**
@@ -341,7 +342,10 @@ class MatrixUtils {
   }
 
   async ensureCorrectMxidProfile(mxid, gitterUserId) {
+    assert(mxid, 'mxid required');
+    assert(gitterUserId, 'gitterUserId required');
     const gitterUser = await userService.findById(gitterUserId);
+    assert(gitterUser, `gitterUser not found (${gitterUserId})`);
 
     const intent = this.matrixBridge.getIntent(mxid);
 
@@ -399,7 +403,7 @@ class MatrixUtils {
 
     await bridgeIntent.ensureRegistered(true);
 
-    const gitterUser = await userService.findByUsername(gitterBridgeUsername);
+    const gitterUser = await userService.findByUsername(gitterBridgeProfileUsername);
     await this.ensureCorrectMxidProfile(mxid, gitterUser.id);
   }
 }
