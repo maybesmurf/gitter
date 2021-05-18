@@ -6,6 +6,7 @@
 Developer facing:
 
  - Make it easier to spot in tests when Matrix bridge failed to start, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2195
+ - Track invalid tokens by high frequency stats instead of flooding logs, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2196
 
 
 # 21.30.0 - 2021-05-12
