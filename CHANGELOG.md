@@ -1,3 +1,10 @@
+# 21.32.0 - *upcoming*
+
+Developer facing:
+
+ - Update GitLab CI and docs to use Node.js v14, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2197
+
+
 # 21.31.0 - 2021-05-18
 
  - Pull Matrix bridge profile information from the @gitter-badger Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2194
