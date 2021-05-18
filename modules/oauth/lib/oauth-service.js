@@ -3,8 +3,9 @@
 const WEB_INTERNAL_CLIENT_KEY = 'web-internal';
 const env = require('gitter-web-env');
 const nconf = env.config;
-const logger = env.logger;
+const stats = env.stats;
 
+const debug = require('debug')('gitter:app:oauth-service');
 const appEvents = require('gitter-web-appevents');
 const persistenceService = require('gitter-web-persistence');
 const Promise = require('bluebird');
@@ -139,7 +140,8 @@ function deleteAuthorizationCode(code) {
 function validateAccessTokenAndClient(token) {
   return tokenProvider.validateToken(token).then(function(result) {
     if (!result) {
-      logger.warn('Invalid token presented: ', { token: token });
+      stats.eventHF('oauth_service.invalid_token');
+      debug('Invalid token presented: ', { token: token });
       return null; // code invalid
     }
 
@@ -147,7 +149,8 @@ function validateAccessTokenAndClient(token) {
     var clientId = result[1];
 
     if (!clientId) {
-      logger.warn('Invalid token presented (no client): ', { token: token });
+      stats.eventHF('oauth_service.invalid_token_no_client');
+      debug('Invalid token presented (no client): ', { token: token });
       return null; // code invalid
     }
 
@@ -157,13 +160,15 @@ function validateAccessTokenAndClient(token) {
       userId && userService.findById(userId),
       function(client, user) {
         if (!client) {
-          logger.warn('Invalid token presented (client not found): ', {
+          stats.eventHF('oauth_service.invalid_token_client_not_found');
+          debug('Invalid token presented (client not found): ', {
             token: token,
             clientId: clientId
           });
           return null;
         } else if (client.revoked) {
-          logger.warn('Token can not be accepted (client has been revoked): ', {
+          stats.eventHF('oauth_service.invalid_token_client_revoked');
+          debug('Token can not be accepted (client has been revoked): ', {
             token: token,
             clientId: clientId
           });
@@ -180,7 +185,8 @@ function validateAccessTokenAndClient(token) {
         }
 
         if (userId && !user) {
-          logger.warn('Invalid token presented (user not found): ', {
+          stats.eventHF('oauth_service.invalid_token_no_user');
+          debug('Invalid token presented (user not found): ', {
             token: token,
             userId: userId
           });
