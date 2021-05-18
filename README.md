@@ -31,7 +31,7 @@ Follow these instructions to setup an environment to hack on Gitter.
     * On Linux, follow the instructions over at  https://docs.docker.com/compose/install/
     * On Mac, use [Docker for Mac](https://docs.docker.com/docker-for-mac/install/)
     * On Windows, get [Docker for Windows](https://docs.docker.com/docker-for-windows/install/)
- 1. Install **Node 10.x (LTS)** [manually](https://nodejs.org/dist/latest-v10.x/) or using a tool like [nvm](https://github.com/creationix/nvm)
+ 1. Install **Node 14.x (LTS)** [manually](https://nodejs.org/dist/latest-v14.x/) or using a tool like [nvm](https://github.com/creationix/nvm)
     * If you are on Windows, you can use [nvm-windows](https://github.com/coreybutler/nvm-windows)
  1. Install **npm 6.x**
     * Node **10.x** already comes with **npm 6.x**. Otherwise, you can install manually with `npm install npm@^6.x -g`

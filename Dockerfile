@@ -1,4 +1,4 @@
-FROM node:10.24.0-buster-slim
+FROM node:14.16.0-buster-slim
 
 RUN mkdir -p /app
 RUN mkdir -p /npm_cache
@@ -20,8 +20,9 @@ RUN cat package-lock.json | node filter-package-lock-json-cli.js > temp-package-
 # we add (and then remove) the dependencies to install node-gyp
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates git make python g++ \
-    && npm install --production \
-    # via https://github.com/nodejs/docker-node/blob/1d6a051d71e817f3947612a260ddcb02e48c2f74/10/buster-slim/Dockerfile#L53
-    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false python g++
+    # Normally we use `npm install --production` but we need the
+    # devDependencies(like webpack) installed so we can run in NODE_ENV=test-docker
+    && npm install
+# We keep the python and g++ around so we can re-install everything later in CI if necessary
 
 RUN rm -rf /tmp/* /var/cache/apk/* /root/.npm /root/.node-gyp /root/.gnupg /root/.ssh 2>/dev/null

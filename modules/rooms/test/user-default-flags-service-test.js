@@ -95,7 +95,7 @@ describe('user-default-flags', function() {
             return userDefaultFlagsService.getDefaultFlagsForUserIds([userId1, userId2]);
           })
           .then(function(flags) {
-            var expected = [];
+            var expected = {};
             expected[userId1] = roomMembershipFlags.DEFAULT_USER_FLAGS;
             expected[userId2] = roomMembershipFlags.DEFAULT_USER_FLAGS;
             assert.deepEqual(flags, expected);
@@ -114,7 +114,7 @@ describe('user-default-flags', function() {
             return userDefaultFlagsService.getDefaultFlagsForUserIds([userId1, userId2]);
           })
           .then(function(flags) {
-            var expected = [];
+            var expected = {};
             expected[userId1] = 1;
             expected[userId2] = 2;
             assert.deepEqual(flags, expected);
