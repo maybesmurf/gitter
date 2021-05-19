@@ -11,7 +11,7 @@
     "@gitterhq/matrix-appservice-bridge": "^2.6.0-pre-rc",
     "@gitterhq/services": "^1.26.0",
     "@gitterhq/styleguide": "^2.3.0",
-    "apn": "^1.7.5",
+    "apn": "^2.0.0",
     "async": "~0.9.0",
     "backbone": "1.2.3",
     "backbone.cocktail": "^0.5.13",
