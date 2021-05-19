@@ -132,7 +132,7 @@
     "keyword-extractor": "0.0.18",
     "langs": "^1.0.1",
     "languagedetect": "^1.1.1",
-    "lazy.js": "^0.4.2",
+    "lazy.js": "^0.5.0",
     "line-by-line": "^0.1.6",
     "lodash": "^3.2.0",
     "loglevel": "^1.2.0",
