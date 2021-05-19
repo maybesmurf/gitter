@@ -15,7 +15,7 @@
     "async": "~0.9.0",
     "backbone": "1.2.3",
     "backbone.cocktail": "^0.5.13",
-    "backbone.marionette": "^2.4.4",
+    "backbone.marionette": "^4.0.0",
     "batch-stream": "^0.1.2",
     "bluebird": "^3.7.2",
     "body-parser": "^1.13.2",
