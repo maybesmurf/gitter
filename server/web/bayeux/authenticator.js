@@ -50,6 +50,13 @@ module.exports = bayeuxExtension({
   skipSuperClient: true,
   skipOnError: true,
   privateState: true,
+  ignoreErrorsInLogging: [
+    // We don't care about logging the error details for people who provide wrong info.
+    // We still have handshake stats in Datadog to track big changes in these errors.
+    // See https://gitlab.com/gitterHQ/gitter-infrastructure/-/issues/214#note_576081048
+    'Access token required',
+    'Invalid access token'
+  ],
   incoming: function(message, req, callback) {
     var ext = message.ext || {};
 
@@ -83,7 +90,7 @@ module.exports = bayeuxExtension({
       .validateAccessTokenAndClient(ext.token)
       .then(function(tokenInfo) {
         if (!tokenInfo) {
-          return callback(new StatusError(401, 'Invalid access token'));
+          throw new StatusError(401, 'Invalid access token');
         }
 
         var user = tokenInfo.user;

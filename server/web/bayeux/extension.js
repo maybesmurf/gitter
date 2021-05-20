@@ -49,6 +49,8 @@ module.exports = function(options) {
   var failureStat = options.failureStat;
   var skipSuperClient = options.skipSuperClient;
   var skipOnError = options.skipOnError;
+  // `ignoreErrorsInLogging` is based on `ignoreErrors` from Sentry/Raven config
+  const ignoreErrorsInLogging = options.ignoreErrorsInLogging || [];
 
   // No point in shared state unless theres an incoming and outgoing extension
   var privateState = options.privateState && incoming && outgoing;
@@ -94,14 +96,19 @@ module.exports = function(options) {
             outgoingMessage.error = error;
           }
 
-          logger.error('bayeux: extension ' + name + '[incoming] failed: ' + error, {
-            exception: loggedError, // May not be the original error depending on status
-            channel: outgoingMessage.channel,
-            token: outgoingMessage.ext && outgoingMessage.ext.token,
-            subscription: outgoingMessage.subscription,
-            clientId: outgoingMessage.clientId,
-            request: requestInfo(req)
+          const ignoreError = ignoreErrorsInLogging.some(ignoreErrorRegex => {
+            return err.message.match(ignoreErrorRegex);
           });
+          if (!ignoreError) {
+            logger.error('bayeux: extension ' + name + '[incoming] failed: ' + error, {
+              exception: loggedError, // May not be the original error depending on status
+              channel: outgoingMessage.channel,
+              token: outgoingMessage.ext && outgoingMessage.ext.token,
+              subscription: outgoingMessage.subscription,
+              clientId: outgoingMessage.clientId,
+              request: requestInfo(req)
+            });
+          }
         }
 
         callback(outgoingMessage);
@@ -137,21 +144,26 @@ module.exports = function(options) {
             outgoingMessage.error = error;
           }
 
-          logger.error(
-            'bayeux: extension ' +
-              name +
-              '[outgoing] failed: ' +
-              error +
-              '. Technically this should not happen.',
-            {
-              exception: err,
-              channel: outgoingMessage.channel,
-              token: outgoingMessage.ext && outgoingMessage.ext.token,
-              subscription: outgoingMessage.subscription,
-              clientId: outgoingMessage.clientId,
-              request: requestInfo(req)
-            }
-          );
+          const ignoreError = ignoreErrorsInLogging.some(ignoreErrorRegex => {
+            return err.message.match(ignoreErrorRegex);
+          });
+          if (!ignoreError) {
+            logger.error(
+              'bayeux: extension ' +
+                name +
+                '[outgoing] failed: ' +
+                error +
+                '. Technically this should not happen.',
+              {
+                exception: err,
+                channel: outgoingMessage.channel,
+                token: outgoingMessage.ext && outgoingMessage.ext.token,
+                subscription: outgoingMessage.subscription,
+                clientId: outgoingMessage.clientId,
+                request: requestInfo(req)
+              }
+            );
+          }
         }
 
         callback(outgoingMessage);

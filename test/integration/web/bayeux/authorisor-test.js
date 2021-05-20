@@ -2,6 +2,7 @@
 
 var testRequire = require('../../test-require');
 var assert = require('assert');
+const sinon = require('sinon');
 var Promise = require('bluebird');
 var testGenerator = require('gitter-web-test-utils/lib/test-generator');
 
@@ -150,6 +151,35 @@ describe('authorisor', function() {
             done(message.error);
           }
         });
+      });
+    });
+  });
+
+  describe('Errors in logs', () => {
+    const loggerErrorSpy = sinon.spy();
+    const authorisorWithStubbedLogger = testRequire.withProxies('./web/bayeux/authorisor', {
+      './extension': testRequire.withProxies('./web/bayeux/extension', {
+        'gitter-web-env': {
+          ...testRequire('gitter-web-env'),
+          logger: {
+            error: loggerErrorSpy
+          }
+        }
+      })
+    });
+
+    it('Error is logged', done => {
+      const message = {
+        channel: '/meta/subscribe',
+        clientId: 'x',
+        subscription: '/api/v1/does-not-exist'
+      };
+
+      authorisorWithStubbedLogger.incoming(message, null, function(message) {
+        assert(message.error, 'Expected an error');
+        // Make sure the logger is called
+        assert.strictEqual(loggerErrorSpy.callCount, 1);
+        done();
       });
     });
   });
