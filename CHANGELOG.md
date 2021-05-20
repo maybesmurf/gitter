@@ -1,4 +1,4 @@
-# 21.32.0 - 2021-05-19
+# 21.32.0 - 2021-05-19 - Node.js v14
 
 Developer facing:
 
@@ -35,7 +35,7 @@ Developer facing:
  - Only track `/login` `action` parameter values we care about, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2187
 
 
-# 21.28.0 - 2021-05-07
+# 21.28.0 - 2021-05-07 - Matrix DM (Gitter -> Matrix)
 
  - Add support for Gitter users to start DM conversations with Matrix users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2168
 
@@ -83,7 +83,7 @@ Developer facing:
  - Other updates for Node v14 compat: `cld`, `gulp-brotli` (`iltorb`), `graceful-fs` (`gulp@3.9.1`), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2157
 
 
-# 21.23.0 - 2021-03-30
+# 21.23.0 - 2021-03-30 - Matrix DM (Matrix -> Gitter)
 
  - Add Matrix DM support so Matrix users can start a DM with a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2134
 
