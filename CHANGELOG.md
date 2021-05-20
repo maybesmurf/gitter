@@ -1,3 +1,10 @@
+# 21.33.0 - *upcoming*
+
+Developer facing:
+
+ - Stop invalid token Bayeux errors from going into our logs, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2203
+
+
 # 21.32.0 - 2021-05-19 - Node.js v14
 
 Developer facing:
