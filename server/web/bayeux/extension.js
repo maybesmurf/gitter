@@ -49,6 +49,8 @@ module.exports = function(options) {
   var failureStat = options.failureStat;
   var skipSuperClient = options.skipSuperClient;
   var skipOnError = options.skipOnError;
+  // `ignoreErrorsInLogging` is based on `ignoreErrors` from Sentry/Raven config
+  const ignoreErrorsInLogging = options.ignoreErrorsInLogging || [];
 
   // No point in shared state unless theres an incoming and outgoing extension
   var privateState = options.privateState && incoming && outgoing;
@@ -76,7 +78,13 @@ module.exports = function(options) {
       incoming(incomingMessage, req, function(err, outgoingMessage) {
         if (!outgoingMessage) outgoingMessage = incomingMessage;
 
-        if (err) {
+        const ignoreError =
+          err &&
+          ignoreErrorsInLogging.some(ignoreErrorRegex => {
+            return err.message.match(ignoreErrorRegex);
+          });
+
+        if (err && !ignoreError) {
           if (failureStat) stats.eventHF(failureStat);
 
           var error = makeError(err);
