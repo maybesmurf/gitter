@@ -78,13 +78,7 @@ module.exports = function(options) {
       incoming(incomingMessage, req, function(err, outgoingMessage) {
         if (!outgoingMessage) outgoingMessage = incomingMessage;
 
-        const ignoreError =
-          err &&
-          ignoreErrorsInLogging.some(ignoreErrorRegex => {
-            return err.message.match(ignoreErrorRegex);
-          });
-
-        if (err && !ignoreError) {
+        if (err) {
           if (failureStat) stats.eventHF(failureStat);
 
           var error = makeError(err);
@@ -102,14 +96,19 @@ module.exports = function(options) {
             outgoingMessage.error = error;
           }
 
-          logger.error('bayeux: extension ' + name + '[incoming] failed: ' + error, {
-            exception: loggedError, // May not be the original error depending on status
-            channel: outgoingMessage.channel,
-            token: outgoingMessage.ext && outgoingMessage.ext.token,
-            subscription: outgoingMessage.subscription,
-            clientId: outgoingMessage.clientId,
-            request: requestInfo(req)
+          const ignoreError = ignoreErrorsInLogging.some(ignoreErrorRegex => {
+            return err.message.match(ignoreErrorRegex);
           });
+          if (!ignoreError) {
+            logger.error('bayeux: extension ' + name + '[incoming] failed: ' + error, {
+              exception: loggedError, // May not be the original error depending on status
+              channel: outgoingMessage.channel,
+              token: outgoingMessage.ext && outgoingMessage.ext.token,
+              subscription: outgoingMessage.subscription,
+              clientId: outgoingMessage.clientId,
+              request: requestInfo(req)
+            });
+          }
         }
 
         callback(outgoingMessage);
@@ -145,21 +144,26 @@ module.exports = function(options) {
             outgoingMessage.error = error;
           }
 
-          logger.error(
-            'bayeux: extension ' +
-              name +
-              '[outgoing] failed: ' +
-              error +
-              '. Technically this should not happen.',
-            {
-              exception: err,
-              channel: outgoingMessage.channel,
-              token: outgoingMessage.ext && outgoingMessage.ext.token,
-              subscription: outgoingMessage.subscription,
-              clientId: outgoingMessage.clientId,
-              request: requestInfo(req)
-            }
-          );
+          const ignoreError = ignoreErrorsInLogging.some(ignoreErrorRegex => {
+            return err.message.match(ignoreErrorRegex);
+          });
+          if (!ignoreError) {
+            logger.error(
+              'bayeux: extension ' +
+                name +
+                '[outgoing] failed: ' +
+                error +
+                '. Technically this should not happen.',
+              {
+                exception: err,
+                channel: outgoingMessage.channel,
+                token: outgoingMessage.ext && outgoingMessage.ext.token,
+                subscription: outgoingMessage.subscription,
+                clientId: outgoingMessage.clientId,
+                request: requestInfo(req)
+              }
+            );
+          }
         }
 
         callback(outgoingMessage);

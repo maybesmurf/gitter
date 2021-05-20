@@ -90,7 +90,7 @@ module.exports = bayeuxExtension({
       .validateAccessTokenAndClient(ext.token)
       .then(function(tokenInfo) {
         if (!tokenInfo) {
-          return callback(new StatusError(401, 'Invalid access token'));
+          throw new StatusError(401, 'Invalid access token');
         }
 
         var user = tokenInfo.user;

@@ -2,19 +2,7 @@
 
 var isPhone = require('../test-require')('./web/is-phone');
 var assert = require('assert');
-
-var useragent = require('useragent');
-
-function makeRequest(userAgent) {
-  return {
-    headers: {
-      'user-agent': userAgent
-    },
-    getParsedUserAgent: function() {
-      return useragent.parse(userAgent);
-    }
-  };
-}
+const makeRequest = require('../make-request');
 
 describe('phone detection', function() {
   it('detects iPhone as a phone', function() {
