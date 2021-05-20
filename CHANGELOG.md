@@ -1,4 +1,4 @@
-# 21.32.0 - *upcoming*
+# 21.32.0 - 2021-05-19
 
 Developer facing:
 
