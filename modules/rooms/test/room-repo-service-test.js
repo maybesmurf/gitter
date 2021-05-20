@@ -98,7 +98,7 @@ describe('room-repo-service #slow', function() {
       return roomRepoService
         .findAssociatedGithubRepoForRooms([fixture.troupe4])
         .then(function(result) {
-          var expected = [];
+          var expected = {};
           expected[fixture.troupe4.id] = 'x/y';
           assert.deepEqual(result, expected);
         });
@@ -116,7 +116,7 @@ describe('room-repo-service #slow', function() {
       return roomRepoService
         .findAssociatedGithubRepoForRooms([fixture.troupe1, fixture.troupe4])
         .then(function(result) {
-          var expected = [];
+          var expected = {};
           expected[fixture.troupe4.id] = 'x/y';
           assert.deepEqual(result, expected);
         });
@@ -131,7 +131,7 @@ describe('room-repo-service #slow', function() {
           fixture.troupe6
         ])
         .then(function(result) {
-          var expected = [];
+          var expected = {};
           expected[fixture.troupe4.id] = 'x/y';
           expected[fixture.troupe5.id] = '1/2';
           expected[fixture.troupe6.id] = '3/4';

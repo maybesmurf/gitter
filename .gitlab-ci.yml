@@ -109,20 +109,28 @@ default:
     alias: synapse
 
 .node_job:
-  image: $GITTER_CI_REGISTRY_IMAGE
+  image: $GITTER_CI_REGISTRY_IMAGE:latest
   before_script:
     - node --version
     - npm --version
     - npm config set prefer-offline true
-    - npm config set cache /npm_cache
-    - mv /app/node_modules ./node_modules
-    - npm install
-  artifacts:
-    expire_in: 31d
-    when: always
+    - npm config set cache ./npm_cache
+    # Only copy the cache from the Docker container if the cache from GitLab CI is not in place
+    - '[[ -d ./npm_cache ]] || mv /npm_cache ./npm_cache'
+    # Install the npm dependencies from scratch to avoid the `graceful-fs` problem from multiple npm installs.
+    # (old gulp 3 dependency problem with Node.js v14)
+    # Otherwise, it will throw `ReferenceError: primordials is not defined`.
+    # See https://stackoverflow.com/a/58394828/796832
+    #
+    # We're trying to make this fast by using npm cache.
+    - npm ci
+  # Cache modules in between jobs
+  # Based on https://docs.gitlab.com/ee/ci/caching/#cache-nodejs-dependencies
+  cache:
+    # CI_COMMIT_REF_SLUG is the branch or tag name in lowercase
+    key: ${CI_COMMIT_REF_SLUG}
     paths:
-      - /npm_cache/
-      - npm_cache/
+      - ./npm_cache
 
 validate:
   extends: .node_job
