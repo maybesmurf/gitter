@@ -2,19 +2,8 @@
 
 var assert = require('assert');
 var testRequire = require('../test-require');
+const makeRequest = require('../make-request');
 var userAgentTagger = testRequire('./web/user-agent-tagger');
-var useragent = require('useragent');
-
-function makeRequest(userAgent) {
-  return {
-    headers: {
-      'user-agent': userAgent
-    },
-    getParsedUserAgent: function() {
-      return useragent.parse(userAgent);
-    }
-  };
-}
 
 describe('user agent tags', function() {
   it('should parse gitter beta ios app', function() {

@@ -1,4 +1,11 @@
-# 21.32.0 - 2021-05-19
+# 21.33.0 - 2021-05-20
+
+Developer facing:
+
+ - Stop invalid token Bayeux errors from going into our logs, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2203
+
+
+# 21.32.0 - 2021-05-19 - Node.js v14
 
 Developer facing:
 
@@ -35,7 +42,7 @@ Developer facing:
  - Only track `/login` `action` parameter values we care about, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2187
 
 
-# 21.28.0 - 2021-05-07
+# 21.28.0 - 2021-05-07 - Matrix DM (Gitter -> Matrix)
 
  - Add support for Gitter users to start DM conversations with Matrix users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2168
 
@@ -83,7 +90,7 @@ Developer facing:
  - Other updates for Node v14 compat: `cld`, `gulp-brotli` (`iltorb`), `graceful-fs` (`gulp@3.9.1`), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2157
 
 
-# 21.23.0 - 2021-03-30
+# 21.23.0 - 2021-03-30 - Matrix DM (Matrix -> Gitter)
 
  - Add Matrix DM support so Matrix users can start a DM with a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2134
 
@@ -187,25 +194,25 @@ Developer facing:
 
 
 
-# 21.12.0 - 2020-12-8
+# 21.12.0 - 2020-12-08
 
  - Add support for Gitter `/me` status messages to the Matrix bridge, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2094
  - Add Matrix `m.emote` (`/me`) message support, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2093
  - Mark Gitter Android/iOS apps as deprecated and point to the Matrix clients, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2100
 
 
-# 21.11.0 - 2020-12-7
+# 21.11.0 - 2020-12-07
 
  - Stop Matrix people from querying for and sending messages to private rooms, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2098
 
 
-# 21.10.0 - 2020-12-4
+# 21.10.0 - 2020-12-04
 
  - Ignore old Matrix events, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2095
  - Add more robust archive hour parsing, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2082
 
 
-# 21.9.0 - 2020-12-3
+# 21.9.0 - 2020-12-03
 
  - Fallback and send reply message in MMF if we are unable to find the threaded conversation, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2091
 
@@ -214,12 +221,12 @@ Developer facing:
  - Better error logging for the Matrix bridge, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2089
 
 
-# 21.8.0 - 2020-12-2
+# 21.8.0 - 2020-12-02
 
  - Add `onAliasQuery` support to the Matrix bridge, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2088
 
 
-# 21.7.0 - 2020-12-1 - Matrix for all
+# 21.7.0 - 2020-12-01 - Matrix for all
 
  - Remove room restriction on production Matrix bridge, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2085
  - Fix parentMessage in threaded conversation getting marked as edited on Matrix when threaded reply is sent, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2073
@@ -305,7 +312,7 @@ Developer facing:
  - Migrate to the Element/Matrix Sentry instance for error tracking, https://gitlab.com/gitterHQ/webapp/-/issues/2602
 
 
-# 21.0.0 - 2020-10-7 - Enter the Matrix
+# 21.0.0 - 2020-10-07 - Enter the Matrix
 
  - Typo and grammar fixes in the docs, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2032
     - Thanks to [@luciash](https://gitlab.com/luciash) for the contribution
@@ -316,7 +323,7 @@ Developer facing:
  - Remove `client_id`/`client_secret` query parameter usage from GitHub API authentication, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2019
 
 
-# 20.46.0 - 2020-10-2
+# 20.46.0 - 2020-10-02
 
  - Remove attention grabbing bubble from Gitter x Element announcement, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2028
 
@@ -325,12 +332,12 @@ Developer facing:
  - Update gittertestbot email to match in tests, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2029
 
 
-# 20.45.0 - 2020-9-30
+# 20.45.0 - 2020-09-30
 
  - Link correct Gitter x Element blog posts, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2025
 
 
-# 20.44.0 - 2020-9-30 - Element acquisition
+# 20.44.0 - 2020-09-30 - Element acquisition
 
  - Add homepage latest news block pointing to [Gitter blog post about the Element acquisition](https://blog.gitter.im/2020/09/30/gitter-element-acquisition/)
  - Update privacy policy to point to [Element's privacy policy](https://element.io/privacy)
@@ -338,7 +345,7 @@ Developer facing:
     - https://dev.gitlab.org/gitlab/gitter/webapp/-/merge_requests/60
 
 
-# 20.43.0 - 2020-9-29
+# 20.43.0 - 2020-09-29
 
  - Fix menu bar item unread/mention indicator going behind icon when unselected, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2022
  - Fix Gitter room avatar on homepage, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2023
@@ -348,14 +355,14 @@ Developer facing:
  - Allow deploys from security dev, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2021
 
 
-# 20.42.0 - 2020-9-24
+# 20.42.0 - 2020-09-24
 
  - Add hour pagination to archives, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2014
  - Move hamburger menu toggle to top-left, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2016
  - Add `/home` to community homeUri for personal communities, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2017
 
 
-# 20.41.0 - 2020-9-16
+# 20.41.0 - 2020-09-16
 
  - Add docs for how to export your user and room data, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2008
  - Fix select dropdowns not closing when clicking outside, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2009
@@ -364,7 +371,7 @@ Developer facing:
  - Fix login in Chrome 51 - 66, iOS 12, and Safari on MacOS 10.14 (`SameSite=None` cookies not being incompatible in old browsers/devices), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2010
 
 
-# 20.40.0 - 2020-9-1 - Room data export
+# 20.40.0 - 2020-09-01 - Room data export
 
  - Add room export modal, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2005
  - Add export endpoint for room messages, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1990
@@ -381,7 +388,7 @@ Developer facing:
  - Prevent extra stat calls when state is the same, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2001
 
 
-# 20.39.0 - 2020-8-13 - User data export
+# 20.39.0 - 2020-08-13 - User data export
 
  - Remove staff restriction from export endpoints, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1991
 
@@ -391,12 +398,12 @@ Developer facing:
  - Remove unused Optimizely dependency, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1995
 
 
-# 20.38.1 - 2020-8-17
+# 20.38.1 - 2020-08-17
 
  - Fix login when using [Sidecar](https://sidecar.gitter.im/). Fix cookies not working cross-site (`SameSite=None; Secure`), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1994
 
 
-# 20.38.0 - 2020-8-11
+# 20.38.0 - 2020-08-11
 
  - Remove app interstitial from profile dropdown, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1981
  - Update styleguide to allow modal to overflow properly when height constrained, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1984
@@ -406,7 +413,7 @@ Developer facing:
  - Reduce export rate limit to once every 3 hours, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1987
 
 
-# 20.37.0 - 2020-8-7
+# 20.37.0 - 2020-08-07
 
  - Add export endpoint for room last access time (only staff users), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1969
  - Add export endpoint for room invites (only staff users), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1971
@@ -425,7 +432,7 @@ Developer facing:
  - Add serializers in place of passthrough for export, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1972
 
 
-# 20.36.0 - 2020-8-4
+# 20.36.0 - 2020-08-04
 
  - Stop chat input auto focus on room change when using touch device, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1964
  - Add export endpoint for user room favourites (only staff users), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1966
@@ -436,7 +443,7 @@ Developer facing:
  - Simplify user export to no longer need snowflake(one-off) cursor, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1965
 
 
-# 20.35.0 - 2020-7-30
+# 20.35.0 - 2020-07-30
 
  - Add export endpoint for user identity data (only staff users), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1951
  - Add export endpoint for user settings (only staff users), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1959
@@ -451,7 +458,7 @@ Developer facing:
  - Fix SAST parsing problem with our translation files, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1961
 
 
-# 20.34.0 - 2020-7-27 - PWA homescreen install
+# 20.34.0 - 2020-07-27 - PWA homescreen install
 
  - Add export endpoint for the user object itself (only staff users), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1950
  - Make app installable (PWA homescreen install):
@@ -464,7 +471,7 @@ Developer facing:
  - Set CDN config to match the CLI arg we override with anyway, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1955
 
 
-# 20.33.0 - 2020-7-21
+# 20.33.0 - 2020-07-21
 
  - Stop left-menu swipe when scrolling code block/snippet, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1942
  - Update unsigned macOS download to point to latest 5.0.1 version, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1943
@@ -476,7 +483,7 @@ Developer facing:
  - Prefer Mongo secondary for strategy lookups, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1948
 
 
-# 20.32.0 - 2020-7-16
+# 20.32.0 - 2020-07-16
 
  - Add clear association button to create community flow, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1935
  - Fix slow slugger performance so no main thread blocking in create community URI slug autofill, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1937
@@ -488,7 +495,7 @@ Developer facing:
  - Remove `xregexp` dep in favor of native Unicode flag regex("u"), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1938
 
 
-# 20.31.0 - 2020-7-14 - GitLab user namespace communities
+# 20.31.0 - 2020-07-14 - GitLab user namespace communities
 
  - Add Niceter to list of 3rd party apps, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1927
     - Thanks to [@uuttff8](https://gitlab.com/uuttff8) for the contribution
@@ -505,7 +512,7 @@ Developer facing:
  - Raise report threshold for "good" users (`@matrixbot`), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1928
 
 
-# 20.30.0 - 2020-7-9
+# 20.30.0 - 2020-07-09
 
  - Add docs for `/mark-all-unread` slash command, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1918
  - Update Korean translations, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1919
@@ -522,7 +529,7 @@ Developer facing:
  - Add `GL_USER`/`GH_USER` admins to admin-filter, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1921
 
 
-# 20.29.0 - 2020-6-18
+# 20.29.0 - 2020-06-18
 
  - Restyled unread email notification, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1869
     - Thanks to [@mountainash](https://gitlab.com/mountainash) for the contribution
@@ -533,7 +540,7 @@ Developer facing:
  - Update `gitter-realtime-client` (no removing entries on snapshot, only add/merge), https://gitlab.com/gitterHQ/webapp/-/merge_requests/1909
 
 
-# 20.28.0 - 2020-6-16
+# 20.28.0 - 2020-06-16
 
  - Update search docs with more syntax examples, https://gitlab.com/gitterHQ/webapp/-/merge_requests/1902
     - Thanks to [@SQL-MisterMagoo](https://gitlab.com/SQL-MisterMagoo) for the contribution
@@ -1048,12 +1055,12 @@ Developer facing:
     - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/40
 
 
-# 20.4.3 - 2019-10-2
+# 20.4.3 - 2019-10-02
 
  - Fix Twitter share link in create room email, https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/36
 
 
-# 20.4.2 - 2019-10-2
+# 20.4.2 - 2019-10-02
 
  - Security fix related to email templates, https://gitlab.com/gitterHQ/webapp/issues/2086
     - Thanks to [@paresh_parmar](https://hackerone.com/paresh_parmar) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
@@ -1062,14 +1069,14 @@ Developer facing:
     - Thanks to [@iframe](https://hackerone.com/iframe) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
     - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/34
 
-# 20.4.1 - 2019-9-26
+# 20.4.1 - 2019-09-26
 
  - Security fix related to message text processing, https://gitlab.com/gitterHQ/webapp/issues/2083
     - Thanks to [@jaykpatel](https://hackerone.com/jaykpatel) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
     - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/29
 
 
-# 20.4.0 - 2019-9-25
+# 20.4.0 - 2019-09-25
 
  - Clarify how `@/all` can be used, https://gitlab.com/gitterHQ/webapp/merge_requests/1594
     - Thanks to [@isiahmeadows](https://gitlab.com/isiahmeadows) for the contribution
@@ -1087,7 +1094,7 @@ Developer facing:
  - Have an option to send email notification with real room messages, https://gitlab.com/gitterHQ/webapp/merge_requests/1602
 
 
-# 20.3.4 - 2019-9-25
+# 20.3.4 - 2019-09-25
 
  - Security fix related to banning users, https://gitlab.com/gitterHQ/webapp/issues/2100
     - Thanks to [@n0n4me](https://hackerone.com/n0n4me) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
@@ -1096,14 +1103,14 @@ Developer facing:
     - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/26
 
 
-# 20.3.3 - 2019-9-18
+# 20.3.3 - 2019-09-18
 
  - Security fix related to access to room information, https://gitlab.com/gitterHQ/webapp/issues/2082
     - Thanks to [@dhakalananda](https://hackerone.com/dhakalananda) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
     - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/25
 
 
-# 20.3.2 - 2019-9-12
+# 20.3.2 - 2019-09-12
 
  - Security fix related deleting OAuth clients and access tokens, https://gitlab.com/gitterHQ/webapp/issues/2053
     - Thanks to [@favicon](https://hackerone.com/favicon) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
@@ -1111,7 +1118,7 @@ Developer facing:
     - https://gitlab.com/gitlab-org/gitter/developer-gitter-im/merge_requests/26
 
 
-# 20.3.1 - 2019-9-12
+# 20.3.1 - 2019-09-12
 
  - Fix "Gitter OAuth app flow is messed up", https://gitlab.com/gitterHQ/webapp/merge_requests/1596
 
@@ -1131,26 +1138,26 @@ Developer facing:
  - Document and make it easier to run the e2e tests, https://gitlab.com/gitterHQ/webapp/merge_requests/1585
 
 
-# 20.2.0 - 2019-9-3
+# 20.2.0 - 2019-09-03
 
  - Fix missing unreads in left-menu after sleeping/suspending computer, https://gitlab.com/gitterHQ/webapp/merge_requests/1564
  - Add set of straightforward instructions to get OAuth scopes to match, https://gitlab.com/gitterHQ/webapp/merge_requests/1580
 
 
-# 20.1.3 - 2019-9-3
+# 20.1.3 - 2019-09-03
 
 - Security fix related deleted user tokens, https://gitlab.com/gitterHQ/webapp/issues/2081
      - Thanks to [@dhakalananda](https://hackerone.com/dhakalananda) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
      - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/20
 
 
-# 20.1.2 - 2019-8-29
+# 20.1.2 - 2019-08-29
 
 - Security fix related login session, https://gitlab.com/gitterHQ/webapp/issues/2051
      - Thanks to [@favicon](https://hackerone.com/favicon) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
      - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/18
 
-# 20.1.1 - 2019-8-28
+# 20.1.1 - 2019-08-28
 
  - Make left-menu room links available on page-load(SSR), https://gitlab.com/gitterHQ/webapp/merge_requests/1573
  - Fix mobile homepage styles, https://gitlab.com/gitterHQ/webapp/merge_requests/1579
@@ -1160,7 +1167,7 @@ Developer facing:
  - Only listen on chatCollection if we are in troupe context, https://gitlab.com/gitterHQ/webapp/merge_requests/1577
 
 
-# 20.1.0 - 2019-8-27
+# 20.1.0 - 2019-08-27
 
  - Showing the parent message indicator in the main message feed, https://gitlab.com/gitterHQ/webapp/merge_requests/1563
  - Threaded Conversations: Indicate that the message hasn't been stored in DB, https://gitlab.com/gitterHQ/webapp/merge_requests/1568
@@ -1193,7 +1200,7 @@ Developer facing:
 
  - Fix `develop` branch failing with missing dependencies, https://gitlab.com/gitterHQ/webapp/merge_requests/1566
 
-# 20.0.0 - 2019-8-14 - No more old left-menu
+# 20.0.0 - 2019-08-14 - No more old left-menu
 
  - Loading child messages when opening the TMF, https://gitlab.com/gitterHQ/webapp/merge_requests/1545
  - Remove old left-menu code, https://gitlab.com/gitterHQ/webapp/merge_requests/1553
@@ -1207,7 +1214,7 @@ Developer facing:
  - Remove Mixpanel, https://gitlab.com/gitterHQ/webapp/merge_requests/1541
 
 
-# 19.60.0 - 2019-8-6
+# 19.60.0 - 2019-08-06
 
  - Update left-menu search input styling, https://gitlab.com/gitterHQ/webapp/merge_requests/1539
  - Fix repo search results leading to 404 undefined room, https://gitlab.com/gitterHQ/webapp/merge_requests/1540
@@ -1224,7 +1231,7 @@ Developer facing:
 - Update dependency `useragent` to `2.3.0`, https://gitlab.com/gitterHQ/webapp/merge_requests/1523
 
 
-# 19.59.0 - 2019-7-31
+# 19.59.0 - 2019-07-31
 
  - Show parent message in the thread message feed, https://gitlab.com/gitterHQ/webapp/merge_requests/1482
  - Update dependency `@gitterhq/services` to `1.25.0` for [repl.it](https://repl.it/site/docs/classrooms/webhooks) service
@@ -1244,7 +1251,7 @@ Developer facing:
  - Programmatically globally load KaTeX fonts, https://gitlab.com/gitterHQ/webapp/merge_requests/1534
 
 
-# 19.58.0 - 2019-7-29
+# 19.58.0 - 2019-07-29
 
  - Add expand/collapse transition to Vue left-menu, https://gitlab.com/gitterHQ/webapp/merge_requests/1532
  - Fix left-menu collapsed(pinned/unpinned) leaving blank space in Safari, https://gitlab.com/gitterHQ/webapp/merge_requests/1531
@@ -1258,13 +1265,13 @@ Developer facing:
  - Update dependency `oauth2orize` to `~1.11.0`, https://gitlab.com/gitterHQ/webapp/merge_requests/1510
 
 
-# 19.57.0 - 2019-7-24
+# 19.57.0 - 2019-07-24
 
  - Update left-menu on mobile to be completely hidden and swipe-out/pull, https://gitlab.com/gitterHQ/webapp/merge_requests/1487
  - Single boot script for embedded chat, https://gitlab.com/gitterHQ/webapp/merge_requests/1489
 
 
-# 19.56.0 - 2019-7-21
+# 19.56.0 - 2019-07-21
 
  - Replace underscore with lodash, https://gitlab.com/gitterHQ/webapp/merge_requests/1429
  - Add chat input to the thread message feed, https://gitlab.com/gitterHQ/webapp/merge_requests/1469
@@ -1280,14 +1287,14 @@ Developer facing:
  - Update `prettier@1.18.2` dependency, https://gitlab.com/gitterHQ/webapp/merge_requests/1484
  -  Clean up server side code before placing chat messages to Vuex store, https://gitlab.com/gitterHQ/webapp/merge_requests/1481
 
-# 19.55.1 - 2019-7-18
+# 19.55.1 - 2019-07-18
 
  - Fix XSS on OAuth app authorize page, https://gitlab.com/gitterHQ/webapp/issues/2043
     - Thanks to [`yipman`](https://hackerone.com/yipman) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
     - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/14
 
 
-# 19.55.0 - 2019-7-10
+# 19.55.0 - 2019-07-10
 
  - Add thread message feed, https://gitlab.com/gitterHQ/webapp/merge_requests/1460
  - Fix Vue left-menu search results being too dark with dark theme (contrast), https://gitlab.com/gitterHQ/webapp/merge_requests/1471
@@ -1301,14 +1308,14 @@ Developer facing:
  - Only support new style Transloadit template with `original_final` (community avatar uploads), https://gitlab.com/gitterHQ/webapp/merge_requests/1470
 
 
-# 19.54.1 - 2019-7-7
+# 19.54.1 - 2019-07-07
 
  - Strip exif metadata from community avatars when uploaded, https://gitlab.com/gitterHQ/webapp/issues/2035
     - Thanks to [`apocalyptik`](https://hackerone.com/apocalyptik) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
      - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/12
 
 
-# 19.54.0 - 2019-7-2
+# 19.54.0 - 2019-07-02
 
  - Add dark-theme support to the Vue left-menu, https://gitlab.com/gitterHQ/webapp/merge_requests/1463
 
@@ -1321,7 +1328,7 @@ Developer facing:
  - Extract common mounting code from tests, https://gitlab.com/gitterHQ/webapp/merge_requests/1464
 
 
-# 19.53.0 - 2019-6-27
+# 19.53.0 - 2019-06-27
 
  - Update `halley@0.7.0` -> `gitter-realtime-client@2.1.0` so `websocket` transport is chosen over `long-polling`, https://gitlab.com/gitterHQ/webapp/merge_requests/1453
     - https://gitlab.com/gitlab-org/gitter/realtime-client/merge_requests/24
@@ -1333,14 +1340,14 @@ Developer facing:
  - Only hide Vue left-menu when mobile NLI, https://gitlab.com/gitterHQ/webapp/merge_requests/1458
 
 
-# 19.52.1 - 2019-6-27
+# 19.52.1 - 2019-06-27
 
  - Fix arbitrary file upload via community avatar upload, https://gitlab.com/gitterHQ/webapp/issues/2192
     - Thanks to [`u3mur4`](https://hackerone.com/u3mur4) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
     - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/10
 
 
-# 19.52.0 - 2019-6-25
+# 19.52.0 - 2019-06-25
 
  - Fix integration settings throwing 500 error, https://gitlab.com/gitterHQ/webapp/merge_requests/1451
 
@@ -1349,7 +1356,7 @@ Developer facing:
  - Also deploy to Next/staging with a `hotfix/` branch(git flow), https://gitlab.com/gitterHQ/webapp/merge_requests/1449
 
 
-# 19.51.0 - 2019-6-24
+# 19.51.0 - 2019-06-24
 
  - Add stats/metrics for the Vue left-menu, https://gitlab.com/gitterHQ/webapp/merge_requests/1434
  - Add room favourite drag and drop to the Vue left-menu, https://gitlab.com/gitterHQ/webapp/merge_requests/1431
@@ -1367,12 +1374,12 @@ Developer facing:
 
   - Add execution permissions to `scripts/utils/email-for-user.js`, `scripts/utils/list-group-admins.js` utility scripts (so we can run them on the server), https://gitlab.com/gitterHQ/webapp/merge_requests/1442
 
-# 19.50.1 - 2019-6-25
+# 19.50.1 - 2019-06-25
  - Fix room security policy to enforce the "Only GitHub users are allowed to join this room." rule, https://gitlab.com/gitterHQ/webapp/issues/2041
    - Thanks to @cache-money for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
    - https://dev.gitlab.org/gitlab/gitter/webapp/merge_requests/7
 
-# 19.50.0 - 2019-6-20
+# 19.50.0 - 2019-06-20
 
  - Fix profile menu missing on explore page, https://gitlab.com/gitterHQ/webapp/merge_requests/1427
  - Fix create room redirection to newly created room with the Vue left-menu, https://gitlab.com/gitterHQ/webapp/merge_requests/1428
@@ -1383,7 +1390,7 @@ Developer facing:
  - Add 10 per day rate-limit to email invites, https://gitlab.com/gitterHQ/webapp/merge_requests/1433
 
 
-# 19.49.0 - 2019-6-14
+# 19.49.0 - 2019-06-14
 
  - Fix typos throughout codebase
     - Thanks to [@yo](https://gitlab.com/yo) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1409
@@ -1402,7 +1409,7 @@ Developer facing:
  - Cleanup `user-loader-factory` in `permissions` module, https://gitlab.com/gitterHQ/webapp/merge_requests/1424
 
 
-# 19.48.0 - 2019-6-4
+# 19.48.0 - 2019-06-04
 
  - Introduce Vue left-menu v1 (behind [`vue-left-menu` feature flag](https://next.gitter.im/)), https://gitlab.com/gitterHQ/webapp/merge_requests/1360
 
@@ -1416,12 +1423,12 @@ Developer facing:
     - Move frontend dependencies from `devDependencies` to `dependencies` in `package.json`
 
 
-# 19.47.1 - 2019-6-11
+# 19.47.1 - 2019-06-11
 
  - Disable invite/add emails until we add anti-spam measures, https://gitlab.com/gitterHQ/webapp/merge_requests/1416
     - Disabling so we can ask Mandrill to unpause emails and get unread notifications flowing again, https://gitlab.com/gitterHQ/webapp/issues/2153
 
-# 19.47.0 - 2019-5-28
+# 19.47.0 - 2019-05-28
 
  - Fix the Faye/Bayeux and stream API so it doesn't send messages to a user who was removed from a room, https://gitlab.com/gitterHQ/webapp/issues/2044
    - Thanks to @favicon for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
@@ -1433,7 +1440,7 @@ Developer facing:
  - Introduce [Vue.js](https://vuejs.org/) into the codebase, https://gitlab.com/gitterHQ/webapp/merge_requests/1396
 
 
-# 19.46.0 - 2019-5-15
+# 19.46.0 - 2019-05-15
 
  - Fix integration activity XSS, https://gitlab.com/gitterHQ/webapp/issues/2068
      - Thanks to [@mishre](https://gitlab.com/mishre) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
@@ -1446,7 +1453,7 @@ Developer facing:
  - Adding `mongo-express` container for easy database browsing, https://gitlab.com/gitterHQ/webapp/merge_requests/1395
 
 
-# 19.45.0 - 2019-5-6
+# 19.45.0 - 2019-05-06
 
  - Add docs to clarify when email notifications are sent out, https://gitlab.com/gitterHQ/webapp/merge_requests/1383
  - Add docs to clarify why email notifications are not sent when using IRC bridge, https://gitlab.com/gitterHQ/webapp/merge_requests/1384
@@ -1459,7 +1466,7 @@ Developer facing:
  - Add security harness git hook to restrict pushing to `dev.gitlab.org`, https://gitlab.com/gitterHQ/webapp/merge_requests/1388
 
 
-# 19.44.0 - 2019-4-19
+# 19.44.0 - 2019-04-19
 
 Developer facing:
 
@@ -1467,14 +1474,14 @@ Developer facing:
  - Only run flakey tests on release, https://gitlab.com/gitterHQ/webapp/merge_requests/1382
 
 
-# 19.43.0 - 2019-4-18
+# 19.43.0 - 2019-04-18
 
 Developer facing:
 
  - Fix mobile asset build not using `prod` env (Android, iOS), https://gitlab.com/gitterHQ/webapp/merge_requests/1377
 
 
-# 19.42.0 - 2019-4-16
+# 19.42.0 - 2019-04-16
 
  - Add documentation on how to manually configure of GitHub organisation integration/activity events
     - Thanks to [@io7m](https://gitlab.com/io7m) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1373
@@ -1487,7 +1494,7 @@ Developer facing:
     - Thanks to [@tnir](https://gitlab.com/tnir) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1372
 
 
-# 19.41.0 - 2019-3-29
+# 19.41.0 - 2019-03-29
 
  - Fix error thrown on archive navigation view by missing profile element so that the rest of the JavaScript runs, https://gitlab.com/gitterHQ/webapp/merge_requests/1370
  - Fix commit reference short syntax decorations being mangled, `<group>/<project>@<commit sha>`
@@ -1500,7 +1507,7 @@ Developer facing:
     - https://gitlab.com/MadLittleMods/webapp/merge_requests/21
 
 
-# 19.40.0 - 2019-3-21
+# 19.40.0 - 2019-03-21
 
  - Fix 500 NPE on community home with `undefined` user still with room membership, https://gitlab.com/gitterHQ/webapp/merge_requests/1365
  - Restore user state when user signs in again after removing
@@ -1515,7 +1522,7 @@ Developer facing:
  - Fix npm install failing on GitHub `backbone-events-standalone` dependency, https://gitlab.com/gitterHQ/webapp/merge_requests/1364
 
 
-# 19.39.1 - 2019-3-15
+# 19.39.1 - 2019-03-15
 
  - Add character limit to message edit endpoint, https://gitlab.com/gitterHQ/webapp/issues/2106
     - https://gitlab.com/MadLittleMods/webapp/merge_requests/18
@@ -1523,7 +1530,7 @@ Developer facing:
     - https://gitlab.com/MadLittleMods/webapp/merge_requests/17
 
 
-# 19.39.0 - 2019-3-12
+# 19.39.0 - 2019-03-12
 
  - Use filled in star icon for favorite communities/rooms
     - Thanks to [@vicek22](https://gitlab.com/vicek22) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1351
@@ -1540,7 +1547,7 @@ Developer facing:
     - Thanks to [@vicek22](https://gitlab.com/vicek22) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1358
 
 
-# 19.38.0 - 2019-2-27
+# 19.38.0 - 2019-02-27
 
  - Make Gitter markdown readme badge snippet visible for all rooms (share modal)
     - Thanks to [@jamesgeorge007](https://gitlab.com/jamesgeorge007) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1324
@@ -1566,14 +1573,14 @@ Developer facing:
  - Fix NPE when lowercasing emails on login/new-user, https://gitlab.com/gitterHQ/webapp/merge_requests/1352
 
 
-# 19.37.1 - 2019-2-26
+# 19.37.1 - 2019-02-26
 
  - Fix CSRF to sign in as another user (OAuth callback),
     - https://gitlab.com/gitterHQ/webapp/issues/2074
     - https://gitlab.com/gitterHQ/webapp/issues/2069
 
 
-# 19.37.0 - 2019-2-19
+# 19.37.0 - 2019-02-19
 
  - Fix inline code blocks showing vertical scrollbar in the dark theme
     - Thanks to [@tameo](https://gitlab.com/tameo) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1335
@@ -1588,7 +1595,7 @@ Developer facing:
  - Remove extraneous `lodash` from frontend webpack bundles (use `underscore`), https://gitlab.com/gitterHQ/webapp/merge_requests/1336
 
 
-# 19.36.0 - 2019-2-15
+# 19.36.0 - 2019-02-15
 
  - Fix GitLab issue decorations opening in GitHub (404) on mobile, https://gitlab.com/gitterHQ/webapp/merge_requests/1321
  - Update `@gitterhq/translations@1.9.0` dependency for Georgian(`ka`) translations
@@ -1608,7 +1615,7 @@ Developer facing:
  - Remove defunct in-browser tests, https://gitlab.com/gitterHQ/webapp/merge_requests/1326
 
 
-# 19.35.0 - 2019-1-31
+# 19.35.0 - 2019-01-31
 
  - Update `@gitterhq/translations@1.8.2` dependency for Chinese(`zh`) translation update
     - Thanks to [@imba-tjd](https://gitlab.com/imba-tjd) for the contribution, https://gitlab.com/gitlab-org/gitter/gitter-translations/merge_requests/66
@@ -1618,7 +1625,7 @@ Developer facing:
  - Add Prettier automatic formatting for simple lint compliance, https://gitlab.com/gitterHQ/webapp/merge_requests/1292
 
 
-# 19.34.0 - 2019-1-25
+# 19.34.0 - 2019-01-25
 
  - Update `@gitterhq/translations@1.8.1` dependency for Chinese(`zh`) typo fix
     - Thanks to [@nodexy](https://gitlab.com/nodexy) for the contribution, https://gitlab.com/gitlab-org/gitter/gitter-translations/merge_requests/65
@@ -1632,7 +1639,7 @@ Developer facing:
     - https://gitlab.com/MadLittleMods/webapp/merge_requests/10
 
 
-# 19.33.0 - 2019-1-11
+# 19.33.0 - 2019-01-11
 
  - Fix left-menu minibar scrollbar track visible on Firefox (annoying in dark theme), https://gitlab.com/gitterHQ/webapp/merge_requests/1311
  - Add "What's new?" on profile menu linking to changelog
@@ -1651,7 +1658,7 @@ Developer facing:
     - Thanks to [@mishre](https://hackerone.com/mishre) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
 
 
-# 19.32.0 - 2019-1-8
+# 19.32.0 - 2019-01-08
 
  - Update `@gitterhq/translations@1.7.0` dependency for updated Chinese(`zh`) translations
     - Thanks to [@imba-tjd](https://gitlab.com/imba-tjd) for the contribution, https://gitlab.com/gitlab-org/gitter/gitter-translations/merge_requests/63
@@ -1659,7 +1666,7 @@ Developer facing:
     - Thanks to [@edoverflow](https://hackerone.com/edoverflow) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
 
 
-# 19.31.0 - 2019-1-3
+# 19.31.0 - 2019-01-03
 
  - Fix Korean homepage translation erroring out (500), https://gitlab.com/gitterHQ/webapp/merge_requests/1304
  - Add ability to toggle dark theme in mobile app WebFrame (Android)
@@ -1692,7 +1699,7 @@ Developer facing:
     - Thanks to [@amark](https://gitlab.com/amark) for [responsibly disclosing](https://about.gitlab.com/security/disclosure/) this vulnerability to us.
 
 
-# 19.29.0 - 2018-12-5
+# 19.29.0 - 2018-12-05
 
  - Update footer padding on homepage(`/?redirect=no`) and `/apps` to be more consistent/purposeful
     - Thanks to [@gtsiolis](https://gitlab.com/gtsiolis) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1288
@@ -1709,7 +1716,7 @@ Developer facing:
  - Re-enable validation CI job (fix eslint errors), https://gitlab.com/gitterHQ/webapp/merge_requests/1290
 
 
-# 19.28.0 - 2018-12-4
+# 19.28.0 - 2018-12-04
 
  - Update readme badger and service URLs in `hbs` templates to point at GitLab projects (previously GitHub)
     - Thanks to [@avelino](https://gitlab.com/avelino) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1280, https://gitlab.com/gitlab-org/gitter/docs/merge_requests/57
@@ -1764,7 +1771,7 @@ Developer Facing:
  - Use correct GitLab OAuth redirect URI in `obtain-secrets` script, https://gitlab.com/gitterHQ/webapp/merge_requests/1268
 
 
-# 19.24.0 - 2018-11-6
+# 19.24.0 - 2018-11-06
 
 Developer Facing:
 
@@ -1772,7 +1779,7 @@ Developer Facing:
  - Add trackable hiring/job posting link for in left-menu, https://gitlab.com/gitterHQ/webapp/merge_requests/1262
 
 
-# 19.23.0 - 2018-11-1
+# 19.23.0 - 2018-11-01
 
  - Add Gitter hiring/job link to left-menu, https://gitlab.com/gitterHQ/webapp/merge_requests/1252
  - Add docs about notifications not happening on mobile (Android, iOS), https://gitlab.com/gitterHQ/webapp/merge_requests/1254
@@ -1795,7 +1802,7 @@ Developer facing:
  - Correlate client access stat with segmentable user-agent, https://gitlab.com/gitterHQ/webapp/merge_requests/1248
 
 
-# 19.21.0 - 2018-9-27
+# 19.21.0 - 2018-09-27
 
  - Update `@gitterhq/services` dependency with Heroku fixes, https://gitlab.com/gitterHQ/webapp/merge_requests/1244
     - Thanks to [@wlach](https://gitlab.com/wlach) for the contribution, https://gitlab.com/gitlab-org/gitter/services/merge_requests/98
@@ -1806,13 +1813,13 @@ Developer facing:
   - Fix `unread-remove-deleted-messages` script so it actually removes stuck unreads, https://gitlab.com/gitterHQ/webapp/merge_requests/1245
 
 
-# 19.20.0 - 2018-9-18
+# 19.20.0 - 2018-09-18
 
  - Fix null pointer exception -> 500 status error with empty markdown links, https://gitlab.com/gitterHQ/webapp/merge_requests/1241
  - Update `jwt-simple` to fix critical npm audit security issue, https://gitlab.com/gitterHQ/webapp/merge_requests/1242
 
 
-# 19.19.0 - 2018-9-10
+# 19.19.0 - 2018-09-10
 
  - Remove Gitter Topics from the codebase, https://gitlab.com/gitterHQ/webapp/merge_requests/1238
 
@@ -1821,7 +1828,7 @@ Developer facing:
  - Remove orphaned `.js` files, https://gitlab.com/gitterHQ/webapp/merge_requests/1239
 
 
-# 19.18.0 - 2018-9-5
+# 19.18.0 - 2018-09-05
 
  - Add "Contribute to Gitter" item to profile menu
     - Thanks to [@pdurbin](https://gitlab.com/pdurbin) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1233
@@ -1835,12 +1842,12 @@ Developer facing:
  - Only initialize notification listener in app frame and add some debug logging, https://gitlab.com/gitterHQ/webapp/merge_requests/1235
 
 
-# 19.17.0 - 2018-8-20
+# 19.17.0 - 2018-08-20
 
  - Add reporting/flagging of messages, https://gitlab.com/gitterHQ/webapp/merge_requests/1226
 
 
-# 19.16.0 - 2018-8-15
+# 19.16.0 - 2018-08-15
 
  - Fix terms of service links pointing to Zendesk instead of GitLab, https://gitlab.com/gitterHQ/webapp/merge_requests/1227
  - Fix "Gitter from GitLab" footer link styling, https://gitlab.com/gitterHQ/webapp/merge_requests/1228
@@ -1852,7 +1859,7 @@ Developer facing:
  - Add message soft-delete (store message in another collection on delete), https://gitlab.com/gitterHQ/webapp/merge_requests/1225
 
 
-# 19.15.0 - 2018-8-8
+# 19.15.0 - 2018-08-08
 
  - Add feature toggle for embeds and disable by default, https://gitlab.com/gitterHQ/webapp/merge_requests/1223
 
@@ -1863,7 +1870,7 @@ Developer facing:
     - Separate Android and iOS builds (restore chat input for Android), https://gitlab.com/gitterHQ/webapp/merge_requests/1222
 
 
-# 19.14.0 - 2018-8-1
+# 19.14.0 - 2018-08-01
 
  - Remove missing 404 rooms from the homepage, https://gitlab.com/gitterHQ/webapp/merge_requests/1215
  - Clicking decorated issue will open the link instead of opening the popover, https://gitlab.com/gitterHQ/webapp/merge_requests/1217
@@ -1873,7 +1880,7 @@ Developer facing:
  - Fix `new_user` stat not being pushed out and tracked, https://gitlab.com/gitterHQ/webapp/merge_requests/1216
 
 
-# 19.13.0 - 2018-7-27
+# 19.13.0 - 2018-07-27
 
  - Add GitLab issue decorations, https://gitlab.com/gitterHQ/webapp/merge_requests/1077
 
@@ -1882,7 +1889,7 @@ Developer facing:
  - Update to Mocha@5.x for better debugging, `--inspect` (node inspector devtools), https://gitlab.com/gitterHQ/webapp/merge_requests/1212
 
 
-# 19.12.0 - 2018-7-23
+# 19.12.0 - 2018-07-23
 
  - Update `@gitterhq/services@1.21.0` (integrations), https://gitlab.com/gitterHQ/webapp/merge_requests/1078
     - Adds Discourse integration
@@ -1898,18 +1905,18 @@ Developer facing:
     - Update to `gitter-faye@1.2.0` to get additional data passed from logger, https://gitlab.com/gitlab-org/gitter/faye/merge_requests/3
 
 
-# 19.11.0 - 2018-7-18
+# 19.11.0 - 2018-07-18
 
  - Persist emails for GitHub users when they sign in, https://gitlab.com/gitterHQ/webapp/merge_requests/1095
     - Add utility script to find a user by email, `node script/utils/find-users-by-email.js --email foo@bar.com`
 
 
-# 19.10.1 - 2018-7-16
+# 19.10.1 - 2018-07-16
 
  - Fix topics export rate-limit applying globally instead of per-user, https://gitlab.com/gitterHQ/webapp/merge_requests/1204
 
 
-# 19.10.0 - 2018-7-16
+# 19.10.0 - 2018-07-16
 
  - Add ability to export [topics](https://blog.gitter.im/2016/09/30/introducing-gitter-topics/)
     - Update to `@gitterhq/env@0.38.0` to stream error if headers already sent, https://gitlab.com/gitlab-org/gitter/env/merge_requests/15
@@ -1917,14 +1924,14 @@ Developer facing:
     - Add utility script `scripts/utils/email-for-user.js` to get an email for a given user
 
 
-# 19.9.0 - 2018-7-11
+# 19.9.0 - 2018-07-11
 
  - Add ghost option to account deletion in order to disassociate personal data, https://gitlab.com/gitterHQ/webapp/merge_requests/1197
  - Add native QML/Qt app to 3rd party app list, https://gitlab.com/gitterHQ/webapp/merge_requests/1200
     - Thanks to [@eklavya](https://gitlab.com/eklavya) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1200
 
 
-# 19.8.0 - 2018-6-29
+# 19.8.0 - 2018-06-29
 
  - Restore token revoked logging, https://gitlab.com/gitterHQ/webapp/merge_requests/1192
 
@@ -1933,7 +1940,7 @@ Developer facing:
  - Run integration tests in GitLab CI, https://gitlab.com/gitterHQ/webapp/issues/1918
 
 
-# 19.7.0 - 2018-6-27
+# 19.7.0 - 2018-06-27
 
  - Emoji typeahead (autocomplete) only appears after two characters have been typed to more easily send a simple emoticon `:p`
     - Thanks to [@jonhoo](https://gitlab.com/jonhoo) for the contribution, https://gitlab.com/gitterHQ/webapp/merge_requests/1188
@@ -1945,12 +1952,12 @@ Developer facing:
  - Update Apple push notification (APN) `prod` and `prod-dev` certificates/keys, https://gitlab.com/gl-gitter/secrets/merge_requests/9
 
 
-# 19.6.0 - 2018-6-18
+# 19.6.0 - 2018-06-18
 
  - Fix revoked desktop client trying to handshake with realtime/websocket/faye server every 2 seconds (update `interval` from 2 seconds to 10 days), https://gitlab.com/gitterHQ/webapp/merge_requests/1186
 
 
-# 19.5.0 - 2018-6-16
+# 19.5.0 - 2018-06-16
 
  - Fix delete account profile menu action not working on explore page, https://gitlab.com/gitterHQ/webapp/merge_requests/1181
  - Update `@gitterhq/translations` dependency to v1.5.0, https://gitlab.com/gitterHQ/webapp/merge_requests/1182
@@ -1961,7 +1968,7 @@ Developer facing:
  - Only subscribe to `/v1/token/xxx` Faye endpoint if signed in, https://gitlab.com/gitterHQ/webapp/merge_requests/1183
  - Remove token revoked logging because it is filling up disk space on websocket servers, https://gitlab.com/gitterHQ/webapp/merge_requests/1185
 
-# 19.4.0 - 2018-6-11
+# 19.4.0 - 2018-06-11
 
  - Revoke desktop app v2, v3 to prevent token leaks, https://gitlab.com/gitterHQ/webapp/merge_requests/1180
     - Context https://blog.gitter.im/2018/06/11/gitter-token-leak-security-issue-notification/
@@ -1969,7 +1976,7 @@ Developer facing:
  - Update `@gitterhq/translations` dependency to v1.4.3, https://gitlab.com/gitterHQ/webapp/merge_requests/1079
 
 
-# 19.3.0 - 2018-6-7
+# 19.3.0 - 2018-06-07
 
  - Add ability to delete account, https://gitlab.com/gitterHQ/webapp/merge_requests/1169
  - Update code syntax highlighting to have better visual contrast,
@@ -1986,7 +1993,7 @@ Developer facing:
  - Add room `lcUri` to room deletion log warning for easier grepping, https://gitlab.com/gitterHQ/webapp/merge_requests/1168
 
 
-# 19.2.0 - 2018-5-23
+# 19.2.0 - 2018-05-23
 
  - Add "Terms of Service" profile menu item linking to https://about.gitlab.com/terms/, https://gitlab.com/gitterHQ/webapp/merge_requests/1161
  - Fix "Allow private repo access" profile menu item not redirecting to GitHub OAuth upgrade flow, https://gitlab.com/gitterHQ/webapp/merge_requests/1162
@@ -1998,7 +2005,7 @@ Developer facing:
  - Correlate user-agent with OAuth token usage (stats), https://gitlab.com/gitterHQ/webapp/merge_requests/1160
 
 
-# 19.1.0 - 2018-5-21
+# 19.1.0 - 2018-05-21
 
  - Sign out user when token revoked in realtime, https://gitlab.com/gitterHQ/webapp/merge_requests/1155
  - Sign out user when using revoked user-agent, https://gitlab.com/gitterHQ/webapp/merge_requests/1157
@@ -2009,17 +2016,17 @@ Developer facing:
  - Add Gitter desktop app v4 OAuth clients (consider internal Gitter client), https://gitlab.com/gitterHQ/webapp/merge_requests/1156
 
 
-## 19.0.2 - 2018-5-9
+## 19.0.2 - 2018-05-09
 
  - Fix new messages with mentions not appearing in chat list, https://gitlab.com/gitterHQ/webapp/merge_requests/1151
 
 
-## 19.0.1 - 2018-5-9
+## 19.0.1 - 2018-05-09
 
  - Fix desktop app JavaScript being broken, https://gitlab.com/gitterHQ/webapp/merge_requests/1149
 
 
-## 19.0.0 - 2018-5-9
+## 19.0.0 - 2018-05-09
 
  - Sign in with GitLab (usernames are suffixed with `_gitlab`), https://gitlab.com/gitterHQ/webapp/merge_requests/1076
  - Deploy to beta/production via GitLab CI
