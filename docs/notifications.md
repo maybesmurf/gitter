@@ -6,7 +6,7 @@ You can access the notification settings through the room settings icon(vertical
 
 For global notifications, click "Configure Defaults" in the bottom-left of the notification modal.
 
-![](https://i.imgur.com/T5Zf40V.png) ![](https://i.imgur.com/avukqAD.png)
+<img src="https://i.imgur.com/T5Zf40V.png" width="300"> <img src="https://i.imgur.com/avukqAD.png" width="500">
 
 #### All
 
@@ -35,7 +35,7 @@ You can instead use browser desktop notifications by allowing the browser permis
 
 ![](http://i.imgur.com/8v6aCpX.png)
 
-![](http://i.imgur.com/Mpttpxs.png) ![](https://i.imgur.com/YVqInos.png)
+![](http://i.imgur.com/Mpttpxs.png) !<img src="https://i.imgur.com/YVqInos.png" width="300">
  
 
 ### Desktop Notification Settings
