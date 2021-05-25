@@ -1,5 +1,7 @@
 # 21.33.0 - 2021-05-20
 
+ - Sync leave from room on Gitter to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2200
+
 Developer facing:
 
  - Stop invalid token Bayeux errors from going into our logs, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2203
