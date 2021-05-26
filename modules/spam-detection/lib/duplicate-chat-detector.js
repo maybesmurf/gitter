@@ -48,28 +48,31 @@ function getWarnAndBanThresholds(text) {
 function addHash(userId, hash, text) {
   var thresholds = getWarnAndBanThresholds(text);
 
-  return redisClient
-    .spamDetectionCountChatForUser('dup:' + String(userId), hash, TTL)
-    .bind({
-      thresholds: thresholds,
-      text: text,
-      userId: userId
-    })
-    .then(function(count) {
-      var thresholds = this.thresholds;
-      var userId = this.userId;
-      var text = this.text;
+  return (
+    redisClient
+      .spamDetectionCountChatForUser('dup:' + String(userId), hash, TTL)
+      // FIXME: ioredis no more bluebird promise breaking change
+      .bind({
+        thresholds: thresholds,
+        text: text,
+        userId: userId
+      })
+      .then(function(count) {
+        var thresholds = this.thresholds;
+        var userId = this.userId;
+        var text = this.text;
 
-      if (count > thresholds.warn) {
-        logger.warn('User sending duplicate messages', {
-          count: count,
-          text: text,
-          userId: userId
-        });
-      }
+        if (count > thresholds.warn) {
+          logger.warn('User sending duplicate messages', {
+            count: count,
+            text: text,
+            userId: userId
+          });
+        }
 
-      return count > thresholds.ban;
-    });
+        return count > thresholds.ban;
+      })
+  );
 }
 /**
  * Super basic spam detection

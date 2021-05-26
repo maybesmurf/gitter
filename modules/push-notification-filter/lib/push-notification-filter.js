@@ -70,9 +70,12 @@ function findUsersInRoomAcceptingNotifications(troupeId, userIds) {
 function resetNotificationsForUserTroupe(userId, troupeId, callback) {
   debug('resetNotificationsForUserTroupe: userId=%s, troupeId=%s', userId, troupeId);
 
-  return redisClient
-    .del('nl:' + userId + ':' + troupeId, 'nls:' + userId + ':' + troupeId)
-    .nodeify(callback);
+  return (
+    redisClient
+      .del('nl:' + userId + ':' + troupeId, 'nls:' + userId + ':' + troupeId)
+      // FIXME: ioredis no more bluebird promise breaking change
+      .nodeify(callback)
+  );
 }
 
 // Returns falsey value or notification period number

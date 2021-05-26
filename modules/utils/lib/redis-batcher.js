@@ -81,6 +81,8 @@ RedisBatcher.prototype = {
       .multi()
       .lrange(redisKey, 0, -1)
       .del(redisKey)
+      // FIXME: ioredis breaking change "Reply transformers will be applied for transactions.",
+      // see https://github.com/luin/ioredis/wiki/Breaking-changes-between-v1-and-v2#reply-transformers-will-be-applied-for-transactions
       .exec(function(err, replies) {
         if (err) return done(err);
 

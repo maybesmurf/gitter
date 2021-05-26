@@ -601,19 +601,23 @@ function isUserConnectedWithClientType(userId, clientType, callback) {
         multi.hmget(keySocketUser(socketId), 'ct');
       });
 
-      return multi
-        .exec()
-        .then(checkMultiErrors)
-        .then(function(replies) {
-          var clientTypeBeta = clientType + 'beta';
+      return (
+        multi
+          .exec()
+          // FIXME: ioredis breaking change "Reply transformers will be applied for transactions.",
+          // see https://github.com/luin/ioredis/wiki/Breaking-changes-between-v1-and-v2#reply-transformers-will-be-applied-for-transactions
+          .then(checkMultiErrors)
+          .then(function(replies) {
+            var clientTypeBeta = clientType + 'beta';
 
-          for (var i = 0; i < replies.length; i++) {
-            var ct = replies[i][1][0];
-            if (ct === clientType || ct === clientTypeBeta) return true;
-          }
+            for (var i = 0; i < replies.length; i++) {
+              var ct = replies[i][1][0];
+              if (ct === clientType || ct === clientTypeBeta) return true;
+            }
 
-          return false;
-        });
+            return false;
+          })
+      );
     })
     .nodeify(callback);
 }
@@ -693,38 +697,42 @@ function getSockets(socketIds, callback) {
     );
   });
 
-  return multi
-    .exec()
-    .then(checkMultiErrors)
-    .then(function(results) {
-      var hash = results.reduce(function(hash, resultResponse, index) {
-        var result = resultResponse[1];
+  return (
+    multi
+      .exec()
+      // FIXME: ioredis breaking change "Reply transformers will be applied for transactions.",
+      // see https://github.com/luin/ioredis/wiki/Breaking-changes-between-v1-and-v2#reply-transformers-will-be-applied-for-transactions
+      .then(checkMultiErrors)
+      .then(function(results) {
+        var hash = results.reduce(function(hash, resultResponse, index) {
+          var result = resultResponse[1];
 
-        var socketId = socketIds[index];
-        if (!result[4]) {
-          hash[socketId] = null;
+          var socketId = socketIds[index];
+          if (!result[4]) {
+            hash[socketId] = null;
+            return hash;
+          }
+
+          hash[socketId] = {
+            userId: result[0],
+            troupeId: result[1],
+            eyeballs: !!result[2],
+            mobile: !!result[3],
+            createdTime: new Date(parseInt(result[4], 10)),
+            clientType: result[5],
+            realtimeLibrary: result[6],
+            oauthClientId: result[7],
+            token: result[8],
+            uniqueClientId: result[9]
+          };
+
           return hash;
-        }
-
-        hash[socketId] = {
-          userId: result[0],
-          troupeId: result[1],
-          eyeballs: !!result[2],
-          mobile: !!result[3],
-          createdTime: new Date(parseInt(result[4], 10)),
-          clientType: result[5],
-          realtimeLibrary: result[6],
-          oauthClientId: result[7],
-          token: result[8],
-          uniqueClientId: result[9]
-        };
+        }, {});
 
         return hash;
-      }, {});
-
-      return hash;
-    })
-    .nodeify(callback);
+      })
+      .nodeify(callback)
+  );
 }
 
 function listActiveSockets(callback) {
@@ -739,26 +747,30 @@ function listActiveSockets(callback) {
         multi.hmget(keySocketUser(socketId), 'uid', 'tid', 'eb', 'mob', 'ctime', 'ct');
       });
 
-      return multi
-        .exec()
-        .then(checkMultiErrors)
-        .then(function(replies) {
-          var result = replies.map(function(replyPair, index) {
-            var reply = replyPair[1];
+      return (
+        multi
+          .exec()
+          // FIXME: ioredis breaking change "Reply transformers will be applied for transactions.",
+          // see https://github.com/luin/ioredis/wiki/Breaking-changes-between-v1-and-v2#reply-transformers-will-be-applied-for-transactions
+          .then(checkMultiErrors)
+          .then(function(replies) {
+            var result = replies.map(function(replyPair, index) {
+              var reply = replyPair[1];
 
-            return {
-              id: socketIds[index],
-              userId: reply[0],
-              troupeId: reply[1],
-              eyeballs: !!reply[2],
-              mobile: !!reply[3],
-              createdTime: parseInt(reply[4], 10),
-              client: reply[5]
-            };
-          });
+              return {
+                id: socketIds[index],
+                userId: reply[0],
+                troupeId: reply[1],
+                eyeballs: !!reply[2],
+                mobile: !!reply[3],
+                createdTime: parseInt(reply[4], 10),
+                client: reply[5]
+              };
+            });
 
-          return result;
-        });
+            return result;
+          })
+      );
     })
     .nodeify(callback);
 }
@@ -777,21 +789,25 @@ function listOnlineUsersForTroupes(troupeIds, callback) {
     multi.zrangebyscore(keyTroupeUsers(troupeId), 1, '+inf');
   });
 
-  return multi
-    .exec()
-    .then(checkMultiErrors)
-    .then(function(replies) {
-      var result = {};
-      troupeIds.forEach(function(troupeId, index) {
-        var replyPair = replies[index];
+  return (
+    multi
+      .exec()
+      // FIXME: ioredis breaking change "Reply transformers will be applied for transactions.",
+      // see https://github.com/luin/ioredis/wiki/Breaking-changes-between-v1-and-v2#reply-transformers-will-be-applied-for-transactions
+      .then(checkMultiErrors)
+      .then(function(replies) {
+        var result = {};
+        troupeIds.forEach(function(troupeId, index) {
+          var replyPair = replies[index];
 
-        var onlineUsers = replyPair[1];
-        result[troupeId] = onlineUsers;
-      });
+          var onlineUsers = replyPair[1];
+          result[troupeId] = onlineUsers;
+        });
 
-      return result;
-    })
-    .nodeify(callback);
+        return result;
+      })
+      .nodeify(callback)
+  );
 }
 
 function clientEyeballSignal(userId, socketId, eyeballsOn, callback) {
@@ -904,177 +920,184 @@ function validateUsersSubset(userIds, callback) {
 
   // Use a new client due to the WATCH semantics (don't use getClient!)
   var redisWatchClient = createClient();
-  return redisWatchClient
-    .watch(userIds.map(keyUserLock))
-    .then(function() {
-      if (presenceService.testOnly.forceDelay) {
-        return Promise.delay(120)
-          .then(function() {
-            if (presenceService.testOnly.onAfterDelay) {
-              return presenceService.testOnly.onAfterDelay();
-            }
-          })
-          .then(function() {
-            return listActiveSockets();
-          });
-      }
+  return (
+    redisWatchClient
+      .watch(userIds.map(keyUserLock))
+      .then(function() {
+        if (presenceService.testOnly.forceDelay) {
+          return Promise.delay(120)
+            .then(function() {
+              if (presenceService.testOnly.onAfterDelay) {
+                return presenceService.testOnly.onAfterDelay();
+              }
+            })
+            .then(function() {
+              return listActiveSockets();
+            });
+        }
 
-      /* No testing delay */
-      return listActiveSockets();
-    })
-    .then(function(sockets) {
-      var onlineCounts = {};
-      var mobileCounts = {};
-      var troupeCounts = {};
-      var troupeIdsHash = {};
+        /* No testing delay */
+        return listActiveSockets();
+      })
+      .then(function(sockets) {
+        var onlineCounts = {};
+        var mobileCounts = {};
+        var troupeCounts = {};
+        var troupeIdsHash = {};
 
-      // This can't be done in the script manager
-      // as that is using a different redis connection
-      // and besides we don't know the semantics of WATCH
-      // in Lua :)
+        // This can't be done in the script manager
+        // as that is using a different redis connection
+        // and besides we don't know the semantics of WATCH
+        // in Lua :)
 
-      sockets.forEach(function(socket) {
-        var userId = socket.userId;
-        var troupeId = socket.troupeId;
+        sockets.forEach(function(socket) {
+          var userId = socket.userId;
+          var troupeId = socket.troupeId;
 
-        if (userIds.indexOf(userId) >= 0) {
-          if (troupeId) {
-            troupeIdsHash[troupeId] = true;
-            if (socket.eyeballs) {
-              if (troupeCounts[userId]) {
-                troupeCounts[userId][troupeId] = troupeCounts[userId][troupeId]
-                  ? troupeCounts[userId][troupeId] + 1
-                  : 1;
-              } else {
-                troupeCounts[userId] = { troupeId: 1 };
+          if (userIds.indexOf(userId) >= 0) {
+            if (troupeId) {
+              troupeIdsHash[troupeId] = true;
+              if (socket.eyeballs) {
+                if (troupeCounts[userId]) {
+                  troupeCounts[userId][troupeId] = troupeCounts[userId][troupeId]
+                    ? troupeCounts[userId][troupeId] + 1
+                    : 1;
+                } else {
+                  troupeCounts[userId] = { troupeId: 1 };
+                }
               }
             }
-          }
 
-          if (socket.mobile) {
-            mobileCounts[userId] = mobileCounts[userId] ? mobileCounts[userId] + 1 : 1;
-          } else {
-            onlineCounts[userId] = onlineCounts[userId] ? onlineCounts[userId] + 1 : 1;
-          }
-        }
-      });
-
-      var troupeIds = Object.keys(troupeIdsHash);
-
-      return Promise.all(
-        [
-          redisWatchClient.zrangebyscore(ACTIVE_USERS_KEY, 1, '+inf', 'WITHSCORES'),
-          redisWatchClient.zrangebyscore(MOBILE_USERS_KEY, 1, '+inf', 'WITHSCORES')
-        ].concat(
-          troupeIds.map(function(troupeId) {
-            return redisWatchClient.zrangebyscore(
-              keyTroupeUsers(troupeId),
-              1,
-              '+inf',
-              'WITHSCORES'
-            );
-          })
-        )
-      ).then(function(results) {
-        var needsUpdate = false;
-        var multi = redisWatchClient.multi();
-
-        var currentActiveUserHash = hashZset(results[0]);
-        var currentMobileUserHash = hashZset(results[1]);
-
-        userIds.forEach(function(userId) {
-          var currentActiveScore = currentActiveUserHash[userId] || 0;
-          var currentMobileScore = currentMobileUserHash[userId] || 0;
-
-          var calculatedActiveScore = onlineCounts[userId] || 0;
-          var calculatedMobileScore = mobileCounts[userId] || 0;
-
-          if (calculatedActiveScore !== currentActiveScore) {
-            logger.info(
-              'Inconsistency in active score in presence service for user ' +
-                userId +
-                '. ' +
-                calculatedActiveScore +
-                ' vs ' +
-                currentActiveScore
-            );
-
-            needsUpdate = true;
-            multi.zrem(ACTIVE_USERS_KEY, userId);
-            if (calculatedActiveScore > 0) {
-              multi.zincrby(ACTIVE_USERS_KEY, calculatedActiveScore, userId);
-            }
-          }
-
-          if (calculatedMobileScore !== currentMobileScore) {
-            logger.info(
-              'Inconsistency in mobile score in presence service for user ' +
-                userId +
-                '. ' +
-                currentMobileScore +
-                ' vs ' +
-                calculatedMobileScore
-            );
-
-            needsUpdate = true;
-            multi.zrem(MOBILE_USERS_KEY, userId);
-            if (calculatedActiveScore > 0) {
-              multi.zincrby(MOBILE_USERS_KEY, calculatedMobileScore, userId);
+            if (socket.mobile) {
+              mobileCounts[userId] = mobileCounts[userId] ? mobileCounts[userId] + 1 : 1;
+            } else {
+              onlineCounts[userId] = onlineCounts[userId] ? onlineCounts[userId] + 1 : 1;
             }
           }
         });
 
-        // Now check each troupeId for each userId
-        troupeIds.forEach(function(troupeId, index) {
-          var userTroupeScores = hashZset(results[2 + index]);
+        var troupeIds = Object.keys(troupeIdsHash);
+
+        return Promise.all(
+          [
+            redisWatchClient.zrangebyscore(ACTIVE_USERS_KEY, 1, '+inf', 'WITHSCORES'),
+            redisWatchClient.zrangebyscore(MOBILE_USERS_KEY, 1, '+inf', 'WITHSCORES')
+          ].concat(
+            troupeIds.map(function(troupeId) {
+              return redisWatchClient.zrangebyscore(
+                keyTroupeUsers(troupeId),
+                1,
+                '+inf',
+                'WITHSCORES'
+              );
+            })
+          )
+        ).then(function(results) {
+          var needsUpdate = false;
+          var multi = redisWatchClient.multi();
+
+          var currentActiveUserHash = hashZset(results[0]);
+          var currentMobileUserHash = hashZset(results[1]);
 
           userIds.forEach(function(userId) {
-            var currentTroupeScore = userTroupeScores[userId] || 0;
+            var currentActiveScore = currentActiveUserHash[userId] || 0;
+            var currentMobileScore = currentMobileUserHash[userId] || 0;
 
-            var calculatedTroupeScore =
-              (troupeCounts[userId] && troupeCounts[userId][troupeId]) || 0;
+            var calculatedActiveScore = onlineCounts[userId] || 0;
+            var calculatedMobileScore = mobileCounts[userId] || 0;
 
-            if (calculatedTroupeScore !== currentTroupeScore) {
+            if (calculatedActiveScore !== currentActiveScore) {
               logger.info(
-                'Inconsistency in troupe score in presence service for user ' +
+                'Inconsistency in active score in presence service for user ' +
                   userId +
-                  ' in troupe ' +
-                  troupeId +
                   '. ' +
-                  calculatedTroupeScore +
+                  calculatedActiveScore +
                   ' vs ' +
-                  currentTroupeScore
+                  currentActiveScore
               );
 
               needsUpdate = true;
-              var key = keyTroupeUsers(troupeId);
-              multi.zrem(key, userId);
-              if (calculatedTroupeScore > 0) {
-                multi.zincrby(key, calculatedTroupeScore, userId);
+              multi.zrem(ACTIVE_USERS_KEY, userId);
+              if (calculatedActiveScore > 0) {
+                multi.zincrby(ACTIVE_USERS_KEY, calculatedActiveScore, userId);
+              }
+            }
+
+            if (calculatedMobileScore !== currentMobileScore) {
+              logger.info(
+                'Inconsistency in mobile score in presence service for user ' +
+                  userId +
+                  '. ' +
+                  currentMobileScore +
+                  ' vs ' +
+                  calculatedMobileScore
+              );
+
+              needsUpdate = true;
+              multi.zrem(MOBILE_USERS_KEY, userId);
+              if (calculatedActiveScore > 0) {
+                multi.zincrby(MOBILE_USERS_KEY, calculatedMobileScore, userId);
               }
             }
           });
-        });
 
-        // Nothing to do? Finish
-        if (!needsUpdate) return;
+          // Now check each troupeId for each userId
+          troupeIds.forEach(function(troupeId, index) {
+            var userTroupeScores = hashZset(results[2 + index]);
 
-        return multi
-          .exec()
-          .then(checkMultiErrors)
-          .then(function(replies) {
-            if (!replies) {
-              var err = new StatusError(419, 'Transaction rolled back');
-              err.rollback = true;
-              throw err;
-            }
+            userIds.forEach(function(userId) {
+              var currentTroupeScore = userTroupeScores[userId] || 0;
+
+              var calculatedTroupeScore =
+                (troupeCounts[userId] && troupeCounts[userId][troupeId]) || 0;
+
+              if (calculatedTroupeScore !== currentTroupeScore) {
+                logger.info(
+                  'Inconsistency in troupe score in presence service for user ' +
+                    userId +
+                    ' in troupe ' +
+                    troupeId +
+                    '. ' +
+                    calculatedTroupeScore +
+                    ' vs ' +
+                    currentTroupeScore
+                );
+
+                needsUpdate = true;
+                var key = keyTroupeUsers(troupeId);
+                multi.zrem(key, userId);
+                if (calculatedTroupeScore > 0) {
+                  multi.zincrby(key, calculatedTroupeScore, userId);
+                }
+              }
+            });
           });
-      });
-    })
-    .finally(function() {
-      env.ioredis.quitClient(redisWatchClient);
-    })
-    .nodeify(callback);
+
+          // Nothing to do? Finish
+          if (!needsUpdate) return;
+
+          return (
+            multi
+              .exec()
+              // FIXME: ioredis breaking change "Reply transformers will be applied for transactions.",
+              // see https://github.com/luin/ioredis/wiki/Breaking-changes-between-v1-and-v2#reply-transformers-will-be-applied-for-transactions
+              .then(checkMultiErrors)
+              .then(function(replies) {
+                if (!replies) {
+                  var err = new StatusError(419, 'Transaction rolled back');
+                  err.rollback = true;
+                  throw err;
+                }
+              })
+          );
+        });
+      })
+      .finally(function() {
+        env.ioredis.quitClient(redisWatchClient);
+      })
+      // FIXME: ioredis no more bluebird promise breaking change
+      .nodeify(callback)
+  );
 }
 
 function validateUsers(callback) {

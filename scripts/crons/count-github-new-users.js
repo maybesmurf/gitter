@@ -47,15 +47,18 @@ function setLastMaxId(lastMaxId) {
 }
 
 function execute() {
-  return getLastMaxId()
-    .then(function(lastMaxId) {
-      return next(0, lastMaxId);
-    })
-    .spread(function(count, maxId) {
-      console.log('new github users: ', count);
-      // stats.gaugeHF('github.user.signup.count', count, 1);
-      return setLastMaxId(maxId);
-    });
+  return (
+    getLastMaxId()
+      .then(function(lastMaxId) {
+        return next(0, lastMaxId);
+      })
+      // FIXME: ioredis no more bluebird promise breaking change
+      .spread(function(count, maxId) {
+        console.log('new github users: ', count);
+        // stats.gaugeHF('github.user.signup.count', count, 1);
+        return setLastMaxId(maxId);
+      })
+  );
 }
 
 execute()
@@ -66,4 +69,5 @@ execute()
     shutdown.shutdownGracefully(1);
     throw err;
   })
+  // FIXME: ioredis no more bluebird promise breaking change
   .done();

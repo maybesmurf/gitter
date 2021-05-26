@@ -582,18 +582,23 @@ function getBadgeCountsForUserIds(userIds) {
     multi.zcard('ub:' + userId);
   });
 
-  return Promise.fromCallback(function(callback) {
-    multi.exec(callback);
-  }).then(function(replies) {
-    var result = {};
+  return (
+    Promise.fromCallback(function(callback) {
+      multi.exec(callback);
+    })
+      // FIXME: ioredis breaking change "Reply transformers will be applied for transactions.",
+      // see https://github.com/luin/ioredis/wiki/Breaking-changes-between-v1-and-v2#reply-transformers-will-be-applied-for-transactions
+      .then(function(replies) {
+        var result = {};
 
-    userIds.forEach(function(userId, index) {
-      var reply = replies[index];
-      result[userId] = reply;
-    });
+        userIds.forEach(function(userId, index) {
+          var reply = replies[index];
+          result[userId] = reply;
+        });
 
-    return result;
-  });
+        return result;
+      })
+  );
 }
 
 function getRoomsCausingBadgeCount(userId) {

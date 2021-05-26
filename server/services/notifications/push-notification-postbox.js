@@ -55,19 +55,22 @@ var pushNotificationGeneratorQueue = workerQueue.queue(
 
       if (!userId || !troupeId || !notificationNumber) return done();
 
-      return pushNotificationGenerator
-        .sendUserTroupeNotification(userId, troupeId, notificationNumber)
-        .catch(function(err) {
-          winston.error('Failed to send notifications: ' + err + '. Failing silently.', {
-            exception: err
-          });
-          errorReporter(
-            err,
-            { userId: userId, troupeId: troupeId },
-            { module: 'push-notification-postbox' }
-          );
-        })
-        .nodeify(done);
+      return (
+        pushNotificationGenerator
+          .sendUserTroupeNotification(userId, troupeId, notificationNumber)
+          .catch(function(err) {
+            winston.error('Failed to send notifications: ' + err + '. Failing silently.', {
+              exception: err
+            });
+            errorReporter(
+              err,
+              { userId: userId, troupeId: troupeId },
+              { module: 'push-notification-postbox' }
+            );
+          })
+          // FIXME: ioredis no more bluebird promise breaking change
+          .nodeify(done)
+      );
     };
   }
 );

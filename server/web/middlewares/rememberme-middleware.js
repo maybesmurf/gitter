@@ -95,45 +95,50 @@ var validateAuthToken = Promise.method(function(authCookieValue) {
 
   var redisKey = REMEMBER_ME_PREFIX + key;
 
-  return Promise.fromCallback(function(callback) {
-    return redisClient
-      .multi()
-      .get(redisKey)
-      .pexpire(redisKey, tokenGracePeriodMillis)
-      .exec(callback);
-  }).then(function(replies) {
-    var tokenInfo = replies[0];
-    if (!tokenInfo) {
-      return;
-    }
+  return (
+    Promise.fromCallback(function(callback) {
+      return redisClient
+        .multi()
+        .get(redisKey)
+        .pexpire(redisKey, tokenGracePeriodMillis)
+        .exec(callback);
+    })
+      // FIXME: ioredis breaking change "Reply transformers will be applied for transactions.",
+      // see https://github.com/luin/ioredis/wiki/Breaking-changes-between-v1-and-v2#reply-transformers-will-be-applied-for-transactions
+      .then(function(replies) {
+        var tokenInfo = replies[0];
+        if (!tokenInfo) {
+          return;
+        }
 
-    var stored = parseToken(tokenInfo);
-    if (!stored) {
-      logger.info('rememberme: Saved token is corrupt.', { key: key, tokenInfo: tokenInfo });
-      return;
-    }
+        var stored = parseToken(tokenInfo);
+        if (!stored) {
+          logger.info('rememberme: Saved token is corrupt.', { key: key, tokenInfo: tokenInfo });
+          return;
+        }
 
-    var serverHash = stored.hash;
+        var serverHash = stored.hash;
 
-    var promise = sechash.testHash(clientToken, serverHash, {
-      algorithm: 'sha512'
-    });
-
-    return Promise.resolve(promise).then(function(match) {
-      if (!match) {
-        logger.warn('rememberme: testHash failed. Illegal token', {
-          serverHash: serverHash,
-          clientToken: clientToken,
-          key: key
+        var promise = sechash.testHash(clientToken, serverHash, {
+          algorithm: 'sha512'
         });
 
-        return;
-      }
+        return Promise.resolve(promise).then(function(match) {
+          if (!match) {
+            logger.warn('rememberme: testHash failed. Illegal token', {
+              serverHash: serverHash,
+              clientToken: clientToken,
+              key: key
+            });
 
-      var userId = stored.userId;
-      return userId;
-    });
-  });
+            return;
+          }
+
+          var userId = stored.userId;
+          return userId;
+        });
+      })
+  );
 });
 
 /**
