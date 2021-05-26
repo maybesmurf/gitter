@@ -1,6 +1,9 @@
-# 21.33.0 - 2021-05-20
+# 21.34.0 - 2021-05-26
 
  - Sync leave from room on Gitter to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2200
+
+
+# 21.33.0 - 2021-05-20
 
 Developer facing:
 
