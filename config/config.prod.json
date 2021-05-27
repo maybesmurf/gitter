@@ -77,8 +77,8 @@
     "timeBeforeNextEmailNotificationMins": 1440
   },
   "logging": {
-    "logToUDP": true,
-    "logToFile": true,
+    "logToUDP": false,
+    "logToFile": false,
     "level": "info",
     "colorize": false,
     "timestamp": true,
