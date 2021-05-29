@@ -73,6 +73,7 @@ var PermissionsView = Marionette.LayoutView.extend({
     this.initializeForEntity();
     this.listenTo(this, 'menuItemClicked', this.menuItemClicked);
     this.listenTo(this.model.adminCollection, 'add remove', this.onAdminCollectionChange);
+    this.listenTo(this.model.groupCollection, 'add remove', this.onGroupCollectionChange);
   },
 
   menuItemClicked: function(button) {
@@ -144,6 +145,8 @@ var PermissionsView = Marionette.LayoutView.extend({
 
     this.onRequestingSecurityDescriptorStatusChange();
     this.onAdminCollectionChange();
+
+    this.rendered = true;
   },
 
   onPermissionsOptionsSelectChange: function() {
@@ -155,6 +158,12 @@ var PermissionsView = Marionette.LayoutView.extend({
         type: selectValue === 'null' ? null : selectValue
       })
     });
+  },
+
+  onGroupCollectionChange: function() {
+    if (this.rendered) {
+      this.updatePermissionSelect();
+    }
   },
 
   onAdminCollectionChange: function() {
