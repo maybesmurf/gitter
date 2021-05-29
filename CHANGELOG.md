@@ -1,3 +1,10 @@
+# 21.35.0 - *upcoming*
+
+Developer facing:
+
+ - Fix GitLab CI yaml becoming invalid after `container_scanning` security job template was updated, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2211
+
+
 # 21.34.0 - 2021-05-26
 
  - Sync leave from room on Gitter to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2200
