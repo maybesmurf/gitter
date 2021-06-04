@@ -34,7 +34,7 @@ var hardcodedGitHubUser = {
 };
 // this can only come from github has we don't store it in the db. If I ever
 // change my location, then our tests will break ;)
-var hardcodedLocation = 'Cape Town';
+var hardcodedLocation = 'Waterford, Ireland';
 function ensureGitHubUser(options) {
   return userService.findOrCreateUserForGithubId(options);
 }
