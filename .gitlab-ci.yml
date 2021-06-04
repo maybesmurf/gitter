@@ -480,8 +480,7 @@ retire-js-dependency_scanning:
   rules:
     - when: always
 
-# So we can override `container_scanning` and `container_scanning_new`
-.cs_common:
+container_scanning:
   stage: security
   rules:
     - when: always
@@ -490,11 +489,6 @@ retire-js-dependency_scanning:
     GIT_STRATEGY: fetch
     CI_APPLICATION_REPOSITORY: $GITTER_CI_REGISTRY_IMAGE/app
     CI_APPLICATION_TAG: $CI_COMMIT_REF_SLUG
-
-container_scanning:
-  extends: .cs_common
-  rules:
-    - when: always
 
 sast:
   stage: security
