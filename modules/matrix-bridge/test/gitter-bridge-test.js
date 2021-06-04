@@ -7,6 +7,7 @@ const restSerializer = require('../../../server/serializers/rest-serializer');
 const GitterBridge = require('../lib/gitter-bridge');
 const GitterUtils = require('../lib/gitter-utils');
 const store = require('../lib/store');
+const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
 
 const strategy = new restSerializer.ChatStrategy();
 
@@ -49,11 +50,12 @@ describe('gitter-bridge', () => {
       setAvatarUrl: sinon.spy(),
       getRoomDirectoryVisibility: sinon.spy(),
       setRoomDirectoryVisibility: sinon.spy(),
-      invite: sinon.spy()
+      invite: sinon.spy(),
+      leave: sinon.spy()
     };
 
     matrixBridge = {
-      getIntent: (/*userId*/) => intentSpies
+      getIntent: sinon.spy((/*userId*/) => intentSpies)
     };
 
     gitterBridge = new GitterBridge(matrixBridge, overallFixtures.userBridge1.username);
@@ -922,6 +924,46 @@ describe('gitter-bridge', () => {
 
         // No room updates propagated across
         assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
+      });
+    });
+
+    describe('handleUserLeavingRoom', () => {
+      const fixture = fixtureLoader.setupEach({
+        user1: {},
+        troupe1: {}
+      });
+
+      it('user leave membership syncs to Matrix', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+        const mxidForGitterUser = getMxidForGitterUser(fixture.user1);
+
+        await gitterBridge.onDataChange({
+          type: 'user',
+          url: `/rooms/${fixture.troupe1.id}/users`,
+          operation: 'remove',
+          model: { id: fixture.user1.id }
+        });
+
+        assert.strictEqual(matrixBridge.getIntent.callCount, 3);
+        assert.strictEqual(matrixBridge.getIntent.getCall(2).args[0], mxidForGitterUser);
+        assert.strictEqual(matrixBridge.getIntent().leave.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().leave.getCall(0).args[0], matrixRoomId);
+      });
+
+      it(`user leave is ignored when the Matrix room isn't created yet`, async () => {
+        // This is commented out on purpose, we are testing that the leave is ignored
+        // when the Matrix room hasn't been created yet.
+        //await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        await gitterBridge.onDataChange({
+          type: 'user',
+          url: `/rooms/${fixture.troupe1.id}/users`,
+          operation: 'remove',
+          model: { id: fixture.user1.id }
+        });
+
+        assert.strictEqual(matrixBridge.getIntent().leave.callCount, 0);
       });
     });
   });
