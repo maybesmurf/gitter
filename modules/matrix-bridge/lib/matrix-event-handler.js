@@ -161,8 +161,18 @@ class MatrixEventHandler {
   async onEventData(event) {
     debug('onEventData', event);
 
+    const matrixEventId = event.event_id;
+    const matrixRoomId = event.room_id;
+
     // Reject any events that are too old
     if (Date.now() - event.origin_server_ts > MAX_EVENT_ACCEPTANCE_WINDOW) {
+      logger.warn(
+        `Ignoring old Matrix event that arrived after the MAX_EVENT_ACCEPTANCE_WINDOW, matrixEventId=${matrixEventId}, matrixRoomId=${matrixRoomId}`
+      );
+      stats.event('matrix_bridge.ignored_old_matrix_event', {
+        matrixRoomId,
+        matrixEventId
+      });
       return null;
     }
 
