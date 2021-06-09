@@ -5,6 +5,7 @@
 
 Developer facing:
 
+ - Add metrics for when an we ignore an old matrix event, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2213
  - Fix GitLab CI yaml becoming invalid after `container_scanning` security job template was updated, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2211
 
 
