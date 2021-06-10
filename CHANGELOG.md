@@ -1,3 +1,14 @@
+# 21.35.0 - 2021-06-08
+
+ - Fix NPE in permissions modal, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2209
+ - Fix race-condition where group collection is not ready to render permission options, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2210
+
+Developer facing:
+
+ - Add metrics for when an we ignore an old matrix event, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2213
+ - Fix GitLab CI yaml becoming invalid after `container_scanning` security job template was updated, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2211
+
+
 # 21.34.0 - 2021-05-26
 
  - Sync leave from room on Gitter to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2200

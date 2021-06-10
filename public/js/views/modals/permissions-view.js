@@ -73,6 +73,7 @@ var PermissionsView = Marionette.LayoutView.extend({
     this.initializeForEntity();
     this.listenTo(this, 'menuItemClicked', this.menuItemClicked);
     this.listenTo(this.model.adminCollection, 'add remove', this.onAdminCollectionChange);
+    this.listenTo(this.model.groupCollection, 'add remove', this.onGroupCollectionChange);
   },
 
   menuItemClicked: function(button) {
@@ -144,6 +145,8 @@ var PermissionsView = Marionette.LayoutView.extend({
 
     this.onRequestingSecurityDescriptorStatusChange();
     this.onAdminCollectionChange();
+
+    this.rendered = true;
   },
 
   onPermissionsOptionsSelectChange: function() {
@@ -155,6 +158,12 @@ var PermissionsView = Marionette.LayoutView.extend({
         type: selectValue === 'null' ? null : selectValue
       })
     });
+  },
+
+  onGroupCollectionChange: function() {
+    if (this.rendered) {
+      this.updatePermissionSelect();
+    }
   },
 
   onAdminCollectionChange: function() {
@@ -173,27 +182,7 @@ var PermissionsView = Marionette.LayoutView.extend({
   },
 
   initializeForEntity: function() {
-    this.fetchSecurityDescriptor()
-      .bind(this)
-      .then(function() {
-        var sd = this.model.get('securityDescriptor');
-        this.model.set('initialSecurityDescriptorType', sd && sd.type);
-
-        var permissionOpts = this.getPermissionOptions();
-
-        this.ui.permissionsOptionsSelect.html('');
-        permissionOpts.forEach(
-          function(opt) {
-            var optionEl = $('<option></option>');
-            optionEl.text(opt.label);
-            optionEl.attr('value', opt.value);
-            if (opt.selected) {
-              optionEl.attr('selected', opt.selected);
-            }
-            optionEl.appendTo(this.ui.permissionsOptionsSelect);
-          }.bind(this)
-        );
-      });
+    this.fetchSecurityDescriptor();
     this.fetchAdminUsers();
   },
 
@@ -203,6 +192,7 @@ var PermissionsView = Marionette.LayoutView.extend({
     });
     this.model.adminCollection.reset();
     this.initializeForEntity();
+    this.updatePermissionSelect();
   },
 
   // eslint-disable-next-line complexity
@@ -237,6 +227,7 @@ var PermissionsView = Marionette.LayoutView.extend({
     this.ui.sdWarning.text(sdWarningString);
     toggleClass(this.ui.sdWarning[0], 'hidden', sdWarningString.length === 0);
 
+    this.updatePermissionSelect();
     this.updatePermissionOptionsIcons();
     this.updateModelErrors();
   },
@@ -268,6 +259,26 @@ var PermissionsView = Marionette.LayoutView.extend({
 
     this.ui.modelError.text(errorMessage);
     toggleClass(this.ui.modelError[0], 'hidden', errorMessage.length === 0);
+  },
+
+  updatePermissionSelect: function() {
+    var sd = this.model.get('securityDescriptor');
+    this.model.set('initialSecurityDescriptorType', sd && sd.type);
+
+    var permissionOpts = this.getPermissionOptions();
+
+    this.ui.permissionsOptionsSelect.html('');
+    permissionOpts.forEach(
+      function(opt) {
+        var optionEl = $('<option></option>');
+        optionEl.text(opt.label);
+        optionEl.attr('value', opt.value);
+        if (opt.selected) {
+          optionEl.attr('selected', opt.selected);
+        }
+        optionEl.appendTo(this.ui.permissionsOptionsSelect);
+      }.bind(this)
+    );
   },
 
   updatePermissionOptionsIcons: function() {
