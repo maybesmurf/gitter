@@ -105,7 +105,7 @@ class GitterBridge {
     let otherPersonMxid;
     let gitterRoom;
     try {
-      gitterRoom = await troupeService.findByIdLean(gitterRoomId);
+      gitterRoom = await troupeService.findById(gitterRoomId);
       assert(gitterRoom);
 
       // We only need to invite people if this is a Matrix DM
@@ -140,7 +140,7 @@ class GitterBridge {
       // of the person being there is still important
       logger.warn(
         `Unable to invite Matrix user (${otherPersonMxid}) back to Matrix DM room matrixRoomId=${matrixRoomId} gitterRoomId=${gitterRoomId}`,
-        err
+        { exception: err }
       );
       errorReporter(
         err,
@@ -419,6 +419,7 @@ class GitterBridge {
     assert(matrixId);
 
     const intent = this.matrixBridge.getIntent(matrixId);
+    // TODO: Maybe not leave for DM rooms
     await intent.leave(matrixRoomId);
   }
 }
