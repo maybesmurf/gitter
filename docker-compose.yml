@@ -57,7 +57,7 @@ services:
 
   synapse:
     container_name: 'synapse'
-    image: 'matrixdotorg/synapse:v1.20.1'
+    image: registry.gitlab.com/gitterhq/webapp/synapse:latest
     restart: always
     ports:
       - '18008:8008'
