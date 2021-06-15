@@ -1,3 +1,10 @@
+# 21.36.0 - *upcoming*
+
+Developer facing:
+
+ - Update Docker Compose Synapse version to match what we use in CI, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2215
+
+
 # 21.35.0 - 2021-06-08
 
  - Fix NPE in permissions modal, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2209
