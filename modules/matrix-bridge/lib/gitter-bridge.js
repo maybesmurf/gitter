@@ -105,7 +105,7 @@ class GitterBridge {
     let otherPersonMxid;
     let gitterRoom;
     try {
-      gitterRoom = await troupeService.findByIdLean(gitterRoomId);
+      gitterRoom = await troupeService.findById(gitterRoomId);
       assert(gitterRoom);
 
       // We only need to invite people if this is a Matrix DM

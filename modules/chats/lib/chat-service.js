@@ -191,6 +191,11 @@ async function newChatMessageToTroupe(troupe, user, data) {
   if (!troupe) throw new StatusError(404, 'Unknown room');
   if (!user) throw new StatusError(404, 'Unknown user');
 
+  // Avoid trying to use the lean objects because we look for `troupe.id`,
+  // not `troupe._id` in the code below and the various sub-components.
+  assert(troupe.id, 'troupe must be a full Mongoose model, not a lean object');
+  assert(user.id, 'user must be a full Mongoose model, not a lean object');
+
   /* You have to have text */
   if (!data.text) throw new StatusError(400, 'Text is required');
   validateChatMessageLength(data.text);
