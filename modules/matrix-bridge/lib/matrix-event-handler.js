@@ -295,30 +295,6 @@ class MatrixEventHandler {
         },
         { module: 'gitter-to-matrix-bridge' }
       );
-
-      if (gitterUserId) {
-        logger.info(
-          `Sending notice to matrixRoomId=${matrixRoomId} that we were unable to invite the Gitter user(${gitterUserId}) back to the DM room`
-        );
-
-        let unableToInviteErrorMessage = `Unable to invite Gitter user back to DM room. They probably won't know about the message you just sent.`;
-        if (gitterUser.isRemoved && gitterUser.isRemoved()) {
-          unableToInviteErrorMessage =
-            'Unable to invite Gitter user back to DM room because they deleted their account.';
-        }
-
-        const matrixContent = {
-          body: unableToInviteErrorMessage,
-          msgtype: 'm.notice'
-        };
-
-        // We have to use the Gitter user intent because the bridge bot
-        // is not in the DM conversation. Only 2 people can be in the `is_direct`
-        // DM for it to be catogorized under the "people" heading in Element.
-        const mxid = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
-        const intent = this.matrixBridge.getIntent(mxid);
-        await intent.sendMessage(matrixRoomId, matrixContent);
-      }
     }
 
     return false;

@@ -714,9 +714,6 @@ describe('matrix-event-handler', () => {
             fixture.user1.id
           );
           assert.strictEqual(afterMembership, false);
-
-          // Notice is sent back to Matrix DM room that the Gitter user was unable to join
-          assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
         });
 
         it('should not invite anyone for non-DM room', async () => {
