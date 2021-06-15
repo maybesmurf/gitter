@@ -21,6 +21,15 @@ describe('matrix-utils', () => {
     group1: {},
     troupe1: {
       group: 'group1'
+    },
+    troupePrivate1: {
+      group: 'group1',
+      users: ['user1'],
+      securityDescriptor: {
+        members: 'INVITE',
+        admins: 'MANUAL',
+        public: false
+      }
     }
   });
 
@@ -87,6 +96,15 @@ describe('matrix-utils', () => {
 
       // Room is created for something that hasn't been bridged before
       assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 1);
+    });
+
+    it('creates Matrix room for a unbridged Gitter room', async () => {
+      try {
+        await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(fixture.troupePrivate1.id);
+        assert.fail('expected Matrix room creation to fail for private room');
+      } catch (err) {
+        assert(err);
+      }
     });
   });
 
