@@ -140,7 +140,7 @@ class GitterBridge {
       // of the person being there is still important
       logger.warn(
         `Unable to invite Matrix user (${otherPersonMxid}) back to Matrix DM room matrixRoomId=${matrixRoomId} gitterRoomId=${gitterRoomId}`,
-        err
+        { exception: err }
       );
       errorReporter(
         err,
