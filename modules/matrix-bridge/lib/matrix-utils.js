@@ -10,6 +10,7 @@ const groupService = require('gitter-web-groups');
 const userService = require('gitter-web-users');
 const avatars = require('gitter-web-avatars');
 const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-troupe-name');
+const securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
@@ -72,6 +73,16 @@ class MatrixUtils {
 
   async createMatrixRoomByGitterRoomId(gitterRoomId) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
+
+    // Protect from accidentally creating a public room for a private Gitter room (like a DM).
+    // We should only be creating a DM room from `createMatrixDmRoomByGitterUserAndOtherPersonMxid`
+    const isPublic = securityDescriptorUtils.isPublic(gitterRoom);
+    assert.strictEqual(
+      !isPublic,
+      false,
+      `Only public rooms can be creatd with createMatrixRoomByGitterRoomId. gitterRoomId=${gitterRoomId} is private`
+    );
+
     const roomAlias = getCanonicalAliasLocalpartForGitterRoomUri(gitterRoom.uri);
 
     const bridgeIntent = this.matrixBridge.getIntent();
