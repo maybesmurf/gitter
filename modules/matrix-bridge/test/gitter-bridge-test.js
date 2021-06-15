@@ -3,6 +3,7 @@
 const assert = require('assert');
 const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const chatService = require('gitter-web-chats');
 const restSerializer = require('../../../server/serializers/rest-serializer');
 const GitterBridge = require('../lib/gitter-bridge');
 const GitterUtils = require('../lib/gitter-utils');
@@ -490,6 +491,15 @@ describe('gitter-bridge', () => {
             operation: 'create',
             model: serializedMessage
           });
+
+          // Make sure the feedback warning message from the bridge user (@gitter-badger)
+          // was sent in the Gitter room to let them know we had trouble inviting the Matrix
+          // side back to the room.
+          const messages = await chatService.findChatMessagesForTroupe(newDmRoom._id);
+          assert.strictEqual(
+            messages[0].text,
+            `Unable to invite Matrix user back to DM room. They probably won't know about the message you just sent.`
+          );
 
           // Message is still sent to the new room
           assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
