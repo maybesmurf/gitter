@@ -280,7 +280,7 @@ class MatrixEventHandler {
       // of the person being there is still important
       logger.warn(
         `Unable to invite Gitter user (${gitterUserId}) back to DM room gitterRoom=${gitterRoom.lcUri} (${gitterRoom.id}) matrixRoomId=${matrixRoomId}`,
-        err
+        { exception: err }
       );
       errorReporter(
         err,
