@@ -82,26 +82,10 @@ async function findContextForUri(user, uri, options) {
 
     if (!previousMatrixRoomId) {
       // Create the Matrix DM room first
-      let matrixRoomId;
-      try {
-        matrixRoomId = await matrixUtils.createMatrixDmRoomByGitterUserAndOtherPersonMxid(
-          resolvedUser,
-          resolvedVirtualUser.externalId
-        );
-      } catch (err) {
-        if (
-          err.errcode === 'M_NOT_FOUND' ||
-          err.errcode === 'M_UNAUTHORIZED' ||
-          err.errcode === 'M_UNKNOWN'
-        ) {
-          throw new StatusError(
-            404,
-            `Unable to create Matrix DM. MXID does not exist (${resolvedVirtualUser.externalId})`
-          );
-        }
-
-        throw err;
-      }
+      let matrixRoomId = await matrixUtils.createMatrixDmRoomByGitterUserAndOtherPersonMxid(
+        resolvedUser,
+        resolvedVirtualUser.externalId
+      );
 
       // Then only after we're succesful creating the Matrix room, create the Gitter side of the DM
       gitterDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
