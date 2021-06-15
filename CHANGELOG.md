@@ -1,8 +1,12 @@
 # 21.36.0 - *upcoming*
 
+ - Protect from creating a public conversation for a private room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2217
+ - Fix warning not being sent when we can't invite the Matrix user back to the DM room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2218
+
 Developer facing:
 
  - Update Docker Compose Synapse version to match what we use in CI, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2215
+ - Log full errors when Gitter <-> Matrix invite warnings are triggered, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2219
 
 
 # 21.35.0 - 2021-06-08
