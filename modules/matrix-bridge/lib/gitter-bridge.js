@@ -19,6 +19,7 @@ const transformGitterTextIntoMatrixMessage = require('./transform-gitter-text-in
 const checkIfDatesSame = require('./check-if-dates-same');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 
 class GitterBridge {
   constructor(
@@ -420,8 +421,43 @@ class GitterBridge {
     const matrixId = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
     assert(matrixId);
 
-    const intent = this.matrixBridge.getIntent(matrixId);
-    await intent.join(matrixRoomId);
+    try {
+      const intent = this.matrixBridge.getIntent(matrixId);
+      await intent.join(matrixRoomId);
+    } catch (err) {
+      // Create a new DM room on Matrix if the user is no longer able to join the old again
+      if (err.message === 'Failed to join room') {
+        const gitterRoom = await troupeService.findById(gitterRoomId);
+        assert(gitterRoom);
+
+        const matrixDm = discoverMatrixDmUri(gitterRoom.lcUri);
+        if (!matrixDm) {
+          return null;
+        }
+
+        logger.warn(
+          `Failed to join Gitter user to Matrix DM room. Creating a new one! gitterUserId=${gitterUserId} gitterRoomId=${gitterRoomId} oldMatrixRoomId=${matrixRoomId}`
+        );
+
+        // Sanity check the user that joined the Gitter DM room is the same one from the URL
+        assert(mongoUtils.objectIDsEqual(matrixDm.gitterUserId, gitterUserId));
+
+        const gitterUser = await userService.findById(gitterUserId);
+        assert(gitterUser);
+
+        let newMatrixRoomId = await this.matrixUtils.createMatrixDmRoomByGitterUserAndOtherPersonMxid(
+          gitterUser,
+          matrixDm.virtualUserId
+        );
+
+        logger.info(
+          `Storing new bridged DM room (Gitter room id=${gitterRoom._id} -> Matrix room_id=${newMatrixRoomId}): ${gitterRoom.lcUri}`
+        );
+        await store.storeBridgedRoom(gitterRoom._id, newMatrixRoomId);
+      } else {
+        throw err;
+      }
+    }
   }
 
   async handleUserLeavingRoom(gitterRoomId, model) {

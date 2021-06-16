@@ -714,9 +714,6 @@ describe('matrix-event-handler', () => {
             fixture.user1.id
           );
           assert.strictEqual(afterMembership, false);
-
-          // Notice is sent back to Matrix DM room that the Gitter user was unable to join
-          assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
         });
 
         it('should not invite anyone for non-DM room', async () => {
@@ -934,9 +931,6 @@ describe('matrix-event-handler', () => {
         // Check that the existing Gitter room is connected to the new Matrix DM room
         const storedMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(newDmRoom._id);
         assert(mongoUtils.objectIDsEqual(storedMatrixRoomId, eventData.room_id));
-
-        // Notice sent in old room that it is no longer bridged and to use the new room
-        assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
       });
 
       it('Ignores non-DM invites for Gitter users', async () => {
