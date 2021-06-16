@@ -1,7 +1,9 @@
-# 21.36.0 - *upcoming*
+# 21.36.0 - 2021-06-16
 
  - Protect from creating a public conversation for a private room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2217
  - Fix warning not being sent when we can't invite the Matrix user back to the DM room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2218
+ - Avoid join->send race condition by joining long before the message send (sync join events), , https://gitlab.com/gitterHQ/webapp/-/merge_requests/2220
+ - Create new Matrix DM room when Gitter user can't join the old one, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2221
 
 Developer facing:
 
