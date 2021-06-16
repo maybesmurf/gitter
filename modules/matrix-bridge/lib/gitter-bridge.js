@@ -70,7 +70,9 @@ class GitterBridge {
 
       if (data.type === 'user') {
         const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/users/) || [];
-        if (gitterRoomId && data.operation === 'remove') {
+        if (gitterRoomId && data.operation === 'create') {
+          await this.handleUserJoiningRoom(gitterRoomId, data.model);
+        } else if (gitterRoomId && data.operation === 'remove') {
           await this.handleUserLeavingRoom(gitterRoomId, data.model);
         }
       }
@@ -399,6 +401,27 @@ class GitterBridge {
     const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
 
     await this.matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
+  }
+
+  async handleUserJoiningRoom(gitterRoomId, model) {
+    const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
+    if (!allowedToBridge) {
+      return null;
+    }
+
+    const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
+    // Just ignore the bridging join if the Matrix room hasn't been created yet
+    if (!matrixRoomId) {
+      return;
+    }
+
+    const gitterUserId = model.id;
+    assert(gitterUserId);
+    const matrixId = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
+    assert(matrixId);
+
+    const intent = this.matrixBridge.getIntent(matrixId);
+    await intent.join(matrixRoomId);
   }
 
   async handleUserLeavingRoom(gitterRoomId, model) {

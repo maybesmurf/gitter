@@ -5,6 +5,7 @@ const assert = require('assert');
 const request = require('request');
 const path = require('path');
 const urlJoin = require('url-join');
+const StatusError = require('statuserror');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const groupService = require('gitter-web-groups');
 const userService = require('gitter-web-users');
@@ -117,20 +118,35 @@ class MatrixUtils {
     const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterUserId);
     const intent = this.matrixBridge.getIntent(gitterUserMxid);
 
-    // Make sure the user exists
-    await intent.getProfileInfo(otherPersonMxid);
+    try {
+      // Make sure the user exists
+      await intent.getProfileInfo(otherPersonMxid);
 
-    const newRoom = await intent.createRoom({
-      createAsClient: true,
-      options: {
-        visibility: 'private',
-        preset: 'trusted_private_chat',
-        is_direct: true,
-        invite: [otherPersonMxid]
+      const newRoom = await intent.createRoom({
+        createAsClient: true,
+        options: {
+          visibility: 'private',
+          preset: 'trusted_private_chat',
+          is_direct: true,
+          invite: [otherPersonMxid]
+        }
+      });
+
+      return newRoom.room_id;
+    } catch (err) {
+      if (
+        err.errcode === 'M_NOT_FOUND' ||
+        err.errcode === 'M_UNAUTHORIZED' ||
+        err.errcode === 'M_UNKNOWN'
+      ) {
+        throw new StatusError(
+          404,
+          `Unable to create Matrix DM. MXID does not exist (${otherPersonMxid})`
+        );
       }
-    });
 
-    return newRoom.room_id;
+      throw err;
+    }
   }
 
   async ensureStateEvent(matrixRoomId, eventType, newContent) {
