@@ -89,24 +89,30 @@ function validateUserForSubTroupeSubscription(options) {
   var promise = permissionToRead(userId, troupeId);
 
   /** Reassociate the socket with a new room */
-  return promise.tap(function(access) {
+  return promise.tap(async access => {
     if (!access) return;
-    const hasEyeballs = ext && ext.reassociate && !!ext.reassociate.eyeballs;
-    return presenceService
-      .socketReassociated(options.clientId, userId, troupeId, hasEyeballs)
-      .then(function() {
-        // Update the lastAccessTime for the room
-        if (userId) {
-          return recentRoomService.saveLastVisitedTroupeforUserId(userId, troupeId);
-        }
-      })
-      .catch(function(err) {
-        logger.error('Unable to reassociate connection or update last access: ', {
-          exception: err,
-          userId: userId,
-          troupeId: troupeId
-        });
-      });
+
+    try {
+      const hasEyeballs = ext && ext.reassociate && !!ext.reassociate.eyeballs;
+      await presenceService.socketReassociated(options.clientId, userId, troupeId, hasEyeballs);
+    } catch (err) {
+      stats.eventHF('bayeux.authorisor.reassociate_socket_failed');
+      debug(
+        `Unable to reassociate connection: clientId=${options.clientId}, userId=${userId}, troupeId=${troupeId}`
+      );
+      return;
+    }
+
+    try {
+      // Update the lastAccessTime for the room
+      if (userId) {
+        await recentRoomService.saveLastVisitedTroupeforUserId(userId, troupeId);
+      }
+    } catch (err) {
+      stats.eventHF('bayeux.authorisor.last_access_update_failed');
+      debug(`Unable to update last access: userId=${userId}, troupeId=${troupeId}`);
+      return;
+    }
   });
 }
 

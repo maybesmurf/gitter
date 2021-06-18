@@ -1,3 +1,10 @@
+# 21.37.0 - 2021-06-18
+
+Developer facing:
+
+ - Ignore socket reassociation errors, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2224
+
+
 # 21.36.0 - 2021-06-16
 
  - Protect from creating a public conversation for a private room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2217
@@ -9,6 +16,7 @@ Developer facing:
 
  - Update Docker Compose Synapse version to match what we use in CI, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2215
  - Log full errors when Gitter <-> Matrix invite warnings are triggered, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2219
+ - Ignore bayeux logs from people with invalid info, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2223
 
 
 # 21.35.0 - 2021-06-08
