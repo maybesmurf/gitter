@@ -1,3 +1,10 @@
+# 21.37.0 - 2021-06-18
+
+Developer facing:
+
+ - Ignore socket reassociation errors, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2224
+
+
 # 21.36.0 - 2021-06-16
 
  - Protect from creating a public conversation for a private room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2217
