@@ -1,12 +1,17 @@
 'use strict';
 
 var testRequire = require('../../test-require');
+const makeRequest = require('../../make-request');
 var assert = require('assert');
 const sinon = require('sinon');
 var Promise = require('bluebird');
 var testGenerator = require('gitter-web-test-utils/lib/test-generator');
 
 var mockito = require('jsmockito').JsMockito;
+
+const REQ_STUB = makeRequest(
+  'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'
+);
 
 describe('authorisor', function() {
   describe('incoming', function() {
@@ -157,6 +162,7 @@ describe('authorisor', function() {
 
   describe('Errors in logs', () => {
     const loggerErrorSpy = sinon.spy();
+    const presenceService = testRequire('gitter-web-presence');
     const authorisorWithStubbedLogger = testRequire.withProxies('./web/bayeux/authorisor', {
       './extension': testRequire.withProxies('./web/bayeux/extension', {
         'gitter-web-env': {
@@ -165,18 +171,80 @@ describe('authorisor', function() {
             error: loggerErrorSpy
           }
         }
-      })
+      }),
+      'gitter-web-presence': {
+        ...presenceService,
+        lookupUserIdForSocket: clientId => {
+          // Add a way for something to go wrong with the app
+          // so we can test whether we can still log an unknown app error
+          if (clientId === 'TEST_THROW_AN_ERROR') {
+            return Promise.reject(new Error('FAKE ERROR thrown in presence service'));
+          }
+
+          return presenceService.lookupUserIdForSocket(clientId);
+        }
+      }
     });
 
-    it('Error is logged', done => {
+    beforeEach(() => {
+      loggerErrorSpy.resetHistory();
+    });
+
+    it('Client not found error is not logged', done => {
       const message = {
         channel: '/meta/subscribe',
-        clientId: 'x',
-        subscription: '/api/v1/does-not-exist'
+        clientId: '0000000000000000000000000000000000000000'
+      };
+
+      authorisorWithStubbedLogger.incoming(message, REQ_STUB, function(message) {
+        assert(
+          message.error,
+          `Expected a client not found error in message.error\nmessage=${JSON.stringify(
+            message,
+            null,
+            2
+          )}`
+        );
+        // Make sure the logger is not called
+        assert.strictEqual(loggerErrorSpy.callCount, 0);
+        done();
+      });
+    });
+
+    it('socketId expected error is not logged', done => {
+      const message = {
+        channel: '/meta/subscribe',
+        clientId: null
+      };
+
+      authorisorWithStubbedLogger.incoming(message, REQ_STUB, function(message) {
+        assert(
+          message.error,
+          `Expected a socketId expected error in message.error\nmessage=${JSON.stringify(
+            message,
+            null,
+            2
+          )}`
+        );
+        // Make sure the logger is not called
+        assert.strictEqual(loggerErrorSpy.callCount, 0);
+        done();
+      });
+    });
+
+    // This is making sure our `ignoreErrorsInLogging` logic isn't ignoring all errors
+    it('Make sure logging in general still works outside of the ignored errors', done => {
+      const message = {
+        channel: '/meta/subscribe',
+        // Use the special clientId we define in the stub above to cause an app error to be thrown
+        clientId: 'TEST_THROW_AN_ERROR'
       };
 
       authorisorWithStubbedLogger.incoming(message, null, function(message) {
-        assert(message.error, 'Expected an error');
+        assert(
+          message.error,
+          `Expected message.error\nmessage=${JSON.stringify(message, null, 2)}`
+        );
         // Make sure the logger is called
         assert.strictEqual(loggerErrorSpy.callCount, 1);
         done();

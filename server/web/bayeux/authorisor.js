@@ -288,6 +288,7 @@ function authorizeSubscribe(message, callback) {
     .spread(function(userId, exists) {
       if (!exists) {
         debug('Client %s does not exist. userId=%s', clientId, userId);
+        stats.eventHF('bayeux.authorisor.client_not_found');
         throw new StatusError(401, 'Client ' + clientId + ' not authenticated');
       }
 
@@ -302,6 +303,7 @@ function authorizeSubscribe(message, callback) {
       });
 
       if (!hasMatch) {
+        stats.eventHF('bayeux.authorisor.unknown_subscription');
         throw new StatusError(404, 'Unknown subscription ' + message.subscription);
       }
 
@@ -328,11 +330,21 @@ module.exports = bayeuxExtension({
   skipSuperClient: true,
   skipOnError: true,
   privateState: true,
+  ignoreErrorsInLogging: [
+    // We don't care about logging the error details for people who provide wrong info.
+    // We still have stats in Datadog to track big changes in these errors.
+    /Client .*? not authenticated/,
+    'socketId expected',
+    /Unknown subscription .*?/,
+    'Authorisation denied.',
+    /Invalid ID: .*?/
+  ],
   incoming: function(message, req, callback) {
     // Do we allow this user to connect to the requested channel?
     return authorizeSubscribe(message)
       .spread(function(userId, allowed) {
         if (!allowed) {
+          stats.eventHF('bayeux.authorisor.authorisation_denied');
           throw new StatusError(403, 'Authorisation denied.');
         }
 
