@@ -63,6 +63,10 @@ describe('authenticator', () => {
       })
     });
 
+    beforeEach(() => {
+      loggerErrorSpy.resetHistory();
+    });
+
     it('Invalid token error is not logged', done => {
       const message = {
         channel: '/meta/handshake',
@@ -72,7 +76,14 @@ describe('authenticator', () => {
       };
 
       authenticatorWithStubbedLogger.incoming(message, REQ_STUB, function(message) {
-        assert(message.error, 'Expected an invalid token error');
+        assert(
+          message.error,
+          `Expected a invalid token error in message.error\nmessage=${JSON.stringify(
+            message,
+            null,
+            2
+          )}`
+        );
         // Make sure the logger is not called
         assert.strictEqual(loggerErrorSpy.callCount, 0);
         done();
@@ -86,7 +97,14 @@ describe('authenticator', () => {
       };
 
       authenticatorWithStubbedLogger.incoming(message, REQ_STUB, function(message) {
-        assert(message.error, 'Expected an invalid token error');
+        assert(
+          message.error,
+          `Expected a required token error in message.error\nmessage=${JSON.stringify(
+            message,
+            null,
+            2
+          )}`
+        );
         // Make sure the logger is not called
         assert.strictEqual(loggerErrorSpy.callCount, 0);
         done();
