@@ -19,6 +19,7 @@ const transformGitterTextIntoMatrixMessage = require('./transform-gitter-text-in
 const checkIfDatesSame = require('./check-if-dates-same');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 
 class GitterBridge {
   constructor(
@@ -70,7 +71,9 @@ class GitterBridge {
 
       if (data.type === 'user') {
         const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/users/) || [];
-        if (gitterRoomId && data.operation === 'remove') {
+        if (gitterRoomId && data.operation === 'create') {
+          await this.handleUserJoiningRoom(gitterRoomId, data.model);
+        } else if (gitterRoomId && data.operation === 'remove') {
           await this.handleUserLeavingRoom(gitterRoomId, data.model);
         }
       }
@@ -105,7 +108,7 @@ class GitterBridge {
     let otherPersonMxid;
     let gitterRoom;
     try {
-      gitterRoom = await troupeService.findByIdLean(gitterRoomId);
+      gitterRoom = await troupeService.findById(gitterRoomId);
       assert(gitterRoom);
 
       // We only need to invite people if this is a Matrix DM
@@ -140,7 +143,7 @@ class GitterBridge {
       // of the person being there is still important
       logger.warn(
         `Unable to invite Matrix user (${otherPersonMxid}) back to Matrix DM room matrixRoomId=${matrixRoomId} gitterRoomId=${gitterRoomId}`,
-        err
+        { exception: err }
       );
       errorReporter(
         err,
@@ -399,6 +402,62 @@ class GitterBridge {
     const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
 
     await this.matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
+  }
+
+  async handleUserJoiningRoom(gitterRoomId, model) {
+    const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
+    if (!allowedToBridge) {
+      return null;
+    }
+
+    const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
+    // Just ignore the bridging join if the Matrix room hasn't been created yet
+    if (!matrixRoomId) {
+      return;
+    }
+
+    const gitterUserId = model.id;
+    assert(gitterUserId);
+    const matrixId = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
+    assert(matrixId);
+
+    try {
+      const intent = this.matrixBridge.getIntent(matrixId);
+      await intent.join(matrixRoomId);
+    } catch (err) {
+      // Create a new DM room on Matrix if the user is no longer able to join the old again
+      if (err.message === 'Failed to join room') {
+        const gitterRoom = await troupeService.findById(gitterRoomId);
+        assert(gitterRoom);
+
+        const matrixDm = discoverMatrixDmUri(gitterRoom.lcUri);
+        if (!matrixDm) {
+          return null;
+        }
+
+        logger.warn(
+          `Failed to join Gitter user to Matrix DM room. Creating a new one! gitterUserId=${gitterUserId} gitterRoomId=${gitterRoomId} oldMatrixRoomId=${matrixRoomId}`
+        );
+
+        // Sanity check the user that joined the Gitter DM room is the same one from the URL
+        assert(mongoUtils.objectIDsEqual(matrixDm.gitterUserId, gitterUserId));
+
+        const gitterUser = await userService.findById(gitterUserId);
+        assert(gitterUser);
+
+        let newMatrixRoomId = await this.matrixUtils.createMatrixDmRoomByGitterUserAndOtherPersonMxid(
+          gitterUser,
+          matrixDm.virtualUserId
+        );
+
+        logger.info(
+          `Storing new bridged DM room (Gitter room id=${gitterRoom._id} -> Matrix room_id=${newMatrixRoomId}): ${gitterRoom.lcUri}`
+        );
+        await store.storeBridgedRoom(gitterRoom._id, newMatrixRoomId);
+      } else {
+        throw err;
+      }
+    }
   }
 
   async handleUserLeavingRoom(gitterRoomId, model) {

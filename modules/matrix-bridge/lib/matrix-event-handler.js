@@ -280,7 +280,7 @@ class MatrixEventHandler {
       // of the person being there is still important
       logger.warn(
         `Unable to invite Gitter user (${gitterUserId}) back to DM room gitterRoom=${gitterRoom.lcUri} (${gitterRoom.id}) matrixRoomId=${matrixRoomId}`,
-        err
+        { exception: err }
       );
       errorReporter(
         err,
@@ -295,30 +295,6 @@ class MatrixEventHandler {
         },
         { module: 'gitter-to-matrix-bridge' }
       );
-
-      if (gitterUserId) {
-        logger.info(
-          `Sending notice to matrixRoomId=${matrixRoomId} that we were unable to invite the Gitter user(${gitterUserId}) back to the DM room`
-        );
-
-        let unableToInviteErrorMessage = `Unable to invite Gitter user back to DM room. They probably won't know about the message you just sent.`;
-        if (gitterUser.isRemoved && gitterUser.isRemoved()) {
-          unableToInviteErrorMessage =
-            'Unable to invite Gitter user back to DM room because they deleted their account.';
-        }
-
-        const matrixContent = {
-          body: unableToInviteErrorMessage,
-          msgtype: 'm.notice'
-        };
-
-        // We have to use the Gitter user intent because the bridge bot
-        // is not in the DM conversation. Only 2 people can be in the `is_direct`
-        // DM for it to be catogorized under the "people" heading in Element.
-        const mxid = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
-        const intent = this.matrixBridge.getIntent(mxid);
-        await intent.sendMessage(matrixRoomId, matrixContent);
-      }
     }
 
     return false;
@@ -463,27 +439,6 @@ class MatrixEventHandler {
       gitterUser,
       otherPersonMxid
     );
-
-    // If the Matrix user previously DM'ed the Gitter user from a different room,
-    // send a notice that the old room won't bridge anymore and to use the new room.
-    const previousMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterDmRoom._id);
-    if (previousMatrixRoomId && previousMatrixRoomId !== matrixRoomId) {
-      const matrixContent = {
-        body: `This DM will no longer bridge to Gitter. Please use the new DM room -> https://matrix.to/#/${matrixRoomId}`,
-        msgtype: 'm.notice'
-      };
-
-      logger.info(
-        `Sending notice to previousMatrixRoomId=${previousMatrixRoomId} that it will no longer bridge because matrixRoomId=${matrixRoomId} is the new DM room`
-      );
-      // We have to use the Gitter user intent because the bridge bot
-      // is not in the DM conversation. Only 2 people can be in the `is_direct`
-      // DM for it to be catogorized under the "people" heading in Element.
-      const gitterUserId = gitterUser.id || gitterUser._id;
-      const mxid = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
-      const intent = this.matrixBridge.getIntent(mxid);
-      await intent.sendMessage(previousMatrixRoomId, matrixContent);
-    }
 
     // And store the new association
     logger.info(

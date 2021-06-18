@@ -3,6 +3,7 @@
 const assert = require('assert');
 const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const chatService = require('gitter-web-chats');
 const restSerializer = require('../../../server/serializers/rest-serializer');
 const GitterBridge = require('../lib/gitter-bridge');
 const GitterUtils = require('../lib/gitter-utils');
@@ -45,12 +46,14 @@ describe('gitter-bridge', () => {
       })),
       createAlias: sinon.spy(),
       setRoomAvatar: sinon.spy(),
+      getProfileInfo: sinon.spy(() => ({})),
       setDisplayName: sinon.spy(),
       uploadContent: sinon.spy(),
       setAvatarUrl: sinon.spy(),
       getRoomDirectoryVisibility: sinon.spy(),
       setRoomDirectoryVisibility: sinon.spy(),
       invite: sinon.spy(),
+      join: sinon.spy(),
       leave: sinon.spy()
     };
 
@@ -491,6 +494,15 @@ describe('gitter-bridge', () => {
             model: serializedMessage
           });
 
+          // Make sure the feedback warning message from the bridge user (@gitter-badger)
+          // was sent in the Gitter room to let them know we had trouble inviting the Matrix
+          // side back to the room.
+          const messages = await chatService.findChatMessagesForTroupe(newDmRoom._id);
+          assert.strictEqual(
+            messages[0].text,
+            `Unable to invite Matrix user back to DM room. They probably won't know about the message you just sent.`
+          );
+
           // Message is still sent to the new room
           assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
           assert.deepEqual(matrixBridge.getIntent().sendMessage.getCall(0).args[1], {
@@ -924,6 +936,110 @@ describe('gitter-bridge', () => {
 
         // No room updates propagated across
         assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
+      });
+    });
+
+    describe('handleUserJoiningRoom', () => {
+      const fixture = fixtureLoader.setupEach({
+        user1: {},
+        troupe1: {}
+      });
+
+      it('user join membership syncs to Matrix', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+        const mxidForGitterUser = getMxidForGitterUser(fixture.user1);
+
+        await gitterBridge.onDataChange({
+          type: 'user',
+          url: `/rooms/${fixture.troupe1.id}/users`,
+          operation: 'create',
+          model: { id: fixture.user1.id }
+        });
+
+        assert.strictEqual(matrixBridge.getIntent.callCount, 3);
+        assert.strictEqual(matrixBridge.getIntent.getCall(2).args[0], mxidForGitterUser);
+        assert.strictEqual(matrixBridge.getIntent().join.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().join.getCall(0).args[0], matrixRoomId);
+      });
+
+      it(`user join is ignored when the Matrix room isn't created yet`, async () => {
+        // This is commented out on purpose, we are testing that the join is ignored
+        // when the Matrix room hasn't been created yet.
+        //await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        await gitterBridge.onDataChange({
+          type: 'user',
+          url: `/rooms/${fixture.troupe1.id}/users`,
+          operation: 'create',
+          model: { id: fixture.user1.id }
+        });
+
+        assert.strictEqual(matrixBridge.getIntent().join.callCount, 0);
+      });
+
+      it('no action occurs when user join fails for normal room', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        // Make the event lookup Matrix API call fail
+        matrixBridge.getIntent().join = () => {
+          throw new Error('Failed to join room');
+        };
+
+        try {
+          await gitterBridge.onDataChange({
+            type: 'user',
+            url: `/rooms/${fixture.troupe1.id}/users`,
+            operation: 'create',
+            model: { id: fixture.user1.id }
+          });
+          assert.fail('expected Matrix room join to fail because of our stub');
+        } catch (err) {
+          assert(err);
+        }
+
+        // No room creation
+        assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 0);
+      });
+
+      it('new Matrix DM created when user join fails for DM room', async () => {
+        const otherPersonMxid = '@alice:localhost';
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        const newDmRoom = await gitterUtils.getOrCreateGitterDmRoomByGitterUserAndOtherPersonMxid(
+          fixture.user1,
+          otherPersonMxid
+        );
+        await store.storeBridgedRoom(newDmRoom._id, matrixRoomId);
+
+        // Make the event lookup Matrix API call fail
+        matrixBridge.getIntent().join = () => {
+          throw new Error('Failed to join room');
+        };
+
+        try {
+          await gitterBridge.onDataChange({
+            type: 'user',
+            url: `/rooms/${newDmRoom._id}/users`,
+            operation: 'create',
+            model: { id: fixture.user1.id }
+          });
+          assert.fail('expected Matrix room join to fail because of our stub');
+        } catch (err) {
+          assert(err);
+        }
+
+        // New DM room is created
+        assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 1);
+        assert.deepEqual(matrixBridge.getIntent().createRoom.getCall(0).args[0], {
+          createAsClient: true,
+          options: {
+            visibility: 'private',
+            preset: 'trusted_private_chat',
+            is_direct: true,
+            invite: [otherPersonMxid]
+          }
+        });
       });
     });
 

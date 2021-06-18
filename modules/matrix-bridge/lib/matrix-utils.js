@@ -5,11 +5,13 @@ const assert = require('assert');
 const request = require('request');
 const path = require('path');
 const urlJoin = require('url-join');
+const StatusError = require('statuserror');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const groupService = require('gitter-web-groups');
 const userService = require('gitter-web-users');
 const avatars = require('gitter-web-avatars');
 const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-troupe-name');
+const securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
@@ -72,6 +74,16 @@ class MatrixUtils {
 
   async createMatrixRoomByGitterRoomId(gitterRoomId) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
+
+    // Protect from accidentally creating a public room for a private Gitter room (like a DM).
+    // We should only be creating a DM room from `createMatrixDmRoomByGitterUserAndOtherPersonMxid`
+    const isPublic = securityDescriptorUtils.isPublic(gitterRoom);
+    assert.strictEqual(
+      !isPublic,
+      false,
+      `Only public rooms can be creatd with createMatrixRoomByGitterRoomId. gitterRoomId=${gitterRoomId} is private`
+    );
+
     const roomAlias = getCanonicalAliasLocalpartForGitterRoomUri(gitterRoom.uri);
 
     const bridgeIntent = this.matrixBridge.getIntent();
@@ -106,20 +118,35 @@ class MatrixUtils {
     const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterUserId);
     const intent = this.matrixBridge.getIntent(gitterUserMxid);
 
-    // Make sure the user exists
-    await intent.getProfileInfo(otherPersonMxid);
+    try {
+      // Make sure the user exists
+      await intent.getProfileInfo(otherPersonMxid);
 
-    const newRoom = await intent.createRoom({
-      createAsClient: true,
-      options: {
-        visibility: 'private',
-        preset: 'trusted_private_chat',
-        is_direct: true,
-        invite: [otherPersonMxid]
+      const newRoom = await intent.createRoom({
+        createAsClient: true,
+        options: {
+          visibility: 'private',
+          preset: 'trusted_private_chat',
+          is_direct: true,
+          invite: [otherPersonMxid]
+        }
+      });
+
+      return newRoom.room_id;
+    } catch (err) {
+      if (
+        err.errcode === 'M_NOT_FOUND' ||
+        err.errcode === 'M_UNAUTHORIZED' ||
+        err.errcode === 'M_UNKNOWN'
+      ) {
+        throw new StatusError(
+          404,
+          `Unable to create Matrix DM. MXID does not exist (${otherPersonMxid})`
+        );
       }
-    });
 
-    return newRoom.room_id;
+      throw err;
+    }
   }
 
   async ensureStateEvent(matrixRoomId, eventType, newContent) {
