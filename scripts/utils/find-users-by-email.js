@@ -18,7 +18,7 @@ const opts = require('yargs')
   .help('help')
   .alias('help', 'h').argv;
 
-const findUsers = email => userService.findAllByEmail(email).delay(5000);
+const findUsers = email => userService.findAllByEmail(email);
 
 const prepareOutput = users => {
   const initialMessage = users.length ? `Found ${users.length} users` : 'No user found!';

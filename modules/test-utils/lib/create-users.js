@@ -105,7 +105,8 @@ function createUser(expected, fixtureName) {
     username: possibleGenerate('username', fixtureUtils.generateUsername),
     gravatarImageUrl: f.gravatarImageUrl,
     state: f.state || undefined,
-    staff: f.staff || false
+    staff: f.staff || false,
+    emails: f.emails || undefined
   };
 
   if (f._id) {
