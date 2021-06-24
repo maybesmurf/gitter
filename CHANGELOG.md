@@ -1,3 +1,12 @@
+# 21.38.0 - 2021-06-24
+
+ - Deleted Gitter user should not join Matrix DM, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2226
+
+Developer facing:
+
+ - Fix `scripts/utils/find-users-by-email.js` not finding all users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2227
+
+
 # 21.37.0 - 2021-06-18
 
 Developer facing:
