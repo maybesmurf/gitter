@@ -107,6 +107,47 @@ describe('User Service', function() {
       });
   });
 
+  describe('findAllByEmail', () => {
+    const findAllByEmailFixture = fixtureLoader.setup({
+      user1: {
+        emails: ['test@gitter.im']
+      },
+      userGitlab1: {
+        emails: ['test@gitter.im']
+      },
+      identityGitlab1: {
+        user: 'userGitlab1',
+        provider: 'gitlab',
+        providerKey: fixtureLoader.generateGithubId(),
+        email: 'test@gitter.im'
+      }
+    });
+
+    it('find all users matching the email', async () => {
+      const users = await userService.findAllByEmail('test@gitter.im');
+      const userIds = users.map(user => user.id);
+
+      // The order that the users are returned is not consistent
+      // so we can't use an easy `assert.deepEqual`
+      assert.strictEqual(
+        userIds.length,
+        2,
+        `Expected ${JSON.stringify([
+          findAllByEmailFixture.user1.id,
+          findAllByEmailFixture.userGitlab1.id
+        ])} but found ${JSON.stringify(userIds)}`
+      );
+      assert(
+        userIds.includes(findAllByEmailFixture.user1.id),
+        `Expected ${findAllByEmailFixture.user1.id} in users=${JSON.stringify(userIds)}`
+      );
+      assert(
+        userIds.includes(findAllByEmailFixture.userGitlab1.id),
+        `Expected ${findAllByEmailFixture.userGitlab1.id} in users=${JSON.stringify(userIds)}`
+      );
+    });
+  });
+
   describe('#unremoveUser', () => {
     const rmFixture = fixtureLoader.setup({
       user: {
