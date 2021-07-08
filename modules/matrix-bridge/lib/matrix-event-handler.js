@@ -470,6 +470,11 @@ class MatrixEventHandler {
         );
       }
 
+      // A deleted Gitter user should not attempt to join the Matrix room
+      if (gitterUser.isRemoved()) {
+        return;
+      }
+
       logger.info(
         `${event.sender} from Matrix started a DM conversation with a Gitter user ${gitterUser.username} (userId=${parsedGitterMxid.userId}, MXID=${event.state_key})`
       );

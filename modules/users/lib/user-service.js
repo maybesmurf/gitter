@@ -238,32 +238,33 @@ var userService = {
       .nodeify(callback);
   },
 
-  findAllByEmail: function(email) {
-    return persistence.Identity.findOne({ email: email })
-      .exec()
-      .then(identity => {
-        var userByIdentityPromise = Promise.resolve();
-        if (identity) {
-          userByIdentityPromise = persistence.User.findOne({
-            identities: {
-              $elemMatch: {
-                provider: identity.provider,
-                providerKey: identity.providerKey
-              }
-            }
-          });
-        }
+  findAllByEmail: async function(email) {
+    const identity = await persistence.Identity.findOne({ email: email }).exec();
 
-        return Promise.all([
-          userByIdentityPromise,
-          persistence.User.findOne({
-            $or: [{ email: email.toLowerCase() }, { emails: email.toLowerCase() }]
-          }).exec()
-        ]);
-      })
-      .filter(user => {
-        return !!user;
+    let usersFromIdentity = [];
+    if (identity) {
+      usersFromIdentity = await persistence.User.find({
+        identities: {
+          $elemMatch: {
+            provider: identity.provider,
+            providerKey: identity.providerKey
+          }
+        }
       });
+    }
+
+    const usersFromEmail = await persistence.User.find({
+      $or: [{ email: email.toLowerCase() }, { emails: email.toLowerCase() }]
+    }).exec();
+
+    // Remove the duplicates
+    const userMap = usersFromEmail.concat(usersFromIdentity).reduce(function(memo, user) {
+      memo[user.id] = user;
+      return memo;
+    }, {});
+
+    // Using Promise.resolve to return a Bluebird flavor promise for downstream code that uses it
+    return Promise.resolve(Object.values(userMap));
   },
 
   findByEmailsIndexed: function(emails, callback) {

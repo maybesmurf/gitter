@@ -827,6 +827,9 @@ describe('matrix-event-handler', () => {
         userBridge1: {},
         group1: {},
         user1: {},
+        userRemoved: {
+          state: 'REMOVED'
+        },
         troupe1: {},
         messageFromVirtualUser1: {
           user: 'userBridge1',
@@ -931,6 +934,22 @@ describe('matrix-event-handler', () => {
         // Check that the existing Gitter room is connected to the new Matrix DM room
         const storedMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(newDmRoom._id);
         assert(mongoUtils.objectIDsEqual(storedMatrixRoomId, eventData.room_id));
+      });
+
+      it('Ignores Matrix DM invite for a deleted Gitter user', async () => {
+        const eventData = createEventData({
+          type: 'm.room.member',
+          state_key: getMxidForGitterUser(fixture.userRemoved),
+          content: {
+            membership: 'invite',
+            is_direct: true
+          }
+        });
+
+        await matrixEventHandler.onEventData(eventData);
+
+        // Bridged gitter user never joins the room on Matrix
+        assert.strictEqual(matrixBridge.getIntent().join.callCount, 0);
       });
 
       it('Ignores non-DM invites for Gitter users', async () => {
