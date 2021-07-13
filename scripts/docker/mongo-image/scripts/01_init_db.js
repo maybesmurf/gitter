@@ -221,3 +221,29 @@ function generatePassword() {
     true /* upsert */
   );
 });
+
+[
+  // Create the backing bridge user for local developers (gitterBridgeBackingUsername)
+  {
+    username: 'gitter-badger',
+    displayName: 'The Gitter Badger',
+    githubId: 8518239,
+    gravatarVersion: '4',
+    gravatarImageUrl: 'https://avatars2.githubusercontent.com/u/8518239?v=4',
+    identities: []
+  }
+].forEach(function(d) {
+  printjson({ username: d.username });
+  db.users.update(
+    { username: d.username },
+    {
+      username: d.username,
+      displayName: d.displayName,
+      githubId: d.githubId,
+      gravatarVersion: d.gravatarVersion,
+      gravatarImageUrl: d.gravatarImageUrl,
+      identities: d.identities
+    },
+    true /* upsert */
+  );
+});
