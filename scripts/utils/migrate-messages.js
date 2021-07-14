@@ -8,6 +8,8 @@ var Promise = require('bluebird');
 var assert = require('assert');
 var shutdown = require('shutdown');
 
+require('../../server/event-listeners').install();
+
 var opts = require('yargs')
   .option('from', {
     alias: 'f',
@@ -33,7 +35,13 @@ Promise.all([troupeService.findByUri(opts.from), troupeService.findByUri(opts.to
       { multi: true }
     ).exec();
   })
-  .delay(5000)
+  // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+  // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+  // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+  .then(() => {
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    return new Promise(resolve => setTimeout(resolve, 5000));
+  })
   .then(function() {
     shutdown.shutdownGracefully();
   })

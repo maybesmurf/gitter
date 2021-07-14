@@ -10,6 +10,8 @@ const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 
+require('../../server/event-listeners').install();
+
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const opts = require('yargs')
@@ -80,6 +82,13 @@ async function run() {
         failedRoomUpdates
       );
     }
+
+    // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+    // This isn't clean but works
+    // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+    // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    await new Promise(resolve => setTimeout(resolve, 5000));
   } catch (err) {
     console.error(err, err.stack);
   }

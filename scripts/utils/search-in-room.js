@@ -6,6 +6,8 @@ var shutdown = require('shutdown');
 var persistence = require('gitter-web-persistence');
 var chatService = require('gitter-web-chats');
 
+require('../../server/event-listeners').install();
+
 var opts = require('yargs')
   .option('uri', {
     alias: 'u',
@@ -38,7 +40,6 @@ function execute(opts) {
 }
 
 execute(opts)
-  .delay(1000)
   .then(function() {
     shutdown.shutdownGracefully();
   })
