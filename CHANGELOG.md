@@ -1,4 +1,4 @@
-# 21.38.0 - *upcoming*
+# 21.39.0 - 2021-07-16
 
  - Update to `matrix-appservice-bridge@2.7.0`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2235
 
