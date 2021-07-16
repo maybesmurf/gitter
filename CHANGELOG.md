@@ -1,5 +1,7 @@
 # 21.38.0 - *upcoming*
 
+ - Update to `matrix-appservice-bridge@2.7.0`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2235
+
 Developer facing:
 
  - Add backing Matrix bridge bot user to developer image, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2233
