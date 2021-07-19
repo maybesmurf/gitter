@@ -1,3 +1,12 @@
+# 21.39.0 - 2021-07-16
+
+ - Update to `matrix-appservice-bridge@2.7.0`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2235
+
+Developer facing:
+
+ - Add backing Matrix bridge bot user to developer image, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2233
+
+
 # 21.38.0 - 2021-06-24
 
  - Deleted Gitter user should not join Matrix DM, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2226

@@ -2,7 +2,7 @@
 
 const path = require('path');
 const fs = require('fs-extra');
-const { Bridge, Logging, AppServiceRegistration } = require('@gitterhq/matrix-appservice-bridge');
+const { Bridge, Logging, AppServiceRegistration } = require('matrix-appservice-bridge');
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger.get('matrix-bridge');
