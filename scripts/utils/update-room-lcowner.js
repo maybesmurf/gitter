@@ -6,6 +6,8 @@ var shutdown = require('shutdown');
 var BatchStream = require('batch-stream');
 var Promise = require('bluebird');
 
+require('../../server/event-listeners').install();
+
 // @const
 var BATCH_SIZE = 20;
 var QUERY_LIMIT = 0;
@@ -102,9 +104,20 @@ function run(rooms) {
 
   if (CALLED_RUN % (BATCH_SIZE * 5) === 0) logProgress();
 
-  return updateOwner(rooms)
-    .then(saveRooms)
-    .catch(function(err) {
-      if (err.statusCode !== 404) console.error(err.stack);
-    });
+  return (
+    updateOwner(rooms)
+      .then(saveRooms)
+      // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+      // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+      // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+      .then(() => {
+        console.log(
+          `Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`
+        );
+        return new Promise(resolve => setTimeout(resolve, 5000));
+      })
+      .catch(function(err) {
+        if (err.statusCode !== 404) console.error(err.stack);
+      })
+  );
 }

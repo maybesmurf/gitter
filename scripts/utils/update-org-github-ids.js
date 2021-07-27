@@ -7,6 +7,8 @@ var through2Concurrent = require('through2-concurrent');
 var Promise = require('bluebird');
 var GitHubOrgService = require('gitter-web-github').GitHubOrgService;
 
+require('../../server/event-listeners').install();
+
 function orgStream() {
   return persistence.Troupe.find(
     { githubType: 'ORG', $or: [{ githubId: null }, { githubId: { $exists: false } }] },
@@ -64,7 +66,13 @@ onMongoConnect()
   .then(function() {
     return performMigration();
   })
-  .delay(1000)
+  // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+  // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+  // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+  .then(() => {
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    return new Promise(resolve => setTimeout(resolve, 5000));
+  })
   .then(function() {
     process.exit();
   })
