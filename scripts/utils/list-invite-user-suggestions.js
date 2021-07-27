@@ -41,7 +41,6 @@ userService
         throw err;
       });
   })
-  .delay(1000)
   .then(function() {
     shutdown.shutdownGracefully();
   })

@@ -43,6 +43,9 @@ var minTimeInDays = parseInt(opts.min, 10);
 var members = parseInt(opts.members, 10);
 
 function run() {
+  // Don't run event listeners during the removal process (from commit history 2016-05-15).
+  // I assume this is for performance since this can potentially remove thousands of users
+  // or is just adding the "go-faster-stripes to script"
   // if (!opts.dryRun) {
   //   require('../../server/event-listeners').install();
   // }
@@ -142,7 +145,13 @@ run()
     console.log('Completed after removing ' + total + ' users.');
     if (opts.dryRun) process.exit(0);
   })
-  .delay(5000)
+  // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+  // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+  // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+  .then(() => {
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    return new Promise(resolve => setTimeout(resolve, 5000));
+  })
   .then(function() {
     shutdown.shutdownGracefully();
   })

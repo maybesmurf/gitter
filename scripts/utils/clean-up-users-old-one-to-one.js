@@ -27,6 +27,8 @@ var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 var collections = require('gitter-web-utils/lib/collections');
 var shutdown = require('shutdown');
 
+require('../../server/event-listeners').install();
+
 var MIN_DAYS_CUTOFF = 365;
 
 function getOtherUserId(userId, room) {
@@ -119,9 +121,17 @@ function removeCandidates(user, candidates) {
       });
     },
     { concurrency: 1 }
-  ).delay(5000);
+  );
 }
 
-findCandidates(opts.username, opts.dryRun).finally(function() {
-  shutdown.shutdownGracefully();
-});
+findCandidates(opts.username, opts.dryRun)
+  // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+  // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+  // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+  .then(() => {
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    return new Promise(resolve => setTimeout(resolve, 5000));
+  })
+  .finally(function() {
+    shutdown.shutdownGracefully();
+  });

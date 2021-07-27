@@ -10,6 +10,8 @@ var shutdown = require('shutdown');
 var userService = require('gitter-web-users');
 var groupService = require('gitter-web-groups/lib/group-service');
 
+require('../../server/event-listeners').install();
+
 const opts = require('yargs')
   .option('username', {
     alias: 'u',
@@ -35,6 +37,14 @@ const assignAdmin = async () => {
     await group.save();
 
     console.log(`User ${user.username} with id ${user._id} is now an admin of ${group.uri}`);
+
+    // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+    // This isn't clean but works
+    // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+    // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
     shutdown.shutdownGracefully(0);
   } catch (err) {
     console.error(err);

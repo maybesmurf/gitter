@@ -4,6 +4,8 @@
 const userService = require('gitter-web-users');
 const shutdown = require('shutdown');
 
+require('../../server/event-listeners').install();
+
 const opts = require('yargs')
   .option('username', {
     required: true,
@@ -26,16 +28,18 @@ Promise.resolve()
 
     return userService.reserveUsername(opts.username);
   })
-  .then(() => {
-    return new Promise(resolve => {
-      setTimeout(resolve, 5000);
-    });
-  })
   .then(function() {
     var action = opts.unreserve
       ? 'unreserved and people are free to register that username'
       : 'reserved and can no longer be registered';
     console.log(opts.username, 'has been', action);
+  })
+  // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+  // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+  // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+  .then(() => {
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    return new Promise(resolve => setTimeout(resolve, 5000));
   })
   .catch(function(err) {
     console.error(err.stack);
