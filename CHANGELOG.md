@@ -1,3 +1,10 @@
+# 21.40.0 - *upcoming*
+
+Developer facing:
+
+ - Be consistent about waiting for the asyncronous event-listeners to finish in util scripts, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2234
+
+
 # 21.39.0 - 2021-07-16
 
  - Update to `matrix-appservice-bridge@2.7.0`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2235
