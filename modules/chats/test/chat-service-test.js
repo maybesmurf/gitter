@@ -19,6 +19,9 @@ describe('chatService', function() {
 
   var fixture = fixtureLoader.setupEach({
     user1: {},
+    userHellbanned1: {
+      hellbanned: true
+    },
     troupe1: { users: ['user1'] },
     troupe2: {
       users: ['user1'],
@@ -136,10 +139,13 @@ describe('chatService', function() {
 
   describe('spam', () => {
     it('should not store a message from hellbanned user', async () => {
-      fixture.user1.hellbanned = true;
-      const message = await chatService.newChatMessageToTroupe(fixture.troupe1, fixture.user1, {
-        text: 'I am spamming'
-      });
+      const message = await chatService.newChatMessageToTroupe(
+        fixture.troupe1,
+        fixture.userHellbanned1,
+        {
+          text: 'I am spamming'
+        }
+      );
       assert(message.id, 'A message model should be created and have an id assigned');
       const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id, {
         aroundId: message.id
