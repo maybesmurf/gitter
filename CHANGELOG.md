@@ -1,4 +1,6 @@
-# 21.40.0 - *upcoming*
+# 21.40.0 - 2021-08-02
+
+ - Disallow invites from hellbanned users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2237
 
 Developer facing:
 
