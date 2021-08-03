@@ -14,6 +14,8 @@ const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const RoomWithPolicyService = require('gitter-web-rooms/lib/room-with-policy-service');
 const { checkForMatrixUsername } = require('gitter-web-users/lib/virtual-user-service');
 
+require('../../server/event-listeners').install();
+
 var opts = require('yargs')
   .option('admin-username', {
     required: true,
@@ -95,6 +97,13 @@ async function banUser() {
         opts.roomUri
       } (via admin ${opts.adminUsername})`
     );
+
+    // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+    // This isn't clean but works
+    // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+    // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    await new Promise(resolve => setTimeout(resolve, 5000));
   } catch (err) {
     console.log('Error', err, err.stack);
   } finally {

@@ -8,22 +8,28 @@ var TroupeInvite = require('gitter-web-persistence').TroupeInvite;
 var fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 
 describe('invite-service', function() {
+  const fixture = fixtureLoader.setupEach({
+    userInvitedBy1: {},
+    userHellbanned1: {
+      hellbanned: true
+    }
+  });
+
   describe('integration tests #slow', function() {
     describe('createInvite', function() {
       it('should create an invite', function() {
         var roomId = new ObjectID();
-        var invitedBy = new ObjectID();
 
         return invitesService
           .createInvite(roomId, {
             type: 'github',
             externalId: 'gitterawesome',
-            invitedByUserId: invitedBy,
+            invitedByUserId: fixture.userInvitedBy1.id,
             emailAddress: 'test@gitter.im'
           })
           .then(function(invite) {
             assert.strictEqual(invite.state, 'PENDING');
-            assert.strictEqual(String(invite.invitedByUserId), String(invitedBy));
+            assert.strictEqual(String(invite.invitedByUserId), String(fixture.userInvitedBy1.id));
             assert.strictEqual(String(invite.troupeId), String(roomId));
             assert.strictEqual(invite.userId, null);
             assert.strictEqual(invite.emailAddress, 'test@gitter.im');
@@ -34,20 +40,19 @@ describe('invite-service', function() {
 
       it('should not allow duplicate invites', function() {
         var roomId = new ObjectID();
-        var invitedBy = new ObjectID();
 
         return invitesService
           .createInvite(roomId, {
             type: 'github',
             externalId: 'gitterawesome',
-            invitedByUserId: invitedBy,
+            invitedByUserId: fixture.userInvitedBy1.id,
             emailAddress: 'test@gitter.im'
           })
           .then(function() {
             return invitesService.createInvite(roomId, {
               type: 'github',
               externalId: 'gitterawesome',
-              invitedByUserId: invitedBy,
+              invitedByUserId: fixture.userInvitedBy1.id,
               emailAddress: 'test@gitter.im'
             });
           })
@@ -58,12 +63,36 @@ describe('invite-service', function() {
             assert.strictEqual(err.status, 409);
           });
       });
+
+      it('should not allow invites from hellbaned users', async () => {
+        var roomId = new ObjectID();
+
+        await invitesService.createInvite(roomId, {
+          type: 'github',
+          externalId: 'gitterawesome',
+          invitedByUserId: fixture.userHellbanned1.id,
+          emailAddress: 'test@gitter.im'
+        });
+
+        const invitesInRoom = await TroupeInvite.find({
+          troupeId: roomId
+        })
+          .lean()
+          .exec();
+
+        assert.strictEqual(
+          invitesInRoom.length,
+          0,
+          `Expected no invites in room but found ${
+            invitesInRoom.length
+          }\ninvitesInRoom=${JSON.stringify(invitesInRoom, null, 2)}`
+        );
+      });
     });
 
     describe('create-accept-complete flow', function() {
       it('should accept an invite', function() {
         var roomId = new ObjectID();
-        var invitedBy = new ObjectID();
         var userId = new ObjectID();
         var userId2 = new ObjectID();
 
@@ -71,7 +100,7 @@ describe('invite-service', function() {
           .createInvite(roomId, {
             type: 'github',
             externalId: 'gitterawesome',
-            invitedByUserId: invitedBy,
+            invitedByUserId: fixture.userInvitedBy1.id,
             emailAddress: 'test@gitter.im'
           })
           .bind({

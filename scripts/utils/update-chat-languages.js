@@ -7,6 +7,8 @@ var shutdown = require('shutdown');
 var BatchStream = require('batch-stream');
 var processText = require('gitter-web-text-processor');
 
+require('../../server/event-listeners').install();
+
 // @const
 var BATCH_SIZE = 200;
 
@@ -56,11 +58,23 @@ batch.on('data', function(chatMessages) {
 });
 
 function batchProcessingComplete() {
-  return Promise.delay(1000).then(function() {
-    logProgress();
-    console.log('[FINISHED]\tquitting...');
-    shutdown.shutdownGracefully();
-  });
+  return (
+    Promise.resolve()
+      // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+      // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+      // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+      .then(() => {
+        console.log(
+          `Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`
+        );
+        return new Promise(resolve => setTimeout(resolve, 5000));
+      })
+      .then(function() {
+        logProgress();
+        console.log('[FINISHED]\tquitting...');
+        shutdown.shutdownGracefully();
+      })
+  );
 }
 
 batch.on('end', function() {

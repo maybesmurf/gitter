@@ -76,7 +76,6 @@ userService
     console.log('Rooms causing badge number:', badgeTroupeNames);
     console.log('Left menu unread rooms:', leftMenuUnreadTroupeNames);
   })
-  .delay(1000)
   .catch(function(err) {
     console.error(err.stack);
   })

@@ -6,6 +6,8 @@ var userService = require('gitter-web-users');
 var shutdown = require('shutdown');
 var shimPositionOption = require('../yargs-shim-position-option');
 
+require('../../server/event-listeners').install();
+
 var opts = require('yargs')
   .option(
     'username',
@@ -39,12 +41,18 @@ userService
 
     return userService.hellbanUser(user.id);
   })
-  .delay(5000)
   .then(function() {
     var action = opts.unban
       ? 'redeemed to walk amongst us again'
       : 'banned to a special kind of hell';
     console.log(opts.username, 'has been', action);
+  })
+  // wait 5 seconds to allow for asynchronous `event-listeners` to finish
+  // https://github.com/troupe/gitter-webapp/issues/580#issuecomment-147445395
+  // https://gitlab.com/gitterHQ/webapp/merge_requests/1605#note_222861592
+  .then(() => {
+    console.log(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
+    return new Promise(resolve => setTimeout(resolve, 5000));
   })
   .catch(function(err) {
     console.error(err.stack);
