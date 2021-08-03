@@ -6,6 +6,7 @@ var uuid = require('uuid/v4');
 var assert = require('assert');
 var StatusError = require('statuserror');
 var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const userService = require('gitter-web-users');
 var GitHubUserEmailAddressService = require('gitter-web-github').GitHubUserEmailAddressService;
 var persistence = require('gitter-web-persistence');
 var identityService = require('gitter-web-identity');
@@ -78,7 +79,7 @@ function createInvite(roomId, options) {
 
   externalId = externalId.toLowerCase();
   var secret = uuid();
-  return TroupeInvite.create({
+  const newInvite = new TroupeInvite({
     troupeId: roomId,
     type: type,
     externalId: externalId,
@@ -87,9 +88,29 @@ function createInvite(roomId, options) {
     secret: secret,
     invitedByUserId: invitedByUserId,
     state: 'PENDING'
-  }).catch(mongoUtils.mongoErrorWithCode(11000), function() {
-    throw new StatusError(409); // Conflict
   });
+
+  return userService
+    .findById(invitedByUserId)
+    .then(invitedByUser => {
+      if (!invitedByUser) {
+        throw new StatusError(
+          404,
+          `Invited by user does not exist invitedByUserId=${invitedByUserId}`
+        );
+      }
+
+      // Hellbanned users are not allowed to send out invites
+      // Just fake it for them and don't save it to the database
+      // if (invitedByUser.hellbanned) {
+      //   return newInvite;
+      // }
+
+      return newInvite.save();
+    })
+    .catch(mongoUtils.mongoErrorWithCode(11000), function() {
+      throw new StatusError(409); // Conflict
+    });
 }
 
 /**

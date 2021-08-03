@@ -106,7 +106,8 @@ function createUser(expected, fixtureName) {
     gravatarImageUrl: f.gravatarImageUrl,
     state: f.state || undefined,
     staff: f.staff || false,
-    emails: f.emails || undefined
+    emails: f.emails || undefined,
+    hellbanned: f.hellbanned || undefined
   };
 
   if (f._id) {
