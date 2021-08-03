@@ -37,6 +37,10 @@ describe('cache-wrapper', function() {
         secureWrapFunction('my-module', module);
         assert.fail('expected error to be thrown because cacheKeyGenerator() is missing');
       } catch (err) {
+        if (err instanceof assert.AssertionError) {
+          throw err;
+        }
+
         assert.ok(err);
         done();
       }

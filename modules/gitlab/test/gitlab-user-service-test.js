@@ -47,10 +47,14 @@ describe('gitlab-user-service #flakey #slow #gitlab', function() {
 
     try {
       await glGroupService.getUserByUsername('!!non-existant-user!!');
-      assert.throws(
+      assert.fail(
         'we expect an error to be thrown instead of an actual user from getUserByUsername'
       );
     } catch (err) {
+      if (err instanceof assert.AssertionError) {
+        throw err;
+      }
+
       assert(err);
     }
   });

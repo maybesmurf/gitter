@@ -103,7 +103,11 @@ describe('matrix-utils', () => {
         await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(fixture.troupePrivate1.id);
         assert.fail('expected Matrix room creation to fail for private room');
       } catch (err) {
-        assert(err);
+        if (err instanceof assert.AssertionError) {
+          throw err;
+        }
+
+        assert.ok(err);
       }
     });
   });
@@ -147,6 +151,10 @@ describe('matrix-utils', () => {
         await matrixUtils.getOrCreateMatrixUserByGitterUserId('does-not-exist-id');
         assert.fail('expected error to be thrown because Gitter user does not exist');
       } catch (err) {
+        if (err instanceof assert.AssertionError) {
+          throw err;
+        }
+
         assert.ok(err);
       }
     });
@@ -158,6 +166,10 @@ describe('matrix-utils', () => {
         await matrixUtils.ensureCorrectMxidProfile(undefined, fixture.user1.id);
         assert.fail('expected error to be thrown because Gitter user does not exist');
       } catch (err) {
+        if (err instanceof assert.AssertionError) {
+          throw err;
+        }
+
         assert.ok(err);
       }
     });

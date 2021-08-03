@@ -49,6 +49,10 @@ describe('room-context-service', () => {
         });
       }
     } catch (err) {
+      if (err instanceof assert.AssertionError) {
+        throw err;
+      }
+
       assert(err);
       assert(err.status, 501);
     }

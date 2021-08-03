@@ -996,6 +996,10 @@ describe('gitter-bridge', () => {
           });
           assert.fail('expected Matrix room join to fail because of our stub');
         } catch (err) {
+          if (err instanceof assert.AssertionError) {
+            throw err;
+          }
+
           assert(err);
         }
 
@@ -1026,6 +1030,10 @@ describe('gitter-bridge', () => {
           });
           assert.fail('expected Matrix room join to fail because of our stub');
         } catch (err) {
+          if (err instanceof assert.AssertionError) {
+            throw err;
+          }
+
           assert(err);
         }
 

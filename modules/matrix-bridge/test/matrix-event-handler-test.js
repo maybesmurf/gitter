@@ -984,8 +984,14 @@ describe('matrix-event-handler', () => {
 
         try {
           await matrixEventHandler.onEventData(eventData);
-          assert.ok(false);
+          assert.fail(
+            'Expected function to throw error and fail when processing non-existant Gitter user'
+          );
         } catch (err) {
+          if (err instanceof assert.AssertionError) {
+            throw err;
+          }
+
           assert(err);
         }
       });
