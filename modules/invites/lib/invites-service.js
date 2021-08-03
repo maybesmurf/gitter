@@ -102,9 +102,9 @@ function createInvite(roomId, options) {
 
       // Hellbanned users are not allowed to send out invites
       // Just fake it for them and don't save it to the database
-      // if (invitedByUser.hellbanned) {
-      //   return newInvite;
-      // }
+      if (invitedByUser.hellbanned) {
+        return newInvite;
+      }
 
       return newInvite.save();
     })

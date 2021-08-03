@@ -67,21 +67,26 @@ describe('invite-service', function() {
       it('should not allow invites from hellbaned users', async () => {
         var roomId = new ObjectID();
 
-        try {
-          await invitesService.createInvite(roomId, {
-            type: 'github',
-            externalId: 'gitterawesome',
-            invitedByUserId: fixture.userHellbanned1.id,
-            emailAddress: 'test@gitter.im'
-          });
-          assert.fail(`expected invite to fail because it's from a hellbanned user`);
-        } catch (err) {
-          if (err instanceof assert.AssertionError) {
-            throw err;
-          }
+        await invitesService.createInvite(roomId, {
+          type: 'github',
+          externalId: 'gitterawesome',
+          invitedByUserId: fixture.userHellbanned1.id,
+          emailAddress: 'test@gitter.im'
+        });
 
-          assert(err);
-        }
+        const invitesInRoom = await TroupeInvite.find({
+          troupeId: roomId
+        })
+          .lean()
+          .exec();
+
+        assert.strictEqual(
+          invitesInRoom.length,
+          0,
+          `Expected no invites in room but found ${
+            invitesInRoom.length
+          }\ninvitesInRoom=${JSON.stringify(invitesInRoom, null, 2)}`
+        );
       });
     });
 
