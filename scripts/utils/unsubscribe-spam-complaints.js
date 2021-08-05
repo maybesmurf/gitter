@@ -84,9 +84,9 @@ async function addCommentToTicket(ticketId, message, status) {
       ticket: {
         comment: {
           body: message,
-          public: false,
-          status: endStatus
-        }
+          public: false
+        },
+        status: endStatus
       }
     }
   });
