@@ -39,6 +39,14 @@ const AUTOMATED_MESSAGE_NOTICE = `**Note:**${
   opts.dryRun ? ' This is a dry-run!' : ''
 } This is an automated message from the [scripts/utils/unsubscribe-spam-complaints.js](https://gitlab.com/gitterHQ/webapp/-/blob/develop/scripts/utils/unsubscribe-spam-complaints.js) utility script (probably ran as a cron).`;
 
+// This is to make code fences/blocks in Zendesk because ``` is not supported
+function indent(inputString) {
+  return inputString
+    .split('\n')
+    .map(line => `\n    ${line}`)
+    .join('');
+}
+
 async function unsubscribeUserId(userId) {
   return await userSettingsService.setUserSettings(userId, 'unread_notifications_optout', 1);
 }
@@ -125,6 +133,157 @@ Unable to find any Gitter users associated with ${email}. You probably just want
   await addCommentToTicket(ticketId, message, status);
 }
 
+async function _getReportedEmailContentsFromCommentAttachments(ticketId, comment) {
+  const attachments = comment.attachments;
+
+  const emailAttachments = attachments.filter(attachment => {
+    return attachment.file_name.endsWith('.eml');
+  });
+
+  // If there are more(or less) than 1 .eml attachment, we might process it wrong
+  // because we only expect the reported `.eml` to be present.
+  if (emailAttachments.length !== 1) {
+    throw new Error(
+      `Expected 1 .eml attachment for ticketId=${ticketId} but received ${emailAttachments.length} attachments=${attachments}`
+    );
+  }
+
+  const emailAttachment = emailAttachments[0];
+
+  const data = await downloadFileToBuffer(emailAttachment.content_url);
+
+  return String(data.buffer);
+}
+
+// eslint-disable-next-line
+/*
+Here is an example of what we are trying to processing.
+It's called the Abuse Feedback Reporting Format (ARF)
+but really it just seems like the reported .eml we sent in another .eml.
+
+```
+To: Gitter Notifications <support@gitter.im>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=feedback-report;
+	boundary="feedback_part_610bfbf9_23c25613_42c9adea"
+[...]
+
+--feedback_part_610bfbf9_23c25613_42c9adea
+Content-Type: text/plain; charset="US-ASCII"
+Content-Transfer-Encoding: 7bit
+
+This is an email abuse report for an email message received from IP
+XX.XXX.XX.XXX on Thu, 05 Aug 2021 09:10:04 +0800. For more information
+about this format please see http://www.mipassoc.org/arf/.
+
+--feedback_part_610bfbf9_23c25613_42c9adea
+Content-Type: message/feedback-report
+
+Feedback-Type: abuse
+User-Agent: mail.qq.com
+[...]
+Original-Rcpt-To: <xxx@qq.com>
+
+--feedback_part_610bfbf9_23c25613_42c9adea
+Content-Type: message/rfc822
+Content-Disposition: inline
+
+Received: from XX.XXX.XX.XXX (unknown [XX.XXX.XX.XXX])
+	by newmx32.qq.com (NewMx) with SMTP id
+	for <xxx@qq.com>; Thu, 05 Aug 2021 09:10:06 +0800
+[...]
+Content-Type: multipart/alternative;
+boundary="--_NmP-3e1543c0fceea401-Part_1"
+From: Gitter Notifications <support@gitter.im>
+To: xxx@qq.com
+
+----_NmP-3e1543c0fceea401-Part_1
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Hi there,
+
+This is what you missed while you were away.
+[Text email version...]
+
+
+----_NmP-3e1543c0fceea401-Part_1
+Content-Type: text/html; charset=utf-8
+[HTML email version...]
+
+----_NmP-3e1543c0fceea401-Part_1--
+
+
+--feedback_part_610bfbf9_23c25613_42c9adea--
+```
+ */
+async function _getReportedEmailContentsFromCommentBody(ticketId, comment) {
+  // Process the Abuse Feedback Reporting Format (ARF), see the comment above for an example
+  const firstBoundaryMatches = comment.body.match(/^\s+boundary="(.*?)"$/m);
+
+  if (!firstBoundaryMatches) {
+    throw new Error('Unable to find boundary markers in ARF comment body');
+  }
+
+  const boundaryMarker = firstBoundaryMatches[1];
+  const boundarySplit = `--${boundaryMarker}`;
+  const arfPieces = comment.body.split(boundarySplit);
+
+  if (arfPieces.length <= 1) {
+    throw new Error(
+      `Expected ARF from comment body to be made up of multiple pieces (most likely 4) but found ${arfPieces.length} pieces split up by \`${boundarySplit}\`.`
+    );
+  }
+
+  // Find the arf piece which has `Content-Type: message/rfc822` in it.
+  // This will be like `.eml` attachment we are used to in `getReportedEmailContentsFromCommentAttachments`
+  const eml = arfPieces.find(arfPiece => {
+    return arfPiece.match(/^Content-Type: message\/rfc822$/m);
+  });
+
+  return eml;
+}
+
+async function getReportedEmailContentsFromComment(ticketId, comment) {
+  let reportedEmailContents;
+  let checkCommentAttachmentsError;
+  try {
+    // First lets check if the spam complaint has a `.eml` attachment with the reported email in question
+    reportedEmailContents = await _getReportedEmailContentsFromCommentAttachments(
+      ticketId,
+      comment
+    );
+  } catch (err) {
+    checkCommentAttachmentsError = err;
+  }
+
+  let checkInlineCommentError;
+  if (!reportedEmailContents) {
+    try {
+      // Fallback to trying to parse the report directly in the comment itself.
+      // The ticket comment itself might be a raw ARF format.
+      reportedEmailContents = await _getReportedEmailContentsFromCommentBody(ticketId, comment);
+    } catch (err) {
+      checkInlineCommentError = err;
+    }
+  }
+
+  if (!reportedEmailContents) {
+    throw new Error(`
+Unable to get reported email contents from this spam complaint.
+We checked the attachments on this ticket but ran into this problem:
+
+${checkCommentAttachmentsError && indent(checkCommentAttachmentsError.stack)}
+
+We also checked the ticket comment itself but weren't able to see or parse an ARF format from it:
+
+${checkInlineCommentError && indent(checkInlineCommentError.stack)}
+    `);
+  }
+
+  return reportedEmailContents;
+}
+
 async function fetchSpamComplaintTicketIds() {
   let pageCount = 0;
 
@@ -194,37 +353,23 @@ async function processSpamComplaints() {
         );
       }
 
-      const attachments = ticketCommentGetRes.body.comments[0].attachments;
+      const comment = ticketCommentGetRes.body.comments[0];
+      const reportedEmailContents = await getReportedEmailContentsFromComment(ticketId, comment);
 
-      if (attachments.length > 0) {
-        const emailAttachments = attachments.filter(attachment => {
-          return attachment.file_name.endsWith('.eml');
-        });
+      const emailMatches = reportedEmailContents.match(/^To: (.*?)$/m);
 
-        if (emailAttachments.length !== 1) {
-          throw new Error(
-            `Expected 1 .eml attachment for ticketId=${ticketId} but received ${emailAttachments.length} emailAttachments=${emailAttachments}`
-          );
-        }
-
-        const emailAttachment = emailAttachments[0];
-
-        const data = await downloadFileToBuffer(emailAttachment.content_url);
-        const emailMatches = String(data.buffer).match(/^To: (.*?)$/m);
-
-        if (emailMatches) {
-          const email = emailMatches[1];
-          const unsubscribedUsers = await unsubscribeEmail(email);
-          await updateTicketWithUnsubscribedUsers(ticketId, email, unsubscribedUsers);
-        } else {
-          throw new Error(
-            `Unable to find the To: field in the .eml attachment for ticketId=${ticketId}`
-          );
-        }
+      if (emailMatches) {
+        const email = emailMatches[1];
+        const unsubscribedUsers = await unsubscribeEmail(email);
+        await updateTicketWithUnsubscribedUsers(ticketId, email, unsubscribedUsers);
+      } else {
+        throw new Error(
+          `Unable to find the To: field in the reported .eml for ticketId=${ticketId}`
+        );
       }
     } catch (err) {
       // Log the error and move on to the next ticket
-      const errorMessage = `Failed to process ticketId=${ticketId}: ${err}\n${err.stack}`;
+      const errorMessage = `Failed to process ticketId=${ticketId}: ${err.stack}`;
       logger.error(errorMessage);
       await addCommentToTicket(ticketId, `${AUTOMATED_MESSAGE_NOTICE}\n\n${errorMessage}`);
     }
@@ -243,7 +388,7 @@ async function processSpamComplaints() {
     logger.info(`Waiting 5 seconds to allow for the asynchronous \`event-listeners\` to finish...`);
     await new Promise(resolve => setTimeout(resolve, 5000));
   } catch (err) {
-    logger.info('Error', err, err.stack);
+    logger.info('Error', err.stack);
   } finally {
     shutdown.shutdownGracefully();
   }
