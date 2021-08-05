@@ -2,7 +2,6 @@
 
 const debug = require('debug')('gitter:app:matrix-bridge:matrix-utils');
 const assert = require('assert');
-const request = require('request');
 const path = require('path');
 const urlJoin = require('url-join');
 const StatusError = require('statuserror');
@@ -20,7 +19,8 @@ const {
   getCanonicalAliasForGitterRoomUri
 } = require('./matrix-alias-utils');
 const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
-const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
+const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
+const downloadFileToBuffer = require('./download-file-to-buffer');
 
 const store = require('./store');
 
@@ -30,42 +30,6 @@ const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLoca
 // The Gitter user we are pulling profile information from to populate the Matrix bridge user profile
 const gitterBridgeProfileUsername = config.get('matrix:bridge:gitterBridgeProfileUsername');
 const gitterLogoMxc = config.get('matrix:bridge:gitterLogoMxc');
-
-/**
- * downloadFile - This function will take a URL and store the resulting data into
- * a buffer.
- */
-// Based on https://github.com/Half-Shot/matrix-appservice-discord/blob/7fc714d36943e2591a828a8a6481db37119c3bdc/src/util.ts#L65-L96
-const HTTP_OK = 200;
-async function downloadFileToBuffer(url) {
-  return new Promise((resolve, reject) => {
-    // Using `request` here to follow any redirects
-    const req = request(url);
-
-    // TODO: Implement maxSize to reject, req.abort()
-    let buffer = Buffer.alloc(0);
-    req.on('data', d => {
-      buffer = Buffer.concat([buffer, d]);
-    });
-
-    req.on('response', res => {
-      if (res.statusCode !== HTTP_OK) {
-        reject(`Non 200 status code (${res.statusCode})`);
-      }
-
-      req.on('end', () => {
-        resolve({
-          buffer,
-          mimeType: res.headers['content-type']
-        });
-      });
-    });
-
-    req.on('error', err => {
-      reject(`Failed to download. ${err}`);
-    });
-  });
-}
 
 class MatrixUtils {
   constructor(matrixBridge) {
