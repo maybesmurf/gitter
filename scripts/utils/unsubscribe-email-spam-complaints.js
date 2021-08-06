@@ -1,6 +1,24 @@
 #!/usr/bin/env node
 'use strict';
 
+/*
+ * Amazon SES (Simple email service) forwards email spam complaints to our Zendesk instance.
+ * This script will ingest these tickets and unsubscribe any users associated with
+ * the email.
+ *
+ * This script will:
+ *
+ *  1. Fetch all Zendesk tickets sent from AWS
+ *  1. Process the `.eml` attachment to find who(which email) sent the complaint.
+ *     If no attachment is present, will look for the ARF(embedded email abuse format)
+ *     format in the ticket comment body.
+ *  1. Unsubscribe any Gitter users associated with that email
+ *  1. Add a comment to the ticket with what actions took place.
+ *  1. If we were able to unsubscribe someone, will solve the ticket
+ *  1. If any error took place while processing that specific ticket, will also put that
+ *     on the ticket
+ */
+
 const debug = require('debug')('gitter:app:chat-search-service');
 const shutdown = require('shutdown');
 const util = require('util');
