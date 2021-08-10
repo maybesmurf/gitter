@@ -3,6 +3,7 @@
 var assert = require('assert');
 var Promise = require('bluebird');
 var proxyquireNoCallThru = require('proxyquire').noCallThru();
+const TestError = require('gitter-web-test-utils/lib/test-error');
 
 function getWrapper(lookupFunc) {
   var MockSnappyCache = function() {};
@@ -35,9 +36,11 @@ describe('cache-wrapper', function() {
 
       try {
         secureWrapFunction('my-module', module);
-        assert.fail('expected error to be thrown because cacheKeyGenerator() is missing');
+        assert.fail(
+          new TestError('expected error to be thrown because cacheKeyGenerator() is missing')
+        );
       } catch (err) {
-        if (err instanceof assert.AssertionError) {
+        if (err instanceof TestError) {
           throw err;
         }
 

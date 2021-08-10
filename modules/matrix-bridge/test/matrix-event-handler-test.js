@@ -4,6 +4,7 @@ const assert = require('assert');
 const sinon = require('sinon');
 const proxyquireNoCallThru = require('proxyquire').noCallThru();
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const TestError = require('gitter-web-test-utils/lib/test-error');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const roomMembershipService = require('gitter-web-rooms/lib/room-membership-service');
 const chatService = require('gitter-web-chats');
@@ -985,10 +986,12 @@ describe('matrix-event-handler', () => {
         try {
           await matrixEventHandler.onEventData(eventData);
           assert.fail(
-            'Expected function to throw error and fail when processing non-existant Gitter user'
+            new TestError(
+              'Expected function to throw error and fail when processing non-existant Gitter user'
+            )
           );
         } catch (err) {
-          if (err instanceof assert.AssertionError) {
+          if (err instanceof TestError) {
             throw err;
           }
 

@@ -5,6 +5,7 @@ var assert = require('assert');
 var GitHubIssueService = require('..').GitHubIssueService;
 var GitHubRepoService = require('..').GitHubRepoService;
 var fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const TestError = require('gitter-web-test-utils/lib/test-error');
 
 describe('github-issue-service #slow #github', function() {
   // These tests timeout at 10000 sometimes otherwise
@@ -68,10 +69,12 @@ describe('github-issue-service #slow #github', function() {
       })
       .then(() => underTest.getIssue(fixtureLoader.GITTER_INTEGRATION_REPO_FULL, 999999))
       .then(() => {
-        assert.fail("Shouldn't be able to fetch issue in unauthorized private project");
+        assert.fail(
+          new TestError("Shouldn't be able to fetch issue in unauthorized private project")
+        );
       })
       .catch(err => {
-        if (err instanceof assert.AssertionError) {
+        if (err instanceof TestError) {
           throw err;
         }
 

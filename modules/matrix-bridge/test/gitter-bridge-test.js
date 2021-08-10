@@ -3,6 +3,7 @@
 const assert = require('assert');
 const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const TestError = require('gitter-web-test-utils/lib/test-error');
 const chatService = require('gitter-web-chats');
 const restSerializer = require('../../../server/serializers/rest-serializer');
 const GitterBridge = require('../lib/gitter-bridge');
@@ -994,9 +995,9 @@ describe('gitter-bridge', () => {
             operation: 'create',
             model: { id: fixture.user1.id }
           });
-          assert.fail('expected Matrix room join to fail because of our stub');
+          assert.fail(new TestError('expected Matrix room join to fail because of our stub'));
         } catch (err) {
-          if (err instanceof assert.AssertionError) {
+          if (err instanceof TestError) {
             throw err;
           }
 
@@ -1028,9 +1029,9 @@ describe('gitter-bridge', () => {
             operation: 'create',
             model: { id: fixture.user1.id }
           });
-          assert.fail('expected Matrix room join to fail because of our stub');
+          assert.fail(new TestError('expected Matrix room join to fail because of our stub'));
         } catch (err) {
-          if (err instanceof assert.AssertionError) {
+          if (err instanceof TestError) {
             throw err;
           }
 
