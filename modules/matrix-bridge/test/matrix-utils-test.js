@@ -104,7 +104,7 @@ describe('matrix-utils', () => {
         await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(fixture.troupePrivate1.id);
         assert.fail(new TestError('expected Matrix room creation to fail for private room'));
       } catch (err) {
-        if (err instanceof assert.TestError) {
+        if (err instanceof TestError) {
           throw err;
         }
 
