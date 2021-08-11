@@ -1,8 +1,17 @@
+# 21.42.0 - *upcoming*
+
+Developer facing:
+
+ - Actually fail tests when function in question does not throw error as expected, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2238
+
+
 # 21.41.0 - 2021-08-04
 
 Developer facing:
 
- - Add some automation to unsubscribing users that send spam complaints, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2240
+ - Add some automation to unsubscribing users that send spam complaints,
+   - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2240
+   - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2243
 
 
 # 21.40.0 - 2021-08-02
