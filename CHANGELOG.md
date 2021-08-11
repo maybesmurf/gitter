@@ -1,3 +1,10 @@
+# 21.42.0 - 2021-08-11
+
+Developer facing:
+
+ - Actually fail tests when function in question does not throw error as expected, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2238
+
+
 # 21.41.0 - 2021-08-04
 
 Developer facing:
