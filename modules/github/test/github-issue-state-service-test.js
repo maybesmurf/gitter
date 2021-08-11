@@ -4,6 +4,7 @@
 var assert = require('assert');
 var GitHubIssueStateService = require('..').GitHubIssueStateService;
 var fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const TestError = require('gitter-web-test-utils/lib/test-error');
 
 describe('github-issue-state-search #slow #github', function() {
   fixtureLoader.ensureIntegrationEnvironment(
@@ -31,10 +32,10 @@ describe('github-issue-state-search #slow #github', function() {
     return underTest
       .getIssueState(fixtureLoader.GITTER_INTEGRATION_REPO_FULL, 999999)
       .then(() => {
-        assert.fail("Shouldn't be able to fetch missing issue");
+        assert.fail(new TestError("Shouldn't be able to fetch missing issue"));
       })
       .catch(err => {
-        if (err instanceof assert.AssertionError) {
+        if (err instanceof TestError) {
           throw err;
         }
 
