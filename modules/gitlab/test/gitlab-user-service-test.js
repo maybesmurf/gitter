@@ -3,6 +3,7 @@
 const assert = require('assert');
 const proxyquireNoCallThru = require('proxyquire').noCallThru();
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const TestError = require('gitter-web-test-utils/lib/test-error');
 
 describe('gitlab-user-service #flakey #slow #gitlab', function() {
   fixtureLoader.ensureIntegrationEnvironment('GITLAB_USER_TOKEN');
@@ -47,10 +48,16 @@ describe('gitlab-user-service #flakey #slow #gitlab', function() {
 
     try {
       await glGroupService.getUserByUsername('!!non-existant-user!!');
-      assert.throws(
-        'we expect an error to be thrown instead of an actual user from getUserByUsername'
+      assert.fail(
+        new TestError(
+          'we expect an error to be thrown instead of an actual user from getUserByUsername'
+        )
       );
     } catch (err) {
+      if (err instanceof TestError) {
+        throw err;
+      }
+
       assert(err);
     }
   });
