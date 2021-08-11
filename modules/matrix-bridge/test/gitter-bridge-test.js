@@ -3,7 +3,6 @@
 const assert = require('assert');
 const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
-const TestError = require('gitter-web-test-utils/lib/test-error');
 const chatService = require('gitter-web-chats');
 const restSerializer = require('../../../server/serializers/rest-serializer');
 const GitterBridge = require('../lib/gitter-bridge');
