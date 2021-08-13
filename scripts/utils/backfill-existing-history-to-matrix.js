@@ -17,12 +17,14 @@ const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const getMxidForGitterUser = require('gitter-web-matrix-bridge/lib/get-mxid-for-gitter-user');
 //const installBridge = require('gitter-web-matrix-bridge');
-//const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
-//const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
+const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
+const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 
-//const matrixUtils = new MatrixUtils(matrixBridge);
+const matrixUtils = new MatrixUtils(matrixBridge);
 
 const asToken = config.get('matrix:bridge:asToken');
+
+const matrixBridgeUserMxid = matrixUtils.getMxidForMatrixBridgeUser();
 
 const BATCH_SIZE = 100;
 
@@ -111,6 +113,50 @@ async function getMatrixCreateRoomEvent(matrixRoomId) {
   return res.body.chunk[0];
 }
 
+async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
+  const res = await request({
+    method: 'GET',
+    uri: `http://localhost:18008/_matrix/client/r0/rooms/${matrixRoomId}/messages?dir=b&limit=100&filter={ "types": ["m.room.member"], "senders": ["${matrixBridgeUserMxid}"] }`,
+    json: true,
+    headers: {
+      Authorization: `Bearer ${asToken}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (res.statusCode !== 200) {
+    throw new Error(
+      `${matrixRoomId}/messages request to get the join event for the Matrix bridge user failed ${
+        res.statusCode
+      }: ${JSON.stringify(res.body)}`
+    );
+  }
+
+  if (!res.body.chunk || !res.body.chunk.length) {
+    throw new Error(
+      `Unable to find member event for the Matrix bridge user in ${matrixRoomId}/messages response ${
+        res.statusCode
+      }: ${JSON.stringify(res.body)}`
+    );
+  }
+
+  const joinEvents = res.body.chunk.filter(memberEvent => {
+    return memberEvent.content.membership === 'join';
+  });
+
+  if (joinEvents.length !== 1) {
+    throw new Error(
+      `Found ${
+        joinEvents.length
+      } join events but we expected to only find 1 join event for the Matrix bridge user in ${matrixRoomId}/messages response ${
+        res.statusCode
+      }: ${JSON.stringify(res.body)}`
+    );
+  }
+
+  return joinEvents[0];
+}
+
 async function processBatchOfEvents(matrixRoomId, events, authorMap) {
   assert(matrixRoomId);
   assert(events);
@@ -124,6 +170,16 @@ async function processBatchOfEvents(matrixRoomId, events, authorMap) {
 
     stateEvents.push({
       type: 'm.room.member',
+      sender: matrixBridgeUserMxid,
+      origin_server_ts: events[0].origin_server_ts,
+      content: {
+        membership: 'invite'
+      },
+      state_key: matrixId
+    });
+
+    stateEvents.push({
+      type: 'm.room.member',
       sender: matrixId,
       origin_server_ts: events[0].origin_server_ts,
       content: {
@@ -134,13 +190,16 @@ async function processBatchOfEvents(matrixRoomId, events, authorMap) {
   }
 
   debug(`Processing batch: ${stateEvents.length} stateEvents`);
+  console.log('stateEvents', stateEvents);
 
-  const createRoomEvent = await getMatrixCreateRoomEvent(matrixRoomId);
-  debug(`Found createRoomEvent`, createRoomEvent);
+  //const createRoomEvent = await getMatrixCreateRoomEvent(matrixRoomId);
+  //debug(`Found createRoomEvent`, createRoomEvent);
+  const bridgeJoinEvent = await getMatrixBridgeUserJoinEvent(matrixRoomId);
+  debug(`Found bridgeJoinEvent`, bridgeJoinEvent);
 
   const res = await request({
     method: 'POST',
-    uri: `http://localhost:18008/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event=${createRoomEvent.event_id}`,
+    uri: `http://localhost:18008/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event=${bridgeJoinEvent.event_id}`,
     json: true,
     headers: {
       Authorization: `Bearer ${asToken}`,
@@ -185,18 +244,23 @@ async function exec() {
     .sort({ gitterMessageId: 'asc' })
     .lean()
     .exec();
-  const firstBridgedMessageInRoom = firstBridgedMessageInRoomResult[0];
+  const firstBridgedMessageIdInRoom = firstBridgedMessageInRoomResult[0];
 
   // TODO: Add fallback when we haven't bridged any messages in the room before
-  assert(firstBridgedMessageInRoom);
+  assert(firstBridgedMessageIdInRoom);
 
-  debug(`firstBridgedMessageInRoom=${JSON.stringify(firstBridgedMessageInRoom)}`);
+  debug(`firstBridgedMessageInRoom=${JSON.stringify(firstBridgedMessageIdInRoom)}`);
 
   // Start the stream of messages where we left off
   const messageCursor = persistence.ChatMessage.find({
-    _id: { $lt: firstBridgedMessageInRoom.gitterMessageId },
-    toTroupeId: roomId
+    _id: { $lt: firstBridgedMessageIdInRoom.gitterMessageId },
+    toTroupeId: roomId,
+    // Although we probably won't find any Matrix bridged messages in the old
+    // chunk of messages we try to backfill, let's just be careful and not try
+    // to re-bridge any previously bridged Matrix messages by accident.
+    virtualUser: { $exists: false }
   })
+    .sort({ _id: 'asc' })
     .lean()
     .read(mongoReadPrefs.secondaryPreferred)
     .batchSize(100)
@@ -238,6 +302,12 @@ async function exec() {
       authorMap = {};
     }
   }
+
+  // Process the remainder last batch
+  await processBatchOfEvents(matrixRoomId, events, authorMap);
+  // Reset the batch now that it was processed
+  events = [];
+  authorMap = {};
 }
 
 exec()
