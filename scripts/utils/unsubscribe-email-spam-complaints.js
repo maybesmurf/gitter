@@ -19,6 +19,7 @@
  *     on the ticket
  */
 
+const assert = require('assert');
 const debug = require('debug')('gitter:app:chat-search-service');
 const shutdown = require('shutdown');
 const util = require('util');
@@ -30,6 +31,7 @@ const userService = require('gitter-web-users');
 const userSettingsService = require('gitter-web-user-settings');
 const downloadFileToBuffer = require('gitter-web-matrix-bridge/lib/download-file-to-buffer');
 const obfuscateToken = require('gitter-web-github').obfuscateToken;
+const unsubscribeHashes = require('gitter-web-email-notifications/lib/unsubscribe-hashes');
 
 require('../../server/event-listeners').install();
 
@@ -126,32 +128,30 @@ async function addCommentToTicket(ticketId, message, status) {
   }
 }
 
-async function updateTicketWithUnsubscribedUsers(ticketId, email, unsubscribedUsers) {
-  let message;
-  let status;
-  if (unsubscribedUsers.length > 0) {
-    status = 'solved';
-    // Successfully unsubscribed some users
-    message = `${AUTOMATED_MESSAGE_NOTICE}
+async function updateTicketWithUnsubscribedUsers(ticketId, unsubscribedUsers) {
+  assert(ticketId);
+  assert(unsubscribedUsers);
+  assert(unsubscribedUsers.length > 0);
+
+  let status = 'solved';
+  // Successfully unsubscribed some users
+  let message = `${AUTOMATED_MESSAGE_NOTICE}
 
 We've unsubscribed ${unsubscribedUsers
-      .map(unsubscribedUser => {
-        const userId = unsubscribedUser.id || unsubscribedUser._id;
-        return `${unsubscribedUser.username} (${userId})`;
-      })
-      .join(', ')} based the this spam complaint from ${email}.
-    `;
-  } else {
-    message = `${AUTOMATED_MESSAGE_NOTICE}
-
-Unable to find any Gitter users associated with ${email}. You probably just want to close this ticket but we've left it open for you to review.
-    `;
-  }
+    .map(unsubscribedUser => {
+      const userId = unsubscribedUser.id || unsubscribedUser._id;
+      return `${unsubscribedUser.username} (${userId})`;
+    })
+    .join(', ')} based this spam complaint.
+  `;
 
   await addCommentToTicket(ticketId, message, status);
 }
 
 async function _getReportedEmailContentsFromCommentAttachments(ticketId, comment) {
+  assert(ticketId);
+  assert(comment);
+
   const attachments = comment.attachments;
 
   const emailAttachments = attachments.filter(attachment => {
@@ -236,6 +236,9 @@ Content-Type: text/html; charset=utf-8
 ```
  */
 async function _getReportedEmailContentsFromCommentBody(ticketId, comment) {
+  assert(ticketId);
+  assert(comment);
+
   // Process the Abuse Feedback Reporting Format (ARF), see the comment above for an example
   const firstBoundaryMatches = comment.body.match(/^\s+boundary="(.*?)"$/m);
 
@@ -263,6 +266,9 @@ async function _getReportedEmailContentsFromCommentBody(ticketId, comment) {
 }
 
 async function getReportedEmailContentsFromComment(ticketId, comment) {
+  assert(ticketId);
+  assert(comment);
+
   let reportedEmailContents;
   let checkCommentAttachmentsError;
   try {
@@ -299,7 +305,108 @@ ${checkInlineCommentError && indent(checkInlineCommentError.stack)}
     `);
   }
 
-  return reportedEmailContents;
+  // Unwrap "Content-Transfer-Encoding: quoted-printable" text which has
+  // lines soft-wrapped at 76 characters and split up with `=\n`.
+  //
+  // > The Quoted-Printable encoding REQUIRES that encoded lines be no
+  // > more than 76 characters long. If longer lines are to be encoded
+  // > with the Quoted-Printable encoding, 'soft' line breaks must be
+  // > used. An equal sign as the last character on a encoded line
+  // > indicates such a non-significant ('soft') line break in the encoded
+  // > text."
+  // >
+  // > https://www.w3.org/Protocols/rfc1341/5_Content-Transfer-Encoding.html
+  const unwrappedEmailContents = reportedEmailContents.replace(/=\n/gm, '');
+
+  return unwrappedEmailContents;
+}
+
+// Look for the /unsubscribe link in the email and decipher it to find the userId.
+// ex. https://gitter.im/settings/unsubscribe/5cd788edba69ca1604f1536d71eb5aed540cd87cc3d4c21ee5a7ecfbf852987c459c26fe127f20cf9eca2fb2d2fc1262f
+async function _unsubscribeUsersBasedOnUnsubscribeHashInEmail(ticketId, reportedEmailContents) {
+  assert(ticketId);
+  assert(reportedEmailContents);
+
+  const unsubscribeHashMatches = reportedEmailContents.match(
+    /"https:\/\/gitter.im\/settings\/unsubscribe\/(.*?)"/m
+  );
+
+  if (unsubscribeHashMatches) {
+    const hash = unsubscribeHashMatches[1];
+    const { userId } = unsubscribeHashes.decipherHash(hash);
+
+    await unsubscribeUserId(userId);
+
+    const user = await userService.findById(userId);
+
+    await updateTicketWithUnsubscribedUsers(ticketId, [user]);
+  } else {
+    throw new Error(
+      `Unable to find the https://gitter.im/settings/unsubscribe/xxx link in the reported .eml for ticketId=${ticketId}`
+    );
+  }
+}
+
+async function _unsubscribeUsersBasedOnToField(ticketId, reportedEmailContents) {
+  assert(ticketId);
+  assert(reportedEmailContents);
+
+  const emailMatches = reportedEmailContents.match(/^To: (.*?)$/m);
+
+  if (emailMatches) {
+    const email = emailMatches[1];
+    const unsubscribedUsers = await unsubscribeEmail(email);
+
+    if (!unsubscribedUsers.length) {
+      throw new Error(
+        `Unable to find any Gitter users associated with this spam complaint. You probably just want to close this ticket but we've left it open for you to review.`
+      );
+    }
+
+    await updateTicketWithUnsubscribedUsers(ticketId, unsubscribedUsers);
+  } else {
+    throw new Error(`Unable to find the To: field in the reported .eml for ticketId=${ticketId}`);
+  }
+}
+
+async function unsubscribeUsersFromReportedEmailContents(ticketId, reportedEmailContents) {
+  assert(ticketId);
+  assert(reportedEmailContents);
+
+  let checkUnsubscribeHashError;
+  try {
+    // First check for a possible Gitter /unsubscribe hash in the email and try using that
+    await _unsubscribeUsersBasedOnUnsubscribeHashInEmail(ticketId, reportedEmailContents);
+  } catch (err) {
+    checkUnsubscribeHashError = err;
+  }
+
+  let checkToFieldError;
+  if (checkUnsubscribeHashError) {
+    try {
+      // Not all emails have the /unsubscribe link so fallback
+      // to checking the To: field (where the email was sent to).
+      // This isn't 100% reliable though as we sometimes find emails
+      // where the email isn't associated any of our Gitter users
+      // (probably some internal email rewriting routing).
+      await _unsubscribeUsersBasedOnToField(ticketId, reportedEmailContents);
+    } catch (err) {
+      checkToFieldError = err;
+    }
+  }
+
+  if (checkUnsubscribeHashError && checkToFieldError) {
+    throw new Error(`
+Unable to find anyone to unsubscribe from this spam complaint.
+We checked the for an /unsubscribe hash but ran into this problem:
+
+${indent(checkUnsubscribeHashError.stack)}
+
+We also checked for any users associated with the email defined in the To: field but ran into this problem:
+
+${indent(checkToFieldError.stack)}
+    `);
+  }
 }
 
 async function fetchSpamComplaintTicketIds() {
@@ -374,17 +481,7 @@ async function processSpamComplaints() {
       const comment = ticketCommentGetRes.body.comments[0];
       const reportedEmailContents = await getReportedEmailContentsFromComment(ticketId, comment);
 
-      const emailMatches = reportedEmailContents.match(/^To: (.*?)$/m);
-
-      if (emailMatches) {
-        const email = emailMatches[1];
-        const unsubscribedUsers = await unsubscribeEmail(email);
-        await updateTicketWithUnsubscribedUsers(ticketId, email, unsubscribedUsers);
-      } else {
-        throw new Error(
-          `Unable to find the To: field in the reported .eml for ticketId=${ticketId}`
-        );
-      }
+      await unsubscribeUsersFromReportedEmailContents(ticketId, reportedEmailContents);
     } catch (err) {
       // Log the error and move on to the next ticket
       const errorMessage = `Failed to process ticketId=${ticketId}: ${err.stack}`;
