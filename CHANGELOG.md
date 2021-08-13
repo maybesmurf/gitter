@@ -12,6 +12,7 @@ Developer facing:
  - Add some automation to unsubscribing users that send spam complaints,
    - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2240
    - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2243
+   - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2242
 
 
 # 21.40.0 - 2021-08-02
