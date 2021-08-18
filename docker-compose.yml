@@ -57,7 +57,7 @@ services:
 
   synapse:
     container_name: 'synapse'
-    image: 7b63c557e03e
+    image: fe0f6b13f04f
     restart: always
     ports:
       - '18008:8008'
