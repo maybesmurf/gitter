@@ -1,5 +1,8 @@
 # 21.42.0 - *upcoming*
 
+ - Always show "Reply in thread" (instead of switching between "Start a Thread") to make the language consistent and recognizable, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2244
+    - Thanks to [@bradcray](https://gitlab.com/bradcray) for the contribution
+
 Developer facing:
 
  - Actually fail tests when function in question does not throw error as expected, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2238
