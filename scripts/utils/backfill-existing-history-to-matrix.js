@@ -9,6 +9,7 @@ const LRU = require('lru-cache');
 const debug = require('debug')('gitter:scripts:backfill-existing-history-to-matrix');
 const env = require('gitter-web-env');
 const config = env.config;
+const logger = env.logger;
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const persistence = require('gitter-web-persistence');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
@@ -27,29 +28,12 @@ const matrixBridgeUserMxid = matrixUtils.getMxidForMatrixBridgeUser();
 
 const BATCH_SIZE = 100;
 
-// const mongoose = require('mongoose');
-// mongoose.set('debug', true);
-
 const opts = require('yargs')
   .option('uri', {
     alias: 'u',
     required: true,
     description: 'Uri of the room to delete'
   })
-  // .option('start-chat-id', {
-  //   required: true,
-  //   description: 'Where to start backfilling from (going back in time)'
-  // })
-  // .option('start-timestamp', {
-  //   alias: 't',
-  //   required: true,
-  //   description: 'Where to start backfilling from'
-  // })
-  // .option('end-timestamp', {
-  //   alias: 't',
-  //   required: true,
-  //   description: 'Where to stop backfilling at'
-  // })
   .help('help')
   .alias('help', 'h').argv;
 
@@ -135,8 +119,6 @@ async function processBatchOfEvents(matrixRoomId, events, stateEvents) {
   assert(events);
   assert(stateEvents);
 
-  console.log('stateEvents', stateEvents);
-
   debug(`Processing batch: ${events.length} events, ${stateEvents.length} stateEvents`);
 
   // We're looking for some primordial event at the beginning of the room
@@ -160,7 +142,7 @@ async function processBatchOfEvents(matrixRoomId, events, stateEvents) {
     }
   });
 
-  console.log('batch res', res.statusCode, res.body);
+  logger.info('batch res', res.statusCode, res.body);
   if (res.statusCode !== 200) {
     throw new Error(`Batch send request failed ${res.statusCode}: ${JSON.stringify(res.body)}`);
   }
@@ -170,7 +152,7 @@ async function processBatchOfEvents(matrixRoomId, events, stateEvents) {
 
 // eslint-disable-next-line max-statements
 async function exec() {
-  console.log('Setting up Matrix bridge');
+  logger.info('Setting up Matrix bridge');
   await installBridge();
 
   const room = await troupeService.findByUri(opts.uri);
@@ -225,12 +207,10 @@ async function exec() {
 
   // Just a small wrapper around processing that can process and reset
   const _processBatch = async function() {
-    //console.log('_processBatch==================================');
     // Put the events in chronological order for the batch.
     // They are originally looped in ascending order to go from newest to oldest
     // which makes them reverse-chronological at first.
     const chronologicalEvents = events.reverse();
-    //console.log('chronologicalEvents', chronologicalEvents);
     await processBatchOfEvents(matrixRoomId, chronologicalEvents, stateEvents);
 
     // Reset the batch now that it was processed
@@ -240,7 +220,6 @@ async function exec() {
   };
 
   for await (let message of chatMessageStreamIterable) {
-    //console.log('message', message.text);
     const { mxid, avatar_url, displayname } = await getMatrixProfileFromGitterUserId(
       message.fromUserId
     );
@@ -259,6 +238,12 @@ async function exec() {
 
     // deduplicate the authors
     if (!authorMap[message.fromUserId]) {
+      // This join to the current room state is what causes Element to actually
+      // pick up avatars/displaynames. The floating outlier join event below
+      // does not get picked up.
+      const intent = matrixBridge.getIntent(mxid);
+      await intent.join(matrixRoomId);
+
       // Invite event
       stateEvents.push({
         type: 'm.room.member',
@@ -276,9 +261,11 @@ async function exec() {
         sender: mxid,
         origin_server_ts: events[0].origin_server_ts,
         content: {
+          membership: 'join',
+          // These aren't picked up by Element but still seems good practice to
+          // have them in place for other clients/homeservers
           avatar_url: avatar_url,
-          displayname: displayname,
-          membership: 'join'
+          displayname: displayname
         },
         state_key: mxid
       });
@@ -298,10 +285,10 @@ async function exec() {
 
 exec()
   .then(() => {
-    console.log('done');
+    logger.info('done');
     shutdown.shutdownGracefully();
   })
   .catch(err => {
-    console.error('Error occured while backfilling events:', err.stack);
+    logger.error('Error occured while backfilling events:', err.stack);
     shutdown.shutdownGracefully();
   });
