@@ -1,4 +1,4 @@
-# 21.42.0 - *upcoming*
+# 21.42.0 - 2021-08-19
 
  - Always show "Reply in thread" (instead of switching between "Start a Thread") to make the language consistent and recognizable, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2244
     - Thanks to [@bradcray](https://gitlab.com/bradcray) for the contribution
