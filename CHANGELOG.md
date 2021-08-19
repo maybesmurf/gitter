@@ -1,3 +1,10 @@
+# 21.41.0 - 2021-08-04
+
+Developer facing:
+
+ - Add some automation to unsubscribing users that send spam complaints, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2240
+
+
 # 21.40.0 - 2021-08-02
 
  - Disallow invites from hellbanned users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2237
