@@ -22,6 +22,7 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
+const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
 const asToken = config.get('matrix:bridge:asToken');
 
 const matrixBridgeUserMxid = matrixUtils.getMxidForMatrixBridgeUser();
@@ -69,7 +70,7 @@ async function getMatrixProfileFromGitterUserId(gitterUserId) {
 async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
   const res = await request({
     method: 'GET',
-    uri: `http://localhost:18008/_matrix/client/r0/rooms/${matrixRoomId}/messages?dir=b&limit=100&filter={ "types": ["m.room.member"], "senders": ["${matrixBridgeUserMxid}"] }`,
+    uri: `${homeserverUrl}/_matrix/client/r0/rooms/${matrixRoomId}/messages?dir=b&limit=100&filter={ "types": ["m.room.member"], "senders": ["${matrixBridgeUserMxid}"] }`,
     json: true,
     headers: {
       Authorization: `Bearer ${asToken}`,
@@ -130,7 +131,7 @@ async function processBatchOfEvents(matrixRoomId, events, stateEvents) {
 
   const res = await request({
     method: 'POST',
-    uri: `http://localhost:18008/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event=${bridgeJoinEvent.event_id}`,
+    uri: `${homeserverUrl}/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event=${bridgeJoinEvent.event_id}`,
     json: true,
     headers: {
       Authorization: `Bearer ${asToken}`,
