@@ -754,7 +754,6 @@ module.exports = (function() {
 
       const actions = [];
 
-      const threadMessageCount = this.model.get('threadMessageCount');
       actions.push({
         name: 'threadReply',
         description: 'Reply in thread',
