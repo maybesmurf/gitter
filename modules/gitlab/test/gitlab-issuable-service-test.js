@@ -5,6 +5,7 @@ const assert = require('assert');
 const proxyquireNoCallThru = require('proxyquire').noCallThru();
 //const GitLabIssuableService = require('..').GitLabIssuableService;
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const TestError = require('gitter-web-test-utils/lib/test-error');
 
 describe('gitlab-issue-service #slow #gitlab', function() {
   // These tests timeout at 10000 sometimes otherwise
@@ -56,10 +57,10 @@ describe('gitlab-issue-service #slow #gitlab', function() {
       return glService
         .getIssue(fixtureLoader.GITLAB_PUBLIC_PROJECT1_URI, 999999)
         .then(() => {
-          assert.fail("Shouldn't be able to fetch missing issue");
+          assert.fail(new TestError("Shouldn't be able to fetch missing issue"));
         })
         .catch(err => {
-          if (err instanceof assert.AssertionError) {
+          if (err instanceof TestError) {
             throw err;
           }
 
@@ -90,10 +91,12 @@ describe('gitlab-issue-service #slow #gitlab', function() {
       return glService
         .getIssue(fixtureLoader.GITLAB_UNAUTHORIZED_PRIVATE_PROJECT1_URI, 1)
         .then(() => {
-          assert.fail("Shouldn't be able to fetch issue in unauthorized private project");
+          assert.fail(
+            new TestError("Shouldn't be able to fetch issue in unauthorized private project")
+          );
         })
         .catch(err => {
-          if (err instanceof assert.AssertionError) {
+          if (err instanceof TestError) {
             throw err;
           }
 
@@ -121,10 +124,10 @@ describe('gitlab-issue-service #slow #gitlab', function() {
       return glService
         .getIssue(fixtureLoader.GITLAB_PUBLIC_PROJECT1_URI, 2)
         .then(() => {
-          assert.fail("Shouldn't be able to fetch confidential issue");
+          assert.fail(new TestError("Shouldn't be able to fetch confidential issue"));
         })
         .catch(err => {
-          if (err instanceof assert.AssertionError) {
+          if (err instanceof TestError) {
             throw err;
           }
 
@@ -137,10 +140,12 @@ describe('gitlab-issue-service #slow #gitlab', function() {
       return glService
         .getIssue(fixtureLoader.GITLAB_PRIVATE_PROJECT1_URI, 1)
         .then(() => {
-          assert.fail("Shouldn't be able to fetch issue in unauthorized private project");
+          assert.fail(
+            new TestError("Shouldn't be able to fetch issue in unauthorized private project")
+          );
         })
         .catch(err => {
-          if (err instanceof assert.AssertionError) {
+          if (err instanceof TestError) {
             throw err;
           }
 
@@ -153,10 +158,12 @@ describe('gitlab-issue-service #slow #gitlab', function() {
       return glService
         .getIssue(fixtureLoader.GITLAB_UNAUTHORIZED_PRIVATE_PROJECT1_URI, 1)
         .then(() => {
-          assert.fail("Shouldn't be able to fetch issue in unauthorized private project");
+          assert.fail(
+            new TestError("Shouldn't be able to fetch issue in unauthorized private project")
+          );
         })
         .catch(err => {
-          if (err instanceof assert.AssertionError) {
+          if (err instanceof TestError) {
             throw err;
           }
 

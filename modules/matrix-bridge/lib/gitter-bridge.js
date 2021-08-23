@@ -432,7 +432,9 @@ class GitterBridge {
 
         const matrixDm = discoverMatrixDmUri(gitterRoom.lcUri);
         if (!matrixDm) {
-          return null;
+          // If it's not a DM, just throw the error that happened
+          // because we can't recover from that problem.
+          throw err;
         }
 
         logger.warn(

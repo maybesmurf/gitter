@@ -3,6 +3,7 @@
 const assert = require('assert');
 const sinon = require('sinon');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
+const TestError = require('gitter-web-test-utils/lib/test-error');
 const MatrixUtils = require('../lib/matrix-utils');
 const env = require('gitter-web-env');
 const config = env.config;
@@ -101,9 +102,13 @@ describe('matrix-utils', () => {
     it('creates Matrix room for a unbridged Gitter room', async () => {
       try {
         await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(fixture.troupePrivate1.id);
-        assert.fail('expected Matrix room creation to fail for private room');
+        assert.fail(new TestError('expected Matrix room creation to fail for private room'));
       } catch (err) {
-        assert(err);
+        if (err instanceof TestError) {
+          throw err;
+        }
+
+        assert.ok(err);
       }
     });
   });
@@ -145,8 +150,14 @@ describe('matrix-utils', () => {
     it('throws when Gitter user does not exist', async () => {
       try {
         await matrixUtils.getOrCreateMatrixUserByGitterUserId('does-not-exist-id');
-        assert.fail('expected error to be thrown because Gitter user does not exist');
+        assert.fail(
+          new TestError('expected error to be thrown because Gitter user does not exist')
+        );
       } catch (err) {
+        if (err instanceof TestError) {
+          throw err;
+        }
+
         assert.ok(err);
       }
     });
@@ -156,8 +167,14 @@ describe('matrix-utils', () => {
     it('throws when Gitter user does not exist', async () => {
       try {
         await matrixUtils.ensureCorrectMxidProfile(undefined, fixture.user1.id);
-        assert.fail('expected error to be thrown because Gitter user does not exist');
+        assert.fail(
+          new TestError('expected error to be thrown because Gitter user does not exist')
+        );
       } catch (err) {
+        if (err instanceof TestError) {
+          throw err;
+        }
+
         assert.ok(err);
       }
     });

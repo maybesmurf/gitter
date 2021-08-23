@@ -987,17 +987,12 @@ describe('gitter-bridge', () => {
           throw new Error('Failed to join room');
         };
 
-        try {
-          await gitterBridge.onDataChange({
-            type: 'user',
-            url: `/rooms/${fixture.troupe1.id}/users`,
-            operation: 'create',
-            model: { id: fixture.user1.id }
-          });
-          assert.fail('expected Matrix room join to fail because of our stub');
-        } catch (err) {
-          assert(err);
-        }
+        await gitterBridge.onDataChange({
+          type: 'user',
+          url: `/rooms/${fixture.troupe1.id}/users`,
+          operation: 'create',
+          model: { id: fixture.user1.id }
+        });
 
         // No room creation
         assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 0);
@@ -1017,17 +1012,12 @@ describe('gitter-bridge', () => {
           throw new Error('Failed to join room');
         };
 
-        try {
-          await gitterBridge.onDataChange({
-            type: 'user',
-            url: `/rooms/${newDmRoom._id}/users`,
-            operation: 'create',
-            model: { id: fixture.user1.id }
-          });
-          assert.fail('expected Matrix room join to fail because of our stub');
-        } catch (err) {
-          assert(err);
-        }
+        await gitterBridge.onDataChange({
+          type: 'user',
+          url: `/rooms/${newDmRoom._id}/users`,
+          operation: 'create',
+          model: { id: fixture.user1.id }
+        });
 
         // New DM room is created
         assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 1);
