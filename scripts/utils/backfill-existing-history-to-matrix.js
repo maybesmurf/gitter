@@ -27,6 +27,8 @@ const asToken = config.get('matrix:bridge:asToken');
 
 const matrixBridgeUserMxid = matrixUtils.getMxidForMatrixBridgeUser();
 
+const MSC2716_HISTORICAL_CONTENT_FIELD = 'org.matrix.msc2716.historical';
+
 const BATCH_SIZE = 100;
 
 const opts = require('yargs')
@@ -115,12 +117,12 @@ async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
   return joinEvents[0];
 }
 
-async function processBatchOfEvents(matrixRoomId, events, stateEvents) {
+async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents) {
   assert(matrixRoomId);
-  assert(events);
+  assert(eventEntries);
   assert(stateEvents);
 
-  debug(`Processing batch: ${events.length} events, ${stateEvents.length} stateEvents`);
+  debug(`Processing batch: ${eventEntries.length} events, ${stateEvents.length} stateEvents`);
 
   // We're looking for some primordial event at the beginning of the room
   // to hang all of the historical messages off of. We can't use the create event
@@ -138,7 +140,7 @@ async function processBatchOfEvents(matrixRoomId, events, stateEvents) {
       'Content-Type': 'application/json'
     },
     body: {
-      events: events,
+      events: eventEntries.map(tuple => tuple.matrixEvent),
       state_events_at_start: stateEvents
     }
   });
@@ -148,7 +150,20 @@ async function processBatchOfEvents(matrixRoomId, events, stateEvents) {
     throw new Error(`Batch send request failed ${res.statusCode}: ${JSON.stringify(res.body)}`);
   }
 
-  // TODO: Record all of the newly bridged messages
+  // Slice off the following meta events to just get the historical message:
+  // - insertion event ID for chunk at the start
+  // - chunk event ID (second to the end)
+  // - base insertion event ID (at the end)
+  const historicalMessages = res.body.events.slice(1, res.body.events.length - 2);
+
+  // Record all of the newly bridged messages
+  assert.strictEqual(historicalMessages.length, eventEntries.length);
+  for (let i = 0; i < eventEntries.length; i++) {
+    const matrixEventId = historicalMessages[i];
+    const gitterMessage = eventEntries[i].gitterMessage;
+
+    await matrixStore.storeBridgedMessage(gitterMessage, matrixRoomId, matrixEventId);
+  }
 }
 
 // eslint-disable-next-line max-statements
@@ -202,7 +217,7 @@ async function exec() {
 
   const chatMessageStreamIterable = iterableFromMongooseCursor(messageCursor);
 
-  let events = [];
+  let eventEntries = [];
   let stateEvents = [];
   let authorMap = {};
 
@@ -211,11 +226,11 @@ async function exec() {
     // Put the events in chronological order for the batch.
     // They are originally looped in ascending order to go from newest to oldest
     // which makes them reverse-chronological at first.
-    const chronologicalEvents = events.reverse();
-    await processBatchOfEvents(matrixRoomId, chronologicalEvents, stateEvents);
+    const chronologicalEntries = eventEntries.reverse();
+    await processBatchOfEvents(matrixRoomId, chronologicalEntries, stateEvents);
 
     // Reset the batch now that it was processed
-    events = [];
+    eventEntries = [];
     stateEvents = [];
     authorMap = {};
   };
@@ -226,14 +241,17 @@ async function exec() {
     );
 
     // Message event
-    events.push({
-      type: 'm.room.message',
-      sender: mxid,
-      origin_server_ts: new Date(message.sent).getTime(),
-      content: {
-        msgtype: 'm.text',
-        body: message.text,
-        MSC2716_HISTORICAL: true
+    eventEntries.push({
+      gitterMessage: message,
+      matrixEvent: {
+        type: 'm.room.message',
+        sender: mxid,
+        origin_server_ts: new Date(message.sent).getTime(),
+        content: {
+          msgtype: 'm.text',
+          body: message.text,
+          [MSC2716_HISTORICAL_CONTENT_FIELD]: true
+        }
       }
     });
 
@@ -249,7 +267,7 @@ async function exec() {
       stateEvents.push({
         type: 'm.room.member',
         sender: matrixBridgeUserMxid,
-        origin_server_ts: events[0].origin_server_ts,
+        origin_server_ts: eventEntries[0].matrixEvent.origin_server_ts,
         content: {
           membership: 'invite'
         },
@@ -260,7 +278,7 @@ async function exec() {
       stateEvents.push({
         type: 'm.room.member',
         sender: mxid,
-        origin_server_ts: events[0].origin_server_ts,
+        origin_server_ts: eventEntries[0].matrixEvent.origin_server_ts,
         content: {
           membership: 'join',
           // These aren't picked up by Element but still seems good practice to
@@ -275,7 +293,7 @@ async function exec() {
       authorMap[message.fromUserId] = true;
     }
 
-    if (events.length >= BATCH_SIZE) {
+    if (eventEntries.length >= BATCH_SIZE) {
       await _processBatch();
     }
   }
