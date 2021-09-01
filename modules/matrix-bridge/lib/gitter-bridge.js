@@ -15,7 +15,7 @@ const errorReporter = env.errorReporter;
 
 const store = require('./store');
 const MatrixUtils = require('./matrix-utils');
-const transformGitterTextIntoMatrixMessage = require('./transform-gitter-text-into-matrix-message');
+const generateMatrixContentFromGitterMessage = require('./generate-matrix-content-from-gitter-message');
 const checkIfDatesSame = require('./check-if-dates-same');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
@@ -238,21 +238,7 @@ class GitterBridge {
       mxid: matrixId
     });
 
-    const matrixCompatibleText = transformGitterTextIntoMatrixMessage(model.text, model);
-    const matrixCompatibleHtml = transformGitterTextIntoMatrixMessage(model.html, model);
-
-    let msgtype = 'm.text';
-    // Check whether it's a `/me` status message
-    if (model.status) {
-      msgtype = 'm.emote';
-    }
-
-    const matrixContent = {
-      body: matrixCompatibleText,
-      format: 'org.matrix.custom.html',
-      formatted_body: matrixCompatibleHtml,
-      msgtype
-    };
+    const matrixContent = generateMatrixContentFromGitterMessage(model);
 
     // Handle threaded conversations
     if (parentMatrixEventId) {

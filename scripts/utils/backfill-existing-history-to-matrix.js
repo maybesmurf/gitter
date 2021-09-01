@@ -19,6 +19,7 @@ const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
+const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge/lib/generate-matrix-content-from-gitter-message');
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
@@ -207,7 +208,10 @@ async function exec() {
     // Although we probably won't find any Matrix bridged messages in the old
     // chunk of messages we try to backfill, let's just be careful and not try
     // to re-bridge any previously bridged Matrix messages by accident.
-    virtualUser: { $exists: false }
+    virtualUser: { $exists: false },
+    // For our first pass, we only want to process the root messages in the room.
+    // We will get the threaded replies in another pass so they can reference the root.
+    parentId: { $exists: false }
   })
     .sort({ _id: 'desc' })
     .lean()
@@ -240,6 +244,9 @@ async function exec() {
       message.fromUserId
     );
 
+    const matrixContent = generateMatrixContentFromGitterMessage(message);
+    matrixContent[MSC2716_HISTORICAL_CONTENT_FIELD] = true;
+
     // Message event
     eventEntries.push({
       gitterMessage: message,
@@ -247,11 +254,7 @@ async function exec() {
         type: 'm.room.message',
         sender: mxid,
         origin_server_ts: new Date(message.sent).getTime(),
-        content: {
-          msgtype: 'm.text',
-          body: message.text,
-          [MSC2716_HISTORICAL_CONTENT_FIELD]: true
-        }
+        content: matrixContent
       }
     });
 
