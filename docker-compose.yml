@@ -30,6 +30,7 @@ services:
       - gitter-mongodb:/data/db2
     ports:
       - '27017:27017'
+
   mongo-express:
     image: mongo-express
     links:
@@ -57,7 +58,7 @@ services:
 
   synapse:
     container_name: 'synapse'
-    image: fe0f6b13f04f
+    image: 854ff40ef6cb
     restart: always
     ports:
       - '18008:8008'

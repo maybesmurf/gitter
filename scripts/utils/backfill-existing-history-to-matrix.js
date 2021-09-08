@@ -118,12 +118,14 @@ async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
   return joinEvents[0];
 }
 
-async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents) {
+async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, chunkId) {
   assert(matrixRoomId);
   assert(eventEntries);
   assert(stateEvents);
 
-  debug(`Processing batch: ${eventEntries.length} events, ${stateEvents.length} stateEvents`);
+  debug(
+    `Processing batch: ${eventEntries.length} events, ${stateEvents.length} stateEvents, chunkId=${chunkId}`
+  );
 
   // We're looking for some primordial event at the beginning of the room
   // to hang all of the historical messages off of. We can't use the create event
@@ -134,7 +136,9 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents) {
 
   const res = await request({
     method: 'POST',
-    uri: `${homeserverUrl}/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event=${bridgeJoinEvent.event_id}`,
+    uri: `${homeserverUrl}/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event=${
+      bridgeJoinEvent.event_id
+    }${chunkId ? `&chunk_id=${chunkId}` : ''}`,
     json: true,
     headers: {
       Authorization: `Bearer ${asToken}`,
@@ -151,11 +155,21 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents) {
     throw new Error(`Batch send request failed ${res.statusCode}: ${JSON.stringify(res.body)}`);
   }
 
+  const nextChunkId = res.body.next_chunk_id;
+
   // Slice off the following meta events to just get the historical message:
+  let historicalMessages;
+  // - insertion event ID for chunk at the start
+  // - chunk event ID (at the end)
+  if (chunkId) {
+    historicalMessages = res.body.events.slice(1, res.body.events.length - 1);
+  }
   // - insertion event ID for chunk at the start
   // - chunk event ID (second to the end)
   // - base insertion event ID (at the end)
-  const historicalMessages = res.body.events.slice(1, res.body.events.length - 2);
+  else {
+    historicalMessages = res.body.events.slice(1, res.body.events.length - 2);
+  }
 
   // Record all of the newly bridged messages
   assert.strictEqual(historicalMessages.length, eventEntries.length);
@@ -165,6 +179,8 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents) {
 
     await matrixStore.storeBridgedMessage(gitterMessage, matrixRoomId, matrixEventId);
   }
+
+  return nextChunkId;
 }
 
 // eslint-disable-next-line max-statements
@@ -224,6 +240,9 @@ async function exec() {
   let eventEntries = [];
   let stateEvents = [];
   let authorMap = {};
+  // TODO: We need to persist this somewhere so that if the import crashes for
+  // some reason, we can resume
+  let nextChunkId;
 
   // Just a small wrapper around processing that can process and reset
   const _processBatch = async function() {
@@ -231,7 +250,12 @@ async function exec() {
     // They are originally looped in ascending order to go from newest to oldest
     // which makes them reverse-chronological at first.
     const chronologicalEntries = eventEntries.reverse();
-    await processBatchOfEvents(matrixRoomId, chronologicalEntries, stateEvents);
+    nextChunkId = await processBatchOfEvents(
+      matrixRoomId,
+      chronologicalEntries,
+      stateEvents,
+      nextChunkId
+    );
 
     // Reset the batch now that it was processed
     eventEntries = [];
@@ -311,6 +335,6 @@ exec()
     shutdown.shutdownGracefully();
   })
   .catch(err => {
-    logger.error('Error occured while backfilling events:', err.stack);
+    logger.error('Error occurred while backfilling events:', err.stack);
     shutdown.shutdownGracefully();
   });
