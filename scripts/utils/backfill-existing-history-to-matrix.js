@@ -118,27 +118,22 @@ async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
   return joinEvents[0];
 }
 
-async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, chunkId) {
+async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, prevEventId, chunkId) {
   assert(matrixRoomId);
   assert(eventEntries);
   assert(stateEvents);
+  assert(prevEventId);
+  assert(chunkId);
 
   debug(
-    `Processing batch: ${eventEntries.length} events, ${stateEvents.length} stateEvents, chunkId=${chunkId}`
+    `Processing batch: ${eventEntries.length} events, ${stateEvents.length} stateEvents, prevEventId=${prevEventId}, chunkId=${chunkId}`
   );
-
-  // We're looking for some primordial event at the beginning of the room
-  // to hang all of the historical messages off of. We can't use the create event
-  // because it is before the application service joined the room.
-  // So we just use the first join event for the application service.
-  const bridgeJoinEvent = await getMatrixBridgeUserJoinEvent(matrixRoomId);
-  debug(`Found bridgeJoinEvent`, bridgeJoinEvent);
 
   const res = await request({
     method: 'POST',
-    uri: `${homeserverUrl}/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event=${
-      bridgeJoinEvent.event_id
-    }${chunkId ? `&chunk_id=${chunkId}` : ''}`,
+    uri: `${homeserverUrl}/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event=${prevEventId}${
+      chunkId ? `&chunk_id=${chunkId}` : ''
+    }`,
     json: true,
     headers: {
       Authorization: `Bearer ${asToken}`,
@@ -183,21 +178,11 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, chu
   return nextChunkId;
 }
 
-// eslint-disable-next-line max-statements
-async function exec() {
-  logger.info('Setting up Matrix bridge');
-  await installBridge();
-
-  const room = await troupeService.findByUri(opts.uri);
-  const roomId = room.id || room._id;
-
-  // TODO: Create bridged Matrix room when it hasn't been bridged before
-  const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(roomId);
-  debug(`Found matrixRoomId=${matrixRoomId} for given Gitter room ${room.uri} (${roomId})`);
-
-  // TODO: We can only backfill in rooms which we can control
-  // because we know the @gitter-badger:gitter.im is the room creator
-  // which is the only user who can backfill in existing room versions.
+// Import all non-threaded messages
+async function handleMainMessages(gitterRoom, matrixRoomId) {
+  assert(gitterRoom);
+  assert(matrixRoomId);
+  const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
   // Find the earliest-in-time message that we have already bridged,
   // ie. where we need to start backfilling from
@@ -217,10 +202,10 @@ async function exec() {
 
   debug(`firstBridgedMessageInRoom=${JSON.stringify(firstBridgedMessageIdInRoom)}`);
 
-  // Start the stream of messages where we left off
   const messageCursor = persistence.ChatMessage.find({
+    // Start the stream of messages where we left off
     _id: { $lt: firstBridgedMessageIdInRoom.gitterMessageId },
-    toTroupeId: roomId,
+    toTroupeId: gitterRoomId,
     // Although we probably won't find any Matrix bridged messages in the old
     // chunk of messages we try to backfill, let's just be careful and not try
     // to re-bridge any previously bridged Matrix messages by accident.
@@ -244,16 +229,24 @@ async function exec() {
   // some reason, we can resume
   let nextChunkId;
 
+  // We're looking for some primordial event at the beginning of the room
+  // to hang all of the historical messages off of. We can't use the create event
+  // because it is before the application service joined the room.
+  // So we just use the first join event for the application service.
+  const bridgeJoinEvent = await getMatrixBridgeUserJoinEvent(matrixRoomId);
+  debug(`Found bridgeJoinEvent`, bridgeJoinEvent);
+
   // Just a small wrapper around processing that can process and reset
   const _processBatch = async function() {
     // Put the events in chronological order for the batch.
-    // They are originally looped in ascending order to go from newest to oldest
+    // They are originally looped in descending order to go from newest to oldest
     // which makes them reverse-chronological at first.
     const chronologicalEntries = eventEntries.reverse();
     nextChunkId = await processBatchOfEvents(
       matrixRoomId,
       chronologicalEntries,
       stateEvents,
+      bridgeJoinEvent.event_id,
       nextChunkId
     );
 
@@ -327,6 +320,200 @@ async function exec() {
 
   // Process the remainder last batch
   await _processBatch();
+}
+
+// Import all threaded messages
+// eslint-disable-next-line max-statements
+async function handleThreadedMessages(gitterRoom, matrixRoomId) {
+  assert(gitterRoom);
+  assert(matrixRoomId);
+  const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+  const threadedParentCursor = persistence.ChatMessage.find({
+    // TODO: Start the stream of messages where we left off
+    // _id: ...
+    //
+    toTroupeId: gitterRoomId,
+    // Although we probably won't find any Matrix bridged messages in the old
+    // chunk of messages we try to backfill, let's just be careful and not try
+    // to re-bridge any previously bridged Matrix messages by accident.
+    virtualUser: { $exists: false },
+    // For our second pass, we only want to process threaded messages
+    // and first look for all thread parents to start from
+    threadMessageCount: { $exists: true }
+  })
+    .sort({ _id: 'desc' })
+    .lean()
+    .read(mongoReadPrefs.secondaryPreferred)
+    .batchSize(BATCH_SIZE)
+    .cursor();
+
+  const threadParentMessageStreamIterable = iterableFromMongooseCursor(threadedParentCursor);
+
+  let eventEntries = [];
+  let stateEvents = [];
+  let authorMap = {};
+  // TODO: We need to persist this somewhere so that if the import crashes for
+  // some reason, we can resume
+  let nextChunkId;
+
+  // Loop over all of the thread parents in the room
+  for await (let threadParent of threadParentMessageStreamIterable) {
+    const threadParentId = threadParent.id || threadParent._id;
+
+    const threadParentMatrixEventId = await matrixStore.getMatrixEventIdByGitterMessageId(
+      threadParentId
+    );
+    // We know that it should be on Matrix from the first pass,
+    // But just make sure the thread parent exists on Matrix.
+    assert(threadParentMatrixEventId);
+
+    // Just a small wrapper around processing that can process and reset
+    const _processBatch = async function() {
+      // Put the events in chronological order for the batch.
+      // They are originally looped in descending order to go from newest to oldest
+      // which makes them reverse-chronological at first.
+      const chronologicalEntries = eventEntries.reverse();
+      nextChunkId = await processBatchOfEvents(
+        matrixRoomId,
+        chronologicalEntries,
+        stateEvents,
+        threadParentMatrixEventId,
+        nextChunkId
+      );
+
+      // Reset the batch now that it was processed
+      eventEntries = [];
+      stateEvents = [];
+      authorMap = {};
+    };
+
+    const messagesInThread = persistence.ChatMessage.find({
+      toTroupeId: gitterRoomId,
+      // Although we probably won't find any Matrix bridged messages in the old
+      // chunk of messages we try to backfill, let's just be careful and not try
+      // to re-bridge any previously bridged Matrix messages by accident.
+      virtualUser: { $exists: false },
+      // Find messages in this thread
+      parentId: threadParentId
+    })
+      // Sorted newest -> oldest
+      .sort({ sent: 'desc' })
+      .limit(threadParent.threadMessageCount)
+      .lean()
+      .read(mongoReadPrefs.secondaryPreferred);
+
+    // Loop over all of the messages in this thread
+    for (let i = 0; i < messagesInThread.length; i++) {
+      const message = messagesInThread[i];
+      const messageId = message.id || message._id;
+
+      const existingMatrixEventId = matrixStore.getMatrixEventIdByGitterMessageId(messageId);
+
+      // If the message is already on Matrix, we don't need to process it
+      if (!existingMatrixEventId) {
+        const { mxid, avatar_url, displayname } = await getMatrixProfileFromGitterUserId(
+          message.fromUserId
+        );
+
+        const matrixContent = generateMatrixContentFromGitterMessage(message);
+        matrixContent[MSC2716_HISTORICAL_CONTENT_FIELD] = true;
+
+        const olderMessage = messagesInThread[i + 1];
+        if (olderMessage) {
+          matrixContent['m.relates_to'] = {
+            'm.in_reply_to': {
+              // TODO: Calculate event_id of previous in-flux message and add it to `m.relates_to`
+              //event_id: calculateEventId(previousMessage)
+            }
+          };
+        } else {
+          matrixContent['m.relates_to'] = {
+            'm.in_reply_to': {
+              event_id: threadParentMatrixEventId
+            }
+          };
+        }
+
+        // Message event
+        eventEntries.push({
+          gitterMessage: message,
+          matrixEvent: {
+            type: 'm.room.message',
+            sender: mxid,
+            origin_server_ts: new Date(message.sent).getTime(),
+            content: matrixContent
+          }
+        });
+
+        // deduplicate the authors
+        if (!authorMap[message.fromUserId]) {
+          // This join to the current room state is what causes Element to actually
+          // pick up avatars/displaynames. The floating outlier join event below
+          // does not get picked up.
+          const intent = matrixBridge.getIntent(mxid);
+          await intent.join(matrixRoomId);
+
+          // Invite event
+          stateEvents.push({
+            type: 'm.room.member',
+            sender: matrixBridgeUserMxid,
+            origin_server_ts: eventEntries[0].matrixEvent.origin_server_ts,
+            content: {
+              membership: 'invite'
+            },
+            state_key: mxid
+          });
+
+          // Join event
+          stateEvents.push({
+            type: 'm.room.member',
+            sender: mxid,
+            origin_server_ts: eventEntries[0].matrixEvent.origin_server_ts,
+            content: {
+              membership: 'join',
+              // These aren't picked up by Element but still seems good practice to
+              // have them in place for other clients/homeservers
+              avatar_url: avatar_url,
+              displayname: displayname
+            },
+            state_key: mxid
+          });
+
+          // Mark this author off
+          authorMap[message.fromUserId] = true;
+        }
+      }
+
+      if (eventEntries.length >= BATCH_SIZE) {
+        await _processBatch();
+      }
+    }
+
+    // Process the remainder last batch
+    await _processBatch();
+  }
+}
+
+// eslint-disable-next-line max-statements
+async function exec() {
+  logger.info('Setting up Matrix bridge');
+  await installBridge();
+
+  const gitterRoom = await troupeService.findByUri(opts.uri);
+  const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+  const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+  debug(
+    `Found matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
+  );
+
+  // TODO: We can only backfill in rooms which we can control
+  // because we know the @gitter-badger:gitter.im is the room creator
+  // which is the only user who can backfill in existing room versions.
+
+  await handleMainMessages(gitterRoom, matrixRoomId);
+  await handleThreadedMessages(gitterRoom, matrixRoomId);
 }
 
 exec()
