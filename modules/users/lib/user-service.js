@@ -254,7 +254,7 @@ var userService = {
     }
 
     const usersFromEmail = await persistence.User.find({
-      $or: [{ email: email.toLowerCase() }, { emails: email.toLowerCase() }]
+      emails: email.toLowerCase()
     }).exec();
 
     // Remove the duplicates
