@@ -123,7 +123,6 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
   assert(eventEntries);
   assert(stateEvents);
   assert(prevEventId);
-  assert(chunkId);
 
   debug(
     `Processing batch: ${eventEntries.length} events, ${stateEvents.length} stateEvents, prevEventId=${prevEventId}, chunkId=${chunkId}`
@@ -178,7 +177,6 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
   return nextChunkId;
 }
 
-// Import all non-threaded messages
 async function handleMainMessages(gitterRoom, matrixRoomId) {
   assert(gitterRoom);
   assert(matrixRoomId);
@@ -209,10 +207,7 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
     // Although we probably won't find any Matrix bridged messages in the old
     // chunk of messages we try to backfill, let's just be careful and not try
     // to re-bridge any previously bridged Matrix messages by accident.
-    virtualUser: { $exists: false },
-    // For our first pass, we only want to process the root messages in the room.
-    // We will get the threaded replies in another pass so they can reference the root.
-    parentId: { $exists: false }
+    virtualUser: { $exists: false }
   })
     .sort({ _id: 'desc' })
     .lean()
@@ -280,8 +275,8 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
       // This join to the current room state is what causes Element to actually
       // pick up avatars/displaynames. The floating outlier join event below
       // does not get picked up.
-      const intent = matrixBridge.getIntent(mxid);
-      await intent.join(matrixRoomId);
+      // const intent = matrixBridge.getIntent(mxid);
+      // await intent.join(matrixRoomId);
 
       // Invite event
       stateEvents.push({
@@ -322,179 +317,6 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
   await _processBatch();
 }
 
-// Import all threaded messages
-// eslint-disable-next-line max-statements
-async function handleThreadedMessages(gitterRoom, matrixRoomId) {
-  assert(gitterRoom);
-  assert(matrixRoomId);
-  const gitterRoomId = gitterRoom.id || gitterRoom._id;
-
-  const threadedParentCursor = persistence.ChatMessage.find({
-    // TODO: Start the stream of messages where we left off
-    // _id: ...
-    //
-    toTroupeId: gitterRoomId,
-    // Although we probably won't find any Matrix bridged messages in the old
-    // chunk of messages we try to backfill, let's just be careful and not try
-    // to re-bridge any previously bridged Matrix messages by accident.
-    virtualUser: { $exists: false },
-    // For our second pass, we only want to process threaded messages
-    // and first look for all thread parents to start from
-    threadMessageCount: { $exists: true }
-  })
-    .sort({ _id: 'desc' })
-    .lean()
-    .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(BATCH_SIZE)
-    .cursor();
-
-  const threadParentMessageStreamIterable = iterableFromMongooseCursor(threadedParentCursor);
-
-  let eventEntries = [];
-  let stateEvents = [];
-  let authorMap = {};
-  // TODO: We need to persist this somewhere so that if the import crashes for
-  // some reason, we can resume
-  let nextChunkId;
-
-  // Loop over all of the thread parents in the room
-  for await (let threadParent of threadParentMessageStreamIterable) {
-    const threadParentId = threadParent.id || threadParent._id;
-
-    const threadParentMatrixEventId = await matrixStore.getMatrixEventIdByGitterMessageId(
-      threadParentId
-    );
-    // We know that it should be on Matrix from the first pass,
-    // But just make sure the thread parent exists on Matrix.
-    assert(threadParentMatrixEventId);
-
-    // Just a small wrapper around processing that can process and reset
-    const _processBatch = async function() {
-      // Put the events in chronological order for the batch.
-      // They are originally looped in descending order to go from newest to oldest
-      // which makes them reverse-chronological at first.
-      const chronologicalEntries = eventEntries.reverse();
-      nextChunkId = await processBatchOfEvents(
-        matrixRoomId,
-        chronologicalEntries,
-        stateEvents,
-        threadParentMatrixEventId,
-        nextChunkId
-      );
-
-      // Reset the batch now that it was processed
-      eventEntries = [];
-      stateEvents = [];
-      authorMap = {};
-    };
-
-    const messagesInThread = persistence.ChatMessage.find({
-      toTroupeId: gitterRoomId,
-      // Although we probably won't find any Matrix bridged messages in the old
-      // chunk of messages we try to backfill, let's just be careful and not try
-      // to re-bridge any previously bridged Matrix messages by accident.
-      virtualUser: { $exists: false },
-      // Find messages in this thread
-      parentId: threadParentId
-    })
-      // Sorted newest -> oldest
-      .sort({ sent: 'desc' })
-      .limit(threadParent.threadMessageCount)
-      .lean()
-      .read(mongoReadPrefs.secondaryPreferred);
-
-    // Loop over all of the messages in this thread
-    for (let i = 0; i < messagesInThread.length; i++) {
-      const message = messagesInThread[i];
-      const messageId = message.id || message._id;
-
-      const existingMatrixEventId = matrixStore.getMatrixEventIdByGitterMessageId(messageId);
-
-      // If the message is already on Matrix, we don't need to process it
-      if (!existingMatrixEventId) {
-        const { mxid, avatar_url, displayname } = await getMatrixProfileFromGitterUserId(
-          message.fromUserId
-        );
-
-        const matrixContent = generateMatrixContentFromGitterMessage(message);
-        matrixContent[MSC2716_HISTORICAL_CONTENT_FIELD] = true;
-
-        const olderMessage = messagesInThread[i + 1];
-        if (olderMessage) {
-          matrixContent['m.relates_to'] = {
-            'm.in_reply_to': {
-              // TODO: Calculate event_id of previous in-flux message and add it to `m.relates_to`
-              //event_id: calculateEventId(previousMessage)
-            }
-          };
-        } else {
-          matrixContent['m.relates_to'] = {
-            'm.in_reply_to': {
-              event_id: threadParentMatrixEventId
-            }
-          };
-        }
-
-        // Message event
-        eventEntries.push({
-          gitterMessage: message,
-          matrixEvent: {
-            type: 'm.room.message',
-            sender: mxid,
-            origin_server_ts: new Date(message.sent).getTime(),
-            content: matrixContent
-          }
-        });
-
-        // deduplicate the authors
-        if (!authorMap[message.fromUserId]) {
-          // This join to the current room state is what causes Element to actually
-          // pick up avatars/displaynames. The floating outlier join event below
-          // does not get picked up.
-          const intent = matrixBridge.getIntent(mxid);
-          await intent.join(matrixRoomId);
-
-          // Invite event
-          stateEvents.push({
-            type: 'm.room.member',
-            sender: matrixBridgeUserMxid,
-            origin_server_ts: eventEntries[0].matrixEvent.origin_server_ts,
-            content: {
-              membership: 'invite'
-            },
-            state_key: mxid
-          });
-
-          // Join event
-          stateEvents.push({
-            type: 'm.room.member',
-            sender: mxid,
-            origin_server_ts: eventEntries[0].matrixEvent.origin_server_ts,
-            content: {
-              membership: 'join',
-              // These aren't picked up by Element but still seems good practice to
-              // have them in place for other clients/homeservers
-              avatar_url: avatar_url,
-              displayname: displayname
-            },
-            state_key: mxid
-          });
-
-          // Mark this author off
-          authorMap[message.fromUserId] = true;
-        }
-      }
-
-      if (eventEntries.length >= BATCH_SIZE) {
-        await _processBatch();
-      }
-    }
-
-    // Process the remainder last batch
-    await _processBatch();
-  }
-}
-
 // eslint-disable-next-line max-statements
 async function exec() {
   logger.info('Setting up Matrix bridge');
@@ -513,7 +335,6 @@ async function exec() {
   // which is the only user who can backfill in existing room versions.
 
   await handleMainMessages(gitterRoom, matrixRoomId);
-  await handleThreadedMessages(gitterRoom, matrixRoomId);
 }
 
 exec()
