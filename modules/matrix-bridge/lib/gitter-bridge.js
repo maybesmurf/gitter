@@ -388,7 +388,7 @@ class GitterBridge {
       senderIntent = intent;
     }
 
-    await senderIntent.getClient().redactEvent(matrixRoomId, matrixEventId);
+    await senderIntent.matrixClient.redactEvent(matrixRoomId, matrixEventId);
 
     return null;
   }

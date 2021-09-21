@@ -45,7 +45,7 @@ describe('matrix-utils', () => {
     };
 
     const intentSpies = {
-      getClient: () => clientSpies,
+      matrixClient: clientSpies,
       getStateEvent: sinon.spy(),
       sendStateEvent: sinon.spy(),
       sendMessage: sinon.spy(() => ({

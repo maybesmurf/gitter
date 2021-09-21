@@ -388,7 +388,7 @@ class MatrixEventHandler {
         externalId,
         displayName,
         avatarUrl: profile.avatar_url
-          ? intent.getClient().mxcUrlToHttp(profile.avatar_url)
+          ? intent.matrixClient.mxcUrlToHttp(profile.avatar_url)
           : undefined
       },
       text: resultantText,

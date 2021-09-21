@@ -48,9 +48,9 @@ describe('matrix-event-handler', () => {
       }),
       setDisplayName: () => {},
       setAvatarUrl: () => {},
-      getClient: (/*avatarUrl*/) => ({
+      matrixClient: {
         mxcUrlToHttp: () => 'myavatar.png'
-      }),
+      },
       sendMessage: sinon.spy()
     };
 
