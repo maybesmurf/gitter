@@ -99,9 +99,10 @@ class MatrixUtils {
       return newRoom.room_id;
     } catch (err) {
       if (
-        err.errcode === 'M_NOT_FOUND' ||
-        err.errcode === 'M_UNAUTHORIZED' ||
-        err.errcode === 'M_UNKNOWN'
+        err.body &&
+        (err.body.errcode === 'M_NOT_FOUND' ||
+          err.body.errcode === 'M_UNAUTHORIZED' ||
+          err.body.errcode === 'M_UNKNOWN')
       ) {
         throw new StatusError(
           404,
