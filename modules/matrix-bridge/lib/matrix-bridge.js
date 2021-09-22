@@ -9,10 +9,6 @@ const logger = env.logger.get('matrix-bridge');
 const stats = env.stats;
 const errorReporter = env.errorReporter;
 
-// TODO: Remove, used to debug the Matrix client status codes
-const { LogLevel, LogService } = require('matrix-bot-sdk');
-LogService.setLevel(LogLevel.TRACE);
-
 const MatrixEventHandler = require('./matrix-event-handler');
 
 Logging.configure({ level: 'warn' });
