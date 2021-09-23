@@ -7,8 +7,8 @@ const env = require('gitter-web-env');
 const config = env.config;
 
 const parseGitterMxid = require('./parse-gitter-mxid');
+const mxcUrlToHttp = require('./mxc-url-to-http');
 
-const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
 const configuredServerName = config.get('matrix:bridge:serverName');
 
 const PILL_REGEX = /<a href="https:\/\/matrix\.to\/#\/(#|@|\+)([^"]+)">([^<]+)<\/a>/g;
@@ -122,13 +122,6 @@ function stripReplyQuote(content) {
     .splice(splitLineIndex)
     .join('\n')
     .trim();
-}
-
-// Based off of https://github.com/matrix-org/matrix-bifrost/blob/c7161dd998c4fe968dba4d5da668dc914248f260/src/MessageFormatter.ts#L45-L60
-function mxcUrlToHttp(mxcUrl) {
-  const uriBits = mxcUrl.substr('mxc://'.length).split('/');
-  const url = homeserverUrl.replace(/\/$/, '');
-  return `${url}/_matrix/media/v1/download/${uriBits[0]}/${uriBits[1]}`;
 }
 
 function handleFileUpload(content) {
