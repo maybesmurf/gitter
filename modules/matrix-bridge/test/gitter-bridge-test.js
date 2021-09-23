@@ -24,14 +24,14 @@ describe('gitter-bridge', () => {
   beforeEach(() => {
     const clientSpies = {
       redactEvent: sinon.spy(),
-      getRoomIdForAlias: sinon.spy(),
-      deleteAlias: sinon.spy(),
-      getRoomDirectoryVisibility: sinon.spy(),
-      setRoomDirectoryVisibility: sinon.spy()
+      resolveRoom: sinon.spy(),
+      deleteRoomAlias: sinon.spy(),
+      getDirectoryVisibility: sinon.spy(),
+      setDirectoryVisibility: sinon.spy()
     };
 
     const intentSpies = {
-      getClient: () => clientSpies,
+      matrixClient: clientSpies,
       getStateEvent: sinon.spy(),
       sendStateEvent: sinon.spy(),
       getEvent: sinon.spy(() => ({
@@ -50,8 +50,6 @@ describe('gitter-bridge', () => {
       setDisplayName: sinon.spy(),
       uploadContent: sinon.spy(),
       setAvatarUrl: sinon.spy(),
-      getRoomDirectoryVisibility: sinon.spy(),
-      setRoomDirectoryVisibility: sinon.spy(),
       invite: sinon.spy(),
       join: sinon.spy(),
       leave: sinon.spy()
@@ -761,12 +759,9 @@ describe('gitter-bridge', () => {
         });
 
         // Message remove is sent off to Matrix
-        assert.strictEqual(matrixBridge.getIntent().getClient().redactEvent.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 1);
         assert.deepEqual(
-          matrixBridge
-            .getIntent()
-            .getClient()
-            .redactEvent.getCall(0).args[1],
+          matrixBridge.getIntent().matrixClient.redactEvent.getCall(0).args[1],
           matrixMessageEventId
         );
       });
@@ -785,7 +780,7 @@ describe('gitter-bridge', () => {
         });
 
         // Message remove is ignored if there isn't an associated bridge message
-        assert.strictEqual(matrixBridge.getIntent().getClient().redactEvent.callCount, 0);
+        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 0);
       });
 
       it('private room is not bridged', async () => {
@@ -805,7 +800,7 @@ describe('gitter-bridge', () => {
         });
 
         // Message remove is ignored in private rooms
-        assert.strictEqual(matrixBridge.getIntent().getClient().redactEvent.callCount, 0);
+        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 0);
       });
 
       it('when the Matrix API call to lookup the message author fails(`intent.getEvent()`), still deletes the message (using bridge user)', async () => {
@@ -826,12 +821,9 @@ describe('gitter-bridge', () => {
         });
 
         // Message remove is sent off to Matrix
-        assert.strictEqual(matrixBridge.getIntent().getClient().redactEvent.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 1);
         assert.deepEqual(
-          matrixBridge
-            .getIntent()
-            .getClient()
-            .redactEvent.getCall(0).args[1],
+          matrixBridge.getIntent().matrixClient.redactEvent.getCall(0).args[1],
           matrixMessageEventId
         );
       });
