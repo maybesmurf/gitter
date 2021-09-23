@@ -147,18 +147,18 @@ class MatrixUtils {
     const bridgeIntent = this.matrixBridge.getIntent();
 
     let isAliasAlreadySet = false;
-    let currentAliasedRoom;
+    let currentAliasedRoomId;
     try {
-      currentAliasedRoom = await bridgeIntent.matrixClient.getRoomIdForAlias(alias);
+      currentAliasedRoomId = await bridgeIntent.matrixClient.resolveRoom(alias);
     } catch (err) {
       // no-op
     }
 
-    if (currentAliasedRoom && currentAliasedRoom.room_id === matrixRoomId) {
+    if (currentAliasedRoomId === matrixRoomId) {
       isAliasAlreadySet = true;
-    } else if (currentAliasedRoom) {
+    } else if (currentAliasedRoomId) {
       // Delete the alias from the other room
-      await bridgeIntent.matrixClient.deleteAlias(alias);
+      await bridgeIntent.matrixClient.deleteRoomAlias(alias);
     }
 
     debug(`ensureRoomAlias(${matrixRoomId}, ${alias}) isAliasAlreadySet=${isAliasAlreadySet}`);
@@ -226,11 +226,11 @@ class MatrixUtils {
       topic: gitterRoom.topic
     });
 
-    const roomDirectoryVisibility = await bridgeIntent.matrixClient.getRoomDirectoryVisibility(
+    const roomDirectoryVisibility = await bridgeIntent.matrixClient.getDirectoryVisibility(
       matrixRoomId
     );
     if (roomDirectoryVisibility !== 'public') {
-      await bridgeIntent.setRoomDirectoryVisibility(matrixRoomId, 'public');
+      await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'public');
     }
     await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
       history_visibility: 'world_readable'

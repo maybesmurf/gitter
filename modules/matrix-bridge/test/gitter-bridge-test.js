@@ -24,10 +24,10 @@ describe('gitter-bridge', () => {
   beforeEach(() => {
     const clientSpies = {
       redactEvent: sinon.spy(),
-      getRoomIdForAlias: sinon.spy(),
-      deleteAlias: sinon.spy(),
-      getRoomDirectoryVisibility: sinon.spy(),
-      setRoomDirectoryVisibility: sinon.spy()
+      resolveRoom: sinon.spy(),
+      deleteRoomAlias: sinon.spy(),
+      getDirectoryVisibility: sinon.spy(),
+      setDirectoryVisibility: sinon.spy()
     };
 
     const intentSpies = {
@@ -50,8 +50,6 @@ describe('gitter-bridge', () => {
       setDisplayName: sinon.spy(),
       uploadContent: sinon.spy(),
       setAvatarUrl: sinon.spy(),
-      getRoomDirectoryVisibility: sinon.spy(),
-      setRoomDirectoryVisibility: sinon.spy(),
       invite: sinon.spy(),
       join: sinon.spy(),
       leave: sinon.spy()
