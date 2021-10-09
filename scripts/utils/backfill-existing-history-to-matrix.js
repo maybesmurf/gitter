@@ -2,6 +2,7 @@
 'use strict';
 
 const assert = require('assert');
+const { performance, PerformanceObserver } = require('perf_hooks');
 const shutdown = require('shutdown');
 const Promise = require('bluebird');
 const request = Promise.promisify(require('request'));
@@ -31,6 +32,11 @@ const matrixBridgeUserMxid = matrixUtils.getMxidForMatrixBridgeUser();
 const MSC2716_HISTORICAL_CONTENT_FIELD = 'org.matrix.msc2716.historical';
 
 const BATCH_SIZE = 100;
+
+const observer = new PerformanceObserver(list =>
+  list.getEntries().forEach(entry => debug(`${entry.name} took ${entry.duration / 1000}s`))
+);
+observer.observe({ buffered: true, entryTypes: ['measure'] });
 
 const opts = require('yargs')
   .option('uri', {
@@ -128,6 +134,7 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
     `Processing batch: ${eventEntries.length} events, ${stateEvents.length} stateEvents, prevEventId=${prevEventId}, batchId=${batchId}`
   );
 
+  performance.mark('batchSendStart');
   const res = await request({
     method: 'POST',
     uri: `${homeserverUrl}/_matrix/client/unstable/org.matrix.msc2716/rooms/${matrixRoomId}/batch_send?prev_event_id=${prevEventId}${
@@ -143,8 +150,11 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
       state_events_at_start: stateEvents
     }
   });
+  performance.mark('batchSendEnd');
 
-  logger.info('batch res', res.statusCode, res.body);
+  performance.measure('measure /batch_send request time', 'batchSendStart', 'batchSendEnd');
+
+  logger.info(`batch res`, res.statusCode, res.body);
   if (res.statusCode !== 200) {
     throw new Error(`Batch send request failed ${res.statusCode}: ${JSON.stringify(res.body)}`);
   }
@@ -164,6 +174,7 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
   return nextBatchId;
 }
 
+// eslint-disable-next-line max-statements
 async function handleMainMessages(gitterRoom, matrixRoomId) {
   assert(gitterRoom);
   assert(matrixRoomId);
@@ -219,7 +230,16 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
   debug(`Found bridgeJoinEvent`, bridgeJoinEvent);
 
   // Just a small wrapper around processing that can process and reset
+  let batchCount = 0;
   const _processBatch = async function() {
+    performance.mark(`batchAssembleEnd${batchCount}`);
+
+    performance.measure(
+      'measure batch assembly',
+      `batchAssembleStart${batchCount}`,
+      `batchAssembleEnd${batchCount}`
+    );
+
     // Put the events in chronological order for the batch.
     // They are originally looped in descending order to go from newest to oldest
     // which makes them reverse-chronological at first.
@@ -236,8 +256,13 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
     eventEntries = [];
     stateEvents = [];
     authorMap = {};
+    // Increment the batch count
+    batchCount += 1;
+
+    performance.mark(`batchAssembleStart${batchCount}`);
   };
 
+  performance.mark(`batchAssembleStart${batchCount}`);
   for await (let message of chatMessageStreamIterable) {
     const { mxid, avatar_url, displayname } = await getMatrixProfileFromGitterUserId(
       message.fromUserId
