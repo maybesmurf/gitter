@@ -99,9 +99,10 @@ class MatrixUtils {
       return newRoom.room_id;
     } catch (err) {
       if (
-        err.errcode === 'M_NOT_FOUND' ||
-        err.errcode === 'M_UNAUTHORIZED' ||
-        err.errcode === 'M_UNKNOWN'
+        err.body &&
+        (err.body.errcode === 'M_NOT_FOUND' ||
+          err.body.errcode === 'M_UNAUTHORIZED' ||
+          err.body.errcode === 'M_UNKNOWN')
       ) {
         throw new StatusError(
           404,
@@ -146,18 +147,18 @@ class MatrixUtils {
     const bridgeIntent = this.matrixBridge.getIntent();
 
     let isAliasAlreadySet = false;
-    let currentAliasedRoom;
+    let currentAliasedRoomId;
     try {
-      currentAliasedRoom = await bridgeIntent.getClient().getRoomIdForAlias(alias);
+      currentAliasedRoomId = await bridgeIntent.matrixClient.resolveRoom(alias);
     } catch (err) {
       // no-op
     }
 
-    if (currentAliasedRoom && currentAliasedRoom.room_id === matrixRoomId) {
+    if (currentAliasedRoomId === matrixRoomId) {
       isAliasAlreadySet = true;
-    } else if (currentAliasedRoom) {
+    } else if (currentAliasedRoomId) {
       // Delete the alias from the other room
-      await bridgeIntent.getClient().deleteAlias(alias);
+      await bridgeIntent.matrixClient.deleteRoomAlias(alias);
     }
 
     debug(`ensureRoomAlias(${matrixRoomId}, ${alias}) isAliasAlreadySet=${isAliasAlreadySet}`);
@@ -225,11 +226,11 @@ class MatrixUtils {
       topic: gitterRoom.topic
     });
 
-    const roomDirectoryVisibility = await bridgeIntent
-      .getClient()
-      .getRoomDirectoryVisibility(matrixRoomId);
+    const roomDirectoryVisibility = await bridgeIntent.matrixClient.getDirectoryVisibility(
+      matrixRoomId
+    );
     if (roomDirectoryVisibility !== 'public') {
-      await bridgeIntent.getClient().setRoomDirectoryVisibility(matrixRoomId, 'public');
+      await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'public');
     }
     await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
       history_visibility: 'world_readable'

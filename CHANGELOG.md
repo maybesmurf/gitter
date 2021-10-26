@@ -1,8 +1,19 @@
-# 21.42.0 - *upcoming*
+# 21.43.0 - 2021-09-23
+
+Developer facing:
+
+ - Major upgrade to `matrix-appservice-bridge@3.x`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2245
+
+
+# 21.42.0 - 2021-08-19
+
+ - Always show "Reply in thread" (instead of switching between "Start a Thread") to make the language consistent and recognizable, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2244
+    - Thanks to [@bradcray](https://gitlab.com/bradcray) for the contribution
 
 Developer facing:
 
  - Actually fail tests when function in question does not throw error as expected, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2238
+ - Fix `MongoError: No query solutions` in tests for `userService.findAllByEmail`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2246
 
 
 # 21.41.0 - 2021-08-04
@@ -12,6 +23,7 @@ Developer facing:
  - Add some automation to unsubscribing users that send spam complaints,
    - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2240
    - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2243
+   - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2242
 
 
 # 21.40.0 - 2021-08-02

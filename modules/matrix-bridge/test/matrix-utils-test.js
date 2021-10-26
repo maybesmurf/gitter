@@ -38,14 +38,14 @@ describe('matrix-utils', () => {
   let matrixBridge;
   beforeEach(() => {
     const clientSpies = {
-      getRoomIdForAlias: sinon.spy(),
-      deleteAlias: sinon.spy(),
-      getRoomDirectoryVisibility: sinon.spy(),
-      setRoomDirectoryVisibility: sinon.spy()
+      resolveRoom: sinon.spy(),
+      deleteRoomAlias: sinon.spy(),
+      getDirectoryVisibility: sinon.spy(),
+      setDirectoryVisibility: sinon.spy()
     };
 
     const intentSpies = {
-      getClient: () => clientSpies,
+      matrixClient: clientSpies,
       getStateEvent: sinon.spy(),
       sendStateEvent: sinon.spy(),
       sendMessage: sinon.spy(() => ({
@@ -59,9 +59,7 @@ describe('matrix-utils', () => {
       setRoomAvatar: sinon.spy(),
       setDisplayName: sinon.spy(),
       uploadContent: sinon.spy(() => 'mxc://12345'),
-      setAvatarUrl: sinon.spy(),
-      getRoomDirectoryVisibility: sinon.spy(),
-      setRoomDirectoryVisibility: sinon.spy()
+      setAvatarUrl: sinon.spy()
     };
 
     matrixBridge = {

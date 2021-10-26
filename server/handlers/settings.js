@@ -6,7 +6,6 @@ var stats = env.stats;
 var config = env.config;
 
 var express = require('express');
-var crypto = require('crypto');
 var request = require('request');
 var StatusError = require('statuserror');
 var jwt = require('jwt-simple');
@@ -21,14 +20,13 @@ var fonts = require('../web/fonts');
 var acceptInviteService = require('../services/accept-invite-service');
 var loginUtils = require('../web/login-utils');
 var resolveRoomUri = require('../utils/resolve-room-uri');
+const unsubscribeHashes = require('gitter-web-email-notifications/lib/unsubscribe-hashes');
 
 var identifyRoute = env.middlewares.identifyRoute;
 var ensureLoggedIn = require('../web/middlewares/ensure-logged-in');
 var uriContextResolverMiddleware = require('./uri-context/uri-context-resolver-middleware');
 var preventClickjackingMiddleware = require('../web/middlewares/prevent-clickjacking');
 var preventClickjackingOnlyGitterEmbedMiddleware = require('../web/middlewares/prevent-clickjacking-only-gitter-embed');
-
-var passphrase = config.get('email:unsubscribeNotificationsSecret');
 
 var supportedServices = [
   { id: 'github', name: 'GitHub' },
@@ -253,17 +251,13 @@ router.get(
   identifyRoute('settings-unsubscribe'),
   preventClickjackingMiddleware,
   function(req, res, next) {
-    var plaintext;
+    let userId;
+    let notificationType;
     try {
-      var decipher = crypto.createDecipher('aes256', passphrase);
-      plaintext = decipher.update(req.params.hash, 'hex', 'utf8') + decipher.final('utf8');
+      ({ userId, notificationType } = unsubscribeHashes.decipherHash(req.params.hash));
     } catch (err) {
       return next(new StatusError(400, 'Invalid hash'));
     }
-
-    var parts = plaintext.split(',');
-    var userId = parts[0];
-    var notificationType = parts[1];
 
     debug('User %s opted-out from ', userId, notificationType);
     stats.event('unsubscribed_unread_notifications', { userId: userId });

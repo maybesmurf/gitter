@@ -20,6 +20,7 @@ const GitterUtils = require('./gitter-utils');
 const parseGitterMxid = require('./parse-gitter-mxid');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
+const mxcUrlToHttp = require('./mxc-url-to-http');
 
 // 30 minutes in milliseconds
 const MAX_EVENT_ACCEPTANCE_WINDOW = 1000 * 60 * 30;
@@ -387,9 +388,7 @@ class MatrixEventHandler {
         type: 'matrix',
         externalId,
         displayName,
-        avatarUrl: profile.avatar_url
-          ? intent.getClient().mxcUrlToHttp(profile.avatar_url)
-          : undefined
+        avatarUrl: profile.avatar_url ? mxcUrlToHttp(profile.avatar_url) : undefined
       },
       text: resultantText,
       status: isStatusMessage
