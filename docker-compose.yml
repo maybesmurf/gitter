@@ -67,9 +67,9 @@ services:
       - './scripts/docker/matrix/synapse/data/:/data/'
     entrypoint: ['/start.py']
 
-  riot:
-    container_name: 'riot'
-    image: 'vectorim/riot-web:v1.7.8'
+  element:
+    container_name: 'gitter-element'
+    image: 'vectorim/element-web:v1.9.3'
     restart: 'unless-stopped'
     ports:
       - '18010:80'
