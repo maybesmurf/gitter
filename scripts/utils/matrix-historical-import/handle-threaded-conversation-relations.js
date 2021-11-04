@@ -11,6 +11,7 @@ const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge/lib/generate-matrix-content-from-gitter-message');
 const { MSC2716_HISTORICAL_CONTENT_FIELD } = require('./constants');
+assert(MSC2716_HISTORICAL_CONTENT_FIELD);
 const getMatrixProfileFromGitterUserId = require('./get-matrix-profile-from-gitter-user-id');
 
 const BATCH_SIZE = 100;
@@ -28,10 +29,10 @@ async function processBatchOfEvents(matrixRoomId, eventEntries) {
     const { event_id } = await intent.sendMessage(matrixRoomId, matrixContent);
 
     // Store the message so we can reference it in edits and threads/replies
-    debug(
-      `Storing bridged message (Gitter message id=${eventEntry.gitterMessage.id} -> Matrix matrixRoomId=${matrixRoomId} event_id=${event_id})`
-    );
-    await matrixStore.storeBridgedMessage(eventEntry.gitterMessage, matrixRoomId, event_id);
+    // debug(
+    //   `Storing bridged message (Gitter message id=${eventEntry.gitterMessage.id} -> Matrix matrixRoomId=${matrixRoomId} event_id=${event_id})`
+    // );
+    // await matrixStore.storeBridgedMessage(eventEntry.gitterMessage, matrixRoomId, event_id);
   }
 }
 
@@ -108,12 +109,12 @@ async function handleThreadedConversationRelations(gitterRoom, matrixRoomId) {
                 event_id: parentMatrixEventId
               }
             }
+          },
+          // This points to the existing Matrix event we want to edit/replace
+          'm.relates_to': {
+            event_id: existingMatrixEventId,
+            rel_type: 'm.replace'
           }
-        },
-        // This points to the existing Matrix event we want to edit/replace
-        'm.relates_to': {
-          event_id: existingMatrixEventId,
-          rel_type: 'm.replace'
         }
       }
     });
@@ -122,6 +123,9 @@ async function handleThreadedConversationRelations(gitterRoom, matrixRoomId) {
       await _processBatch();
     }
   }
+
+  // Process the remainder last batch
+  await _processBatch();
 }
 
 module.exports = handleThreadedConversationRelations;

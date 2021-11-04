@@ -16,6 +16,7 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const processBatchOfEvents = require('./process-batch-of-events');
 const getMatrixProfileFromGitterUserId = require('./get-matrix-profile-from-gitter-user-id');
 const { MSC2716_HISTORICAL_CONTENT_FIELD } = require('./constants');
+assert(MSC2716_HISTORICAL_CONTENT_FIELD);
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 

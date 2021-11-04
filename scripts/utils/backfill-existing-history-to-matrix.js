@@ -11,6 +11,7 @@ const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const handleMainMessages = require('./matrix-historical-import/handle-main-messages');
+const handleThreadedConversationRelations = require('./matrix-historical-import/handle-threaded-conversation-relations');
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
