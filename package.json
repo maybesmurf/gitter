@@ -136,7 +136,7 @@
     "lodash": "^3.2.0",
     "loglevel": "^1.2.0",
     "lru-cache": "^2.5.0",
-    "matrix-appservice-bridge": "^2.7.0",
+    "matrix-appservice-bridge": "^3.1.2",
     "method-override": "^2.3.4",
     "moment": "^2.10.3",
     "mongodb": "^2.2.35",

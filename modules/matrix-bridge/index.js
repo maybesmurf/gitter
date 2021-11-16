@@ -37,10 +37,7 @@ async function install(bridgePort = bridgePortFromConfig) {
     return;
   }
 
-  // config is always null, see https://github.com/matrix-org/matrix-appservice-bridge/issues/262
-  const bridgeConfig = null;
-
-  await matrixBridge.run(bridgePort, bridgeConfig);
+  await matrixBridge.run(bridgePort);
   logger.info(`Matrix bridge listening on port ${bridgePort}`);
 
   new GitterBridge(matrixBridge);

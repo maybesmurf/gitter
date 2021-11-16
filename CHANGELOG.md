@@ -1,3 +1,10 @@
+# 21.43.0 - 2021-09-23
+
+Developer facing:
+
+ - Major upgrade to `matrix-appservice-bridge@3.x`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2245
+
+
 # 21.42.0 - 2021-08-19
 
  - Always show "Reply in thread" (instead of switching between "Start a Thread") to make the language consistent and recognizable, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2244
