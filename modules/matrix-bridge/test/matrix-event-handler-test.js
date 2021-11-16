@@ -155,8 +155,20 @@ describe('matrix-event-handler', () => {
     describe('handleChatMessageEditEvent', () => {
       const fixture = fixtureLoader.setupEach({
         userBridge1: {},
+        user1: {},
         group1: {},
-        troupe1: {},
+        troupe1: {
+          bans: [
+            {
+              bannedBy: 'user1',
+              virtualUser: {
+                type: 'matrix',
+                externalId: 'banned-guy:matrix.org'
+              },
+              dateBanned: Date.now()
+            }
+          ]
+        },
         messageFromVirtualUser1: {
           user: 'userBridge1',
           virtualUser: {
@@ -188,6 +200,16 @@ describe('matrix-event-handler', () => {
           troupe: 'troupe1',
           text: 'my original emote/status message from matrix',
           status: true
+        },
+        messageFromBannedVirtualUser1: {
+          user: 'userBridge1',
+          virtualUser: {
+            type: 'matrix',
+            externalId: 'banned-guy:matrix.org',
+            displayName: 'Bad man'
+          },
+          troupe: 'troupe1',
+          text: 'my original message from banned virtualUser'
         }
       });
 
@@ -222,7 +244,7 @@ describe('matrix-event-handler', () => {
 
         const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id);
         const targetMessage = messages.find(m => m.id === fixture.messageFromVirtualUser1.id);
-        assert.strictEqual(messages.length, 3);
+        assert.strictEqual(messages.length, 4);
         assert.strictEqual(targetMessage.text, 'my edited message from matrix');
       });
 
@@ -252,7 +274,7 @@ describe('matrix-event-handler', () => {
         await matrixEventHandler.onEventData(eventData);
 
         const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id);
-        assert.strictEqual(messages.length, 3);
+        assert.strictEqual(messages.length, 4);
         const targetMessage = messages.find(m => m.id === fixture.messageStatusFromVirtualUser1.id);
         assert.strictEqual(
           targetMessage.text,
@@ -284,10 +306,51 @@ describe('matrix-event-handler', () => {
 
         const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id);
         const targetMessage = messages.find(m => m.id === fixture.messageOldFromVirtualUser1.id);
-        const newMessage = messages[3];
-        assert.strictEqual(messages.length, 4);
+        const newMessage = messages[messages.length - 1];
+        assert.strictEqual(messages.length, 5);
         assert.strictEqual(targetMessage.text, 'my original old message from matrix');
         assert.strictEqual(newMessage.text.split('): ')[1], 'my edited message from matrix');
+      });
+
+      it('banned virtualUsers can not edit messages', async () => {
+        const matrixMessageEventId = `$${fixtureLoader.generateGithubId()}`;
+        const eventData = createEventData({
+          type: 'm.room.message',
+          content: {
+            body: '* my edited message from matrix',
+            'm.new_content': { body: 'my edited message from matrix', msgtype: 'm.text' },
+            'm.relates_to': {
+              event_id: matrixMessageEventId,
+              rel_type: 'm.replace'
+            }
+          },
+          sender: '@banned-guy:matrix.org'
+        });
+        await store.storeBridgedMessage(
+          fixture.messageFromBannedVirtualUser1,
+          eventData.room_id,
+          matrixMessageEventId
+        );
+
+        try {
+          await matrixEventHandler.onEventData(eventData);
+          assert.fail(
+            new TestError(
+              'Expected function to throw error and fail when trying to edit message from banned virtualUser'
+            )
+          );
+        } catch (err) {
+          if (err instanceof TestError) {
+            throw err;
+          }
+
+          assert(err);
+        }
+
+        const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id);
+        const targetMessage = messages.find(m => m.id === fixture.messageFromBannedVirtualUser1.id);
+        assert.strictEqual(messages.length, 4);
+        assert.strictEqual(targetMessage.text, 'my original message from banned virtualUser');
       });
 
       it('Ignore message edit from Matrix when there is no matching message', async () => {
@@ -309,13 +372,22 @@ describe('matrix-event-handler', () => {
 
         try {
           await matrixEventHandler.onEventData(eventData);
+          assert.fail(
+            new TestError(
+              'Expected function to throw error and fail when there is no matching message'
+            )
+          );
         } catch (err) {
-          // we expect an error and not process the event
+          if (err instanceof TestError) {
+            throw err;
+          }
+
+          assert(err);
         }
 
         const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id);
         const targetMessage = messages.find(m => m.id === fixture.messageFromVirtualUser1.id);
-        assert.strictEqual(messages.length, 3);
+        assert.strictEqual(messages.length, 4);
         assert.strictEqual(targetMessage.text, 'my original message from matrix');
       });
     });
@@ -325,7 +397,18 @@ describe('matrix-event-handler', () => {
         userBridge1: {},
         user1: {},
         group1: {},
-        troupe1: {},
+        troupe1: {
+          bans: [
+            {
+              bannedBy: 'user1',
+              virtualUser: {
+                type: 'matrix',
+                externalId: 'banned-guy:matrix.org'
+              },
+              dateBanned: Date.now()
+            }
+          ]
+        },
         troupeWithThreads1: {},
         troupePrivate1: {
           securityDescriptor: {
@@ -565,6 +648,35 @@ describe('matrix-event-handler', () => {
         await matrixEventHandler.onEventData(eventData);
 
         const messages = await chatService.findChatMessagesForTroupe(fixture.troupePrivate1.id);
+        assert.strictEqual(messages.length, 0);
+      });
+
+      it('banned virtualUsers can not send messages', async () => {
+        const eventData = createEventData({
+          type: 'm.room.message',
+          content: {
+            body: 'my matrix message'
+          },
+          sender: '@banned-guy:matrix.org'
+        });
+        await store.storeBridgedRoom(fixture.troupe1.id, eventData.room_id);
+
+        try {
+          await matrixEventHandler.onEventData(eventData);
+          assert.fail(
+            new TestError(
+              'Expected function to throw error and fail when trying to send message from banned virtualUser'
+            )
+          );
+        } catch (err) {
+          if (err instanceof TestError) {
+            throw err;
+          }
+
+          assert(err);
+        }
+
+        const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id);
         assert.strictEqual(messages.length, 0);
       });
 
@@ -813,8 +925,17 @@ describe('matrix-event-handler', () => {
 
         try {
           await matrixEventHandler.onEventData(eventData);
+          assert.fail(
+            new TestError(
+              'Expected function to throw error and fail when there is no matching message'
+            )
+          );
         } catch (err) {
-          // we expect an error and not process the event
+          if (err instanceof TestError) {
+            throw err;
+          }
+
+          assert(err);
         }
 
         const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id);
