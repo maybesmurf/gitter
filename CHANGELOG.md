@@ -1,3 +1,8 @@
+# 21.44.0 - 2021-11-16
+
+ - Bridge bans to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2257
+
+
 # 21.43.0 - 2021-09-23
 
 Developer facing:
