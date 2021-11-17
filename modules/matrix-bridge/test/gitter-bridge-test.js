@@ -52,7 +52,9 @@ describe('gitter-bridge', () => {
       setAvatarUrl: sinon.spy(),
       invite: sinon.spy(),
       join: sinon.spy(),
-      leave: sinon.spy()
+      leave: sinon.spy(),
+      ban: sinon.spy(),
+      unban: sinon.spy()
     };
 
     matrixBridge = {
@@ -1062,6 +1064,92 @@ describe('gitter-bridge', () => {
         });
 
         assert.strictEqual(matrixBridge.getIntent().leave.callCount, 0);
+      });
+    });
+
+    describe('handleRoomBanEvent', () => {
+      const fixture = fixtureLoader.setupEach({
+        user1: {},
+        troupe1: {}
+      });
+
+      it('bridges ban for Gitter user', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+        const mxidForGitterUser = getMxidForGitterUser(fixture.user1);
+
+        await gitterBridge.onDataChange({
+          type: 'ban',
+          url: `/rooms/${fixture.troupe1.id}/bans`,
+          operation: 'create',
+          model: { userId: fixture.user1.id }
+        });
+
+        assert.strictEqual(matrixBridge.getIntent().ban.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().ban.getCall(0).args[0], matrixRoomId);
+        assert.strictEqual(matrixBridge.getIntent().ban.getCall(0).args[1], mxidForGitterUser);
+      });
+
+      it('bridges unban for Gitter user', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+        const mxidForGitterUser = getMxidForGitterUser(fixture.user1);
+
+        await gitterBridge.onDataChange({
+          type: 'ban',
+          url: `/rooms/${fixture.troupe1.id}/bans`,
+          operation: 'remove',
+          model: { userId: fixture.user1.id }
+        });
+
+        assert.strictEqual(matrixBridge.getIntent().unban.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().unban.getCall(0).args[0], matrixRoomId);
+        assert.strictEqual(matrixBridge.getIntent().unban.getCall(0).args[1], mxidForGitterUser);
+      });
+
+      it('bridges ban for virtualUser', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        await gitterBridge.onDataChange({
+          type: 'ban',
+          url: `/rooms/${fixture.troupe1.id}/bans`,
+          operation: 'create',
+          model: {
+            virtualUser: {
+              type: 'matrix',
+              externalId: 'bad-guy:matrix.org'
+            }
+          }
+        });
+
+        assert.strictEqual(matrixBridge.getIntent().ban.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().ban.getCall(0).args[0], matrixRoomId);
+        assert.strictEqual(matrixBridge.getIntent().ban.getCall(0).args[1], '@bad-guy:matrix.org');
+      });
+
+      it('bridges unban for virtualUser', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        await gitterBridge.onDataChange({
+          type: 'ban',
+          url: `/rooms/${fixture.troupe1.id}/bans`,
+          operation: 'remove',
+          model: {
+            virtualUser: {
+              type: 'matrix',
+              externalId: 'bad-guy:matrix.org'
+            }
+          }
+        });
+
+        assert.strictEqual(matrixBridge.getIntent().unban.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().unban.getCall(0).args[0], matrixRoomId);
+        assert.strictEqual(
+          matrixBridge.getIntent().unban.getCall(0).args[1],
+          '@bad-guy:matrix.org'
+        );
       });
     });
   });
