@@ -8,6 +8,7 @@ var getMaxTagLength = require('gitter-web-shared/validation/validate-tag').getMa
 var secureMethod = require('gitter-web-utils/lib/secure-method');
 var StatusError = require('statuserror');
 var Promise = require('bluebird');
+const appEvents = require('gitter-web-appevents');
 var policyFactory = require('gitter-web-permissions/lib/policy-factory');
 var userService = require('gitter-web-users');
 var eventService = require('gitter-web-events');
@@ -225,6 +226,17 @@ RoomWithPolicyService.prototype.banUserFromRoom = secureMethod([allowStaff, allo
             return chatService.removeAllMessagesForUserIdInRoomId(bannedUser._id, room._id);
           }
         })
+        .tap(() => {
+          // Let the matrix bridge know about the ban
+          appEvents.dataChange2(
+            '/rooms/' + room._id + '/bans',
+            'create',
+            {
+              userId: bannedUser._id
+            },
+            'ban'
+          );
+        })
         .tap(createBanEvent(room, currentUser, bannedUser.username));
     });
 });
@@ -263,7 +275,20 @@ RoomWithPolicyService.prototype.banVirtualUserFromRoom = secureMethod(
 
     try {
       await room.save();
-      await createBanEvent(room, currentUser, virtualUser.externalId);
+      await createBanEvent(room, currentUser, virtualUser.externalId, virtualUser);
+
+      // Let the matrix bridge know about the ban
+      appEvents.dataChange2(
+        '/rooms/' + room._id + '/bans',
+        'create',
+        {
+          virtualUser: {
+            type: ban.virtualUser.type,
+            externalId: ban.virtualUser.externalId
+          }
+        },
+        'ban'
+      );
 
       if (options && options.removeMessages) {
         await chatService.removeAllMessagesForVirtualUserInRoomId(virtualUser, room._id);
@@ -321,6 +346,17 @@ RoomWithPolicyService.prototype.unbanUserFromRoom = secureMethod([allowStaff, al
       }
     )
       .exec()
+      .tap(() => {
+        // Let the matrix bridge know about the unban
+        appEvents.dataChange2(
+          '/rooms/' + room._id + '/bans',
+          'remove',
+          {
+            userId: bannedUserId
+          },
+          'ban'
+        );
+      })
       .tap(createUnBanEvent(room, currentUser, bannedUser.username));
   });
 });
@@ -349,7 +385,20 @@ RoomWithPolicyService.prototype.unbanVirtualUserFromRoom = secureMethod(
       }
     ).exec();
 
-    await createUnBanEvent(room, currentUser, virtualUser.externalId);
+    await createUnBanEvent(room, currentUser, virtualUser.externalId, virtualUser);
+
+    // Let the matrix bridge know about the unban
+    appEvents.dataChange2(
+      '/rooms/' + room._id + '/bans',
+      'remove',
+      {
+        virtualUser: {
+          type: virtualUser.type,
+          externalId: virtualUser.externalId
+        }
+      },
+      'ban'
+    );
   }
 );
 
@@ -527,9 +576,17 @@ async function canDoMessage(chatMessageOptions) {
   // The `this.policy` that comes with `roomWithPolicyService` is from the bridging user (matrixbot, gitter-badger),
   // and the policy is created before we know that the request body data is using a virtualUser we need to act against.
   let policy = this.policy;
+
   // If the message is coming from a virtualUser, we need to make a new policy
   // based on that virtualUser to check if they can still do things.
   if (chatMessageOptions && chatMessageOptions.virtualUser) {
+    // If the bridging user can't write to the room, the virtualUser should
+    // probably not be able to either
+    if (!policy.canWrite()) {
+      return false;
+    }
+
+    // Now create a new policy just for the virtualUser that we will also test below
     policy = await policyFactory.createPolicyForVirtualUserInRoomId(
       chatMessageOptions.virtualUser,
       this.room._id
