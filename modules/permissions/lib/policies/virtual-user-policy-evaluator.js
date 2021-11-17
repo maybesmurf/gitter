@@ -10,6 +10,7 @@ const {
 function bansIncludesVirtualUser(bans, virtualUser) {
   return _.some(bans, function(ban) {
     return (
+      ban.virtualUser &&
       ban.virtualUser.type === virtualUser.type &&
       ban.virtualUser.externalId === virtualUser.externalId
     );
