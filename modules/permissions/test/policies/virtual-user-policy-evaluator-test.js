@@ -46,6 +46,38 @@ describe('virtual-user-policy-evaluator', function() {
       canJoin: false,
       canAdmin: false,
       canAddUser: false
+    },
+    {
+      name: `virtual user can write when there are other unrelated bans`,
+      virtualUser: {
+        type: 'matrix',
+        externalId: 'banned-user:matrix.org'
+      },
+      sd: {
+        public: true,
+        bans: [
+          {
+            id: '666',
+            userId: '111',
+            dateBanned: Date.now(),
+            bannedBy: '999'
+          },
+          {
+            id: '667',
+            virtualUser: {
+              type: 'matrix',
+              externalId: 'other-user:matrix.org'
+            },
+            dateBanned: Date.now(),
+            bannedBy: '999'
+          }
+        ]
+      },
+      canRead: true,
+      canWrite: true,
+      canJoin: true,
+      canAdmin: false,
+      canAddUser: true
     }
   ];
 
