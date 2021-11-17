@@ -22,21 +22,6 @@ describe('virtual-user-policy-evaluator', function() {
       canAddUser: true
     },
     {
-      name: `virtual user can't write in private room`,
-      virtualUser: {
-        type: 'matrix',
-        externalId: 'virtual-user:matrix.org'
-      },
-      sd: {
-        public: false
-      },
-      canRead: false,
-      canWrite: false,
-      canJoin: false,
-      canAdmin: false,
-      canAddUser: false
-    },
-    {
       name: `banned virtual user can't write`,
       virtualUser: {
         type: 'matrix',

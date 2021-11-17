@@ -576,9 +576,17 @@ async function canDoMessage(chatMessageOptions) {
   // The `this.policy` that comes with `roomWithPolicyService` is from the bridging user (matrixbot, gitter-badger),
   // and the policy is created before we know that the request body data is using a virtualUser we need to act against.
   let policy = this.policy;
+
   // If the message is coming from a virtualUser, we need to make a new policy
   // based on that virtualUser to check if they can still do things.
   if (chatMessageOptions && chatMessageOptions.virtualUser) {
+    // If the bridging user can't write to the room, the virtualUser should
+    // probably not be able to either
+    if (!policy.canWrite()) {
+      return false;
+    }
+
+    // Now create a new policy just for the virtualUser that we will also test below
     policy = await policyFactory.createPolicyForVirtualUserInRoomId(
       chatMessageOptions.virtualUser,
       this.room._id
