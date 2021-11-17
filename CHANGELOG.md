@@ -1,3 +1,8 @@
+# 21.44.1 - 2021-11-17
+
+ - Fix Matrix messages not bridging to Gitter when a room has non-virtualUser bans, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2260
+
+
 # 21.44.0 - 2021-11-16
 
  - Bridge bans to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2257
