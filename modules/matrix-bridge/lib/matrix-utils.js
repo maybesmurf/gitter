@@ -291,6 +291,58 @@ class MatrixUtils {
     });
   }
 
+  async deleteRoomAliasesForMatrixRoomId(matrixRoomId) {
+    const bridgeIntent = this.matrixBridge.getIntent();
+
+    const roomAliases = await bridgeIntent.matrixClient.unstableApis.getRoomAliases(matrixRoomId);
+    for (const roomAlias of roomAliases) {
+      // Delete the alias from the other room
+      await bridgeIntent.matrixClient.deleteRoomAlias(roomAlias);
+    }
+  }
+
+  async shutdownMatrixRoom(matrixRoomId) {
+    // Delete aliases
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Deleting room aliases`);
+    await this.deleteRoomAliasesForMatrixRoomId(matrixRoomId);
+
+    // Change history visiblity so future people can't read the room
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Changing history visibility so the history isn't visible if anyone is able to join again`
+    );
+    await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
+      history_visibility: 'joined'
+    });
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+
+    // Remove it from the room directory
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Removing room from directory`);
+    await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
+
+    // Make it so people can't join back in
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Changing the join_rules to invite-only so people can't join back`
+    );
+    await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
+      join_rule: 'invite'
+    });
+
+    // Kick everyone out
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Kicking everyone out of the room`);
+    const roomMembers = await bridgeIntent.matrixClient.getRoomMembers(matrixRoomId, null, [
+      'join'
+    ]);
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMembers.length} people`);
+    for (let roomMember of roomMembers) {
+      // Kick everyone except the main bridge user
+      if (roomMember.membershipFor !== this.getMxidForMatrixBridgeUser()) {
+        debug(`\tshutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMember.membershipFor}`);
+        await bridgeIntent.kick(matrixRoomId, roomMember.membershipFor);
+      }
+    }
+  }
+
   async getOrCreateMatrixRoomByGitterRoomId(gitterRoomId) {
     // Find the cached existing bridged room
     const existingMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
