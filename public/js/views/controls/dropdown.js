@@ -217,10 +217,17 @@ module.exports = (function() {
       activeDropdown = this;
 
       var zIndex = parseInt(this.el.style.zIndex, 10);
-      $('<div class="' + backdropClass + ' ' + this.options.backdropClass + '"/>')
-        .css({ zIndex: zIndex - 1 })
-        .insertAfter($('body'))
-        .on('click', this.backdropClickedCallback);
+      // Create the backdrop
+      document
+        .querySelector('body')
+        .insertAdjacentHTML(
+          'beforeend',
+          `<div class="${backdropClass} ${this.options.backdropClass}" style="z-index: ${zIndex -
+            1}" />`
+        );
+
+      // Add the click event listener
+      $(backdropSelector).on('click', this.backdropClickedCallback);
 
       this.setActive(this.selectedModel);
 
