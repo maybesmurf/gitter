@@ -1,3 +1,8 @@
+# 21.45.0 - *upcoming*
+
+ - Fix room menu dropdown items being unclickable sometimes (backdrop covering menu), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2264
+
+
 # 21.44.1 - 2021-11-17
 
  - Fix Matrix messages not bridging to Gitter when a room has non-virtualUser bans, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2260
