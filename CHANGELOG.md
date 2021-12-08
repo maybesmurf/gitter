@@ -1,4 +1,4 @@
-# 21.45.0 - *upcoming*
+# 21.45.0 - 2021-12-08
 
  - Fix room menu dropdown items being unclickable sometimes (backdrop covering menu), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2264
  - Bridge room deletions to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2265
