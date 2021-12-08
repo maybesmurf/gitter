@@ -27,7 +27,11 @@ describe('gitter-bridge', () => {
       resolveRoom: sinon.spy(),
       deleteRoomAlias: sinon.spy(),
       getDirectoryVisibility: sinon.spy(),
-      setDirectoryVisibility: sinon.spy()
+      setDirectoryVisibility: sinon.spy(),
+      getRoomMembers: sinon.spy(),
+      unstableApis: {
+        getRoomAliases: sinon.spy()
+      }
     };
 
     const intentSpies = {
@@ -894,7 +898,7 @@ describe('gitter-bridge', () => {
         assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
       });
 
-      it('room update gets sent off to Matrix', async () => {
+      it('room update gets sent off to Matrix (same as patch)', async () => {
         const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
         await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
 
@@ -907,8 +911,6 @@ describe('gitter-bridge', () => {
           operation: 'update',
           model: serializedRoom
         });
-
-        // Find the spy call where the topic was updated
 
         const sendStateEventCalls = matrixBridge.getIntent().sendStateEvent.getCalls();
         assert(
@@ -930,6 +932,56 @@ describe('gitter-bridge', () => {
 
         // No room updates propagated across
         assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
+      });
+    });
+
+    describe('handleRoomRemoveEvent', () => {
+      const fixture = fixtureLoader.setupEach({
+        group1: {},
+        troupe1: {
+          group: 'group1',
+          topic: 'foo'
+        },
+        troupePrivate1: {
+          group: 'group1',
+          users: ['user1'],
+          securityDescriptor: {
+            members: 'INVITE',
+            admins: 'MANUAL',
+            public: false
+          }
+        }
+      });
+
+      it('deleted Gitter room shuts down the room on the Matrix side', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
+
+        await gitterBridge.onDataChange({
+          type: 'room',
+          url: `/rooms/${fixture.troupe1.id}`,
+          operation: 'remove',
+          model: { id: fixture.troupe1.id }
+        });
+
+        // Find the spy call where the join rules are changed so no one else can join
+        const joinRuleCall = matrixBridge
+          .getIntent()
+          .sendStateEvent.getCalls()
+          .find(call => {
+            const [mid, eventType] = call.args;
+            if (mid === matrixRoomId && eventType === 'm.room.join_rules') {
+              return true;
+            }
+          });
+        assert.deepEqual(joinRuleCall.args, [
+          matrixRoomId,
+          'm.room.join_rules',
+          '',
+          {
+            join_rule: 'invite'
+          }
+        ]);
       });
     });
 

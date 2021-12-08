@@ -295,9 +295,11 @@ class MatrixUtils {
     const bridgeIntent = this.matrixBridge.getIntent();
 
     const roomAliases = await bridgeIntent.matrixClient.unstableApis.getRoomAliases(matrixRoomId);
-    for (const roomAlias of roomAliases) {
-      // Delete the alias from the other room
-      await bridgeIntent.matrixClient.deleteRoomAlias(roomAlias);
+    if (roomAliases) {
+      for (const roomAlias of roomAliases) {
+        // Delete the alias from the other room
+        await bridgeIntent.matrixClient.deleteRoomAlias(roomAlias);
+      }
     }
   }
 
@@ -333,12 +335,16 @@ class MatrixUtils {
     const roomMembers = await bridgeIntent.matrixClient.getRoomMembers(matrixRoomId, null, [
       'join'
     ]);
-    debug(`shutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMembers.length} people`);
-    for (let roomMember of roomMembers) {
-      // Kick everyone except the main bridge user
-      if (roomMember.membershipFor !== this.getMxidForMatrixBridgeUser()) {
-        debug(`\tshutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMember.membershipFor}`);
-        await bridgeIntent.kick(matrixRoomId, roomMember.membershipFor);
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMembers && roomMembers.length} people`
+    );
+    if (roomMembers) {
+      for (let roomMember of roomMembers) {
+        // Kick everyone except the main bridge user
+        if (roomMember.membershipFor !== this.getMxidForMatrixBridgeUser()) {
+          debug(`\tshutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMember.membershipFor}`);
+          await bridgeIntent.kick(matrixRoomId, roomMember.membershipFor);
+        }
       }
     }
   }
