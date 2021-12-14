@@ -20,13 +20,9 @@ const matrixUtils = new MatrixUtils(matrixBridge);
 
 const opts = require('yargs')
   .option('gitter-uri', {
-    alias: 'u',
-    required: true,
     description: 'URI of the Gitter room associated with the Matrix room ID to shutdown'
   })
   .option('matrix-room-id', {
-    alias: 'u',
-    required: true,
     description: 'Matrix room ID to shutdown'
   })
   .help('help')
@@ -51,7 +47,7 @@ async function getMatrixRoomIdFromArgs() {
   }
 
   if (!matrixRoomId) {
-    throw new Error('No Matrix room ID provided');
+    throw new Error('No Matrix room ID provided (`--gitter-uri` or `--matrix-room-id`)');
   }
 
   return matrixRoomId;
