@@ -67,6 +67,8 @@ class GitterBridge {
         const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)/) || [];
         if (gitterRoomId && (data.operation === 'patch' || data.operation === 'update')) {
           await this.handleRoomUpdateEvent(gitterRoomId, data.model);
+        } else if (gitterRoomId && data.operation === 'remove') {
+          await this.handleRoomRemoveEvent(gitterRoomId, data.model);
         }
       }
 
@@ -410,6 +412,14 @@ class GitterBridge {
     const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
 
     await this.matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
+  }
+
+  async handleRoomRemoveEvent(gitterRoomId /*, model*/) {
+    const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+
+    if (matrixRoomId) {
+      await this.matrixUtils.shutdownMatrixRoom(matrixRoomId);
+    }
   }
 
   async handleUserJoiningRoom(gitterRoomId, model) {

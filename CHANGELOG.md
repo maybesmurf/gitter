@@ -1,3 +1,13 @@
+# 21.45.0 - 2021-12-08
+
+ - Fix room menu dropdown items being unclickable sometimes (backdrop covering menu), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2264
+ - Bridge room deletions to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2265
+
+Developer facing:
+
+ - Add utility script to delete Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2263, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2267
+
+
 # 21.44.1 - 2021-11-17
 
  - Fix Matrix messages not bridging to Gitter when a room has non-virtualUser bans, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2260
