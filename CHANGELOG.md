@@ -5,7 +5,7 @@
 
 Developer facing:
 
- - Add utility script to delete Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2263
+ - Add utility script to delete Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2263, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2267
 
 
 # 21.44.1 - 2021-11-17
