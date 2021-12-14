@@ -19,13 +19,43 @@ require('../../server/event-listeners').install();
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const opts = require('yargs')
-  .option('uri', {
+  .option('gitter-uri', {
     alias: 'u',
     required: true,
-    description: 'URI of the Gitter room to delete'
+    description: 'URI of the Gitter room associated with the Matrix room ID to shutdown'
+  })
+  .option('matrix-room-id', {
+    alias: 'u',
+    required: true,
+    description: 'Matrix room ID to shutdown'
   })
   .help('help')
   .alias('help', 'h').argv;
+
+async function getMatrixRoomIdFromArgs() {
+  let matrixRoomId;
+  if (opts.gitterUri) {
+    const room = await troupeService.findByUri(opts.gitterUri);
+
+    const bridgedRoomEntry = await persistence.MatrixBridgedRoom.findOne({
+      troupeId: room._id
+    }).exec();
+
+    console.log(
+      `Found matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId} from gitterUri=${opts.gitterUri}`
+    );
+
+    matrixRoomId = bridgedRoomEntry.matrixRoomId;
+  } else if (opts.matrixRoomId) {
+    matrixRoomId = opts.matrixRoomId;
+  }
+
+  if (!matrixRoomId) {
+    throw new Error('No Matrix room ID provided');
+  }
+
+  return matrixRoomId;
+}
 
 async function run() {
   try {
@@ -33,21 +63,15 @@ async function run() {
     await installBridge();
 
     try {
-      const room = await troupeService.findByUri(opts.uri);
+      const matrixRoomId = await getMatrixRoomIdFromArgs();
 
-      const bridgedRoomEntry = await persistence.MatrixBridgedRoom.findOne({
-        troupeId: room._id
-      }).exec();
-
-      console.log(
-        `Deleting matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`
-      );
-      await matrixUtils.shutdownMatrixRoom(bridgedRoomEntry.matrixRoomId);
+      console.log(`Deleting matrixRoomId=${matrixRoomId}`);
+      await matrixUtils.shutdownMatrixRoom(matrixRoomId);
+      console.log(`Matrix room deleted!`);
     } catch (err) {
-      console.error(`Failed to delete Matrix room`, err, err.stack);
+      console.error(`Failed to delete Matrix room: ${err.message}`);
+      throw err;
     }
-
-    console.log(`Matrix room deleted!`);
 
     // wait 5 seconds to allow for asynchronous `event-listeners` to finish
     // This isn't clean but works
