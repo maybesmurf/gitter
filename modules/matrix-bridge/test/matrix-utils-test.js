@@ -2,11 +2,12 @@
 
 const assert = require('assert');
 const sinon = require('sinon');
+const env = require('gitter-web-env');
+const config = env.config;
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const TestError = require('gitter-web-test-utils/lib/test-error');
 const MatrixUtils = require('../lib/matrix-utils');
-const env = require('gitter-web-env');
-const config = env.config;
+const { getCanonicalAliasLocalpartForGitterRoomUri } = require('../lib/matrix-alias-utils');
 
 const serverName = config.get('matrix:bridge:serverName');
 
@@ -31,6 +32,13 @@ describe('matrix-utils', () => {
         admins: 'MANUAL',
         public: false
       }
+    },
+    troupeOneToOne: {
+      oneToOne: true,
+      users: ['user1', 'user2']
+    },
+    troupeMatrixDm1: {
+      uri: 'matrix/1234abcde/@bob:matrix.org'
     }
   });
 
@@ -70,7 +78,7 @@ describe('matrix-utils', () => {
   });
 
   describe('getOrCreateMatrixRoomByGitterRoomId', () => {
-    it('creates Matrix room for a unbridged Gitter room', async () => {
+    it('creates Matrix room for a unbridged public Gitter room', async () => {
       const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
         fixture.troupe1.id
       );
@@ -79,6 +87,15 @@ describe('matrix-utils', () => {
 
       // Room is created for something that hasn't been bridged before
       assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 1);
+      assert.deepEqual(matrixBridge.getIntent().createRoom.getCall(0).args[0], {
+        createAsClient: true,
+        options: {
+          name: fixture.troupe1.uri,
+          room_alias_name: getCanonicalAliasLocalpartForGitterRoomUri(fixture.troupe1.uri),
+          visibility: 'public',
+          preset: 'public_chat'
+        }
+      });
     });
 
     it('returns existing Matrix room for bridged Gitter room', async () => {
@@ -97,10 +114,60 @@ describe('matrix-utils', () => {
       assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 1);
     });
 
-    it('creates Matrix room for a unbridged Gitter room', async () => {
+    it('creates Matrix room for a unbridged private Gitter room', async () => {
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
+        fixture.troupePrivate1.id
+      );
+
+      assert(matrixRoomId);
+
+      // Room is created for something that hasn't been bridged before
+      assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 1);
+      assert.deepEqual(matrixBridge.getIntent().createRoom.getCall(0).args[0], {
+        createAsClient: true,
+        options: {
+          name: fixture.troupePrivate1.uri,
+          room_alias_name: getCanonicalAliasLocalpartForGitterRoomUri(fixture.troupePrivate1.uri),
+          visibility: 'private',
+          preset: 'private_chat'
+        }
+      });
+    });
+
+    it('creates Matrix room for a unbridged ONE_TO_ONE Gitter room', async () => {
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
+        fixture.troupeOneToOne.id
+      );
+
+      assert(matrixRoomId);
+
+      // Matrix room is created from one of the Gitter oneToOneUsers
+      const creatorMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+        fixture.troupeOneToOne.oneToOneUsers[0].userId
+      );
+      assert.strictEqual(matrixBridge.getIntent.getCall(0).args[0], creatorMxid);
+
+      const otherMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+        fixture.troupeOneToOne.oneToOneUsers[1].userId
+      );
+
+      // Room is created for something that hasn't been bridged before
+      assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 1);
+      assert.deepEqual(matrixBridge.getIntent().createRoom.getCall(0).args[0], {
+        createAsClient: true,
+        options: {
+          visibility: 'private',
+          preset: 'trusted_private_chat',
+          is_direct: true,
+          invite: [otherMxid]
+        }
+      });
+    });
+
+    it('refuses to run for a Matrix DM room', async () => {
       try {
-        await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(fixture.troupePrivate1.id);
-        assert.fail(new TestError('expected Matrix room creation to fail for private room'));
+        await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(fixture.troupeMatrixDm1.id);
+        assert.fail(new TestError('expected Matrix room creation to fail for Matrix DM room'));
       } catch (err) {
         if (err instanceof TestError) {
           throw err;
