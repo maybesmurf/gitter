@@ -802,7 +802,7 @@ describe('gitter-bridge', () => {
         assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 0);
       });
 
-      it('private room is not bridged', async () => {
+      it('message remove in private room is bridged', async () => {
         const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
         const matrixMessageEventId = `$${fixtureLoader.generateGithubId()}`;
         await store.storeBridgedMessage(
@@ -815,11 +815,10 @@ describe('gitter-bridge', () => {
           type: 'chatMessage',
           url: `/rooms/${fixture.troupePrivate1.id}/chatMessages`,
           operation: 'remove',
-          model: { id: fixture.message1.id }
+          model: { id: fixture.messagePrivate1.id }
         });
 
-        // Message remove is ignored in private rooms
-        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 0);
+        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 1);
       });
 
       it('when the Matrix API call to lookup the message author fails(`intent.getEvent()`), still deletes the message (using bridge user)', async () => {
