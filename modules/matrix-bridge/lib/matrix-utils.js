@@ -39,6 +39,10 @@ class MatrixUtils {
 
   async createMatrixRoomByGitterRoomId(gitterRoomId) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `Unable to create Matrix Room for Gitter room ID that does not exist gitterRoomId=${gitterRoomId}`
+    );
 
     const isGitterRoomPublic = securityDescriptorUtils.isPublic(gitterRoom);
 
