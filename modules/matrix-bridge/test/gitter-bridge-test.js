@@ -22,7 +22,7 @@ describe('gitter-bridge', () => {
   let gitterBridge;
   let matrixBridge;
   let gitterUtils;
-  beforeEach(() => {
+  beforeEach(async () => {
     const clientSpies = {
       redactEvent: sinon.spy(),
       resolveRoom: sinon.spy(),
@@ -67,6 +67,7 @@ describe('gitter-bridge', () => {
     };
 
     gitterBridge = new GitterBridge(matrixBridge, overallFixtures.userBridge1.username);
+    await gitterBridge.start();
 
     gitterUtils = new GitterUtils(
       matrixBridge,

@@ -33,10 +33,16 @@ class GitterBridge {
     this.matrixUtils = new MatrixUtils(matrixBridge);
     this._gitterBridgeBackingUsername = gitterBridgeBackingUsername;
 
-    appEvents.onDataChange2(data => {
-      this.onDataChange(data);
-      return null;
-    });
+    this.onDataChangeWithBind = this.onDataChange.bind(this);
+  }
+
+  async start() {
+    appEvents.onDataChange2(this.onDataChangeWithBind);
+  }
+
+  // Stop the listeners and processing any more events
+  async stop() {
+    appEvents.removeListener('dataChange2', this.onDataChangeWithBind);
   }
 
   // eslint-disable-next-line complexity, max-statements

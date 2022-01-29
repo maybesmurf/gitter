@@ -71,12 +71,17 @@ describe('Rooms', function() {
 
   describe('Matrix DMs', () => {
     let gitterUtils;
+    let stopBridge;
     before(async () => {
       await ensureMatrixFixtures();
 
-      await installBridge(bridgePortFromConfig + 1);
+      stopBridge = await installBridge(bridgePortFromConfig + 1);
 
       gitterUtils = new GitterUtils(matrixBridge);
+    });
+
+    after(async () => {
+      await stopBridge();
     });
 
     it(`Creates Matrix DM when visiting URL`, async () => {
