@@ -128,7 +128,7 @@ describe('matrix-event-handler', () => {
       });
     });
 
-    it('Private room is not found', async () => {
+    it(`Private room is found but they won't be able to join anyway because they're not invited`, async () => {
       const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
       await store.storeBridgedRoom(fixture.troupePrivate1.id, matrixRoomId);
 
@@ -137,7 +137,9 @@ describe('matrix-event-handler', () => {
         'matrixbridgeprivate_private-test'
       );
 
-      assert.strictEqual(result, null);
+      assert.deepEqual(result, {
+        roomId: matrixRoomId
+      });
     });
 
     it('non-existant room (#foo_bar:gitter.im)', async () => {
@@ -636,7 +638,7 @@ describe('matrix-event-handler', () => {
         assert.strictEqual(messages[0].virtualUser.displayName, 'alice');
       });
 
-      it('does not create messages in private rooms', async () => {
+      it('When we receive Matrix message in a private room, creates Gitter message in Gitter room', async () => {
         const eventData = createEventData({
           type: 'm.room.message',
           content: {
@@ -648,7 +650,7 @@ describe('matrix-event-handler', () => {
         await matrixEventHandler.onEventData(eventData);
 
         const messages = await chatService.findChatMessagesForTroupe(fixture.troupePrivate1.id);
-        assert.strictEqual(messages.length, 0);
+        assert.strictEqual(messages.length, 1);
       });
 
       it('banned virtualUsers can not send messages', async () => {

@@ -2,10 +2,8 @@
 
 const env = require('gitter-web-env');
 const config = env.config;
-const securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
-const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
 
 const gitterRoomAllowList = config.get('matrix:bridge:gitterRoomAllowList');
 
@@ -22,16 +20,6 @@ async function isGitterRoomIdAllowedToBridge(gitterRoomId) {
   const gitterRoom = await troupeService.findById(gitterRoomId);
 
   if (!gitterRoom) {
-    return false;
-  }
-
-  // Check for a Matrix DM room
-  if (discoverMatrixDmUri(gitterRoom.lcUri)) {
-    return true;
-  }
-
-  const isPublic = securityDescriptorUtils.isPublic(gitterRoom);
-  if (!isPublic) {
     return false;
   }
 

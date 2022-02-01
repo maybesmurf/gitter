@@ -141,6 +141,7 @@ class MatrixEventHandler {
     this.gitterUtils = new GitterUtils(matrixBridge, gitterBridgeBackingUsername, matrixDmGroupUri);
   }
 
+  // Creates a Matrix room when someone first tries to query for it on the Matrix side
   async onAliasQuery(alias, aliasLocalpart) {
     debug('onAliasQuery', alias, aliasLocalpart);
 
