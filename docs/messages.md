@@ -71,6 +71,7 @@ When you paste a link to a GitLab/GitHub issue, merge request, or pull request i
 
 We support a few /commands and will continue to add new ones. At the moment, you can do any of the commands listed below.
 
+ - `/goto foo/bar`/`/join foo/bar`: Goto the given `foo/bar` chat room
  - `/leave`: Leaves the chat room.
  - `/mark-all-read`: Mark all messages in the room as read
  - `/query @username`: Go 1:1 with `@username`.
