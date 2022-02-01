@@ -1,5 +1,6 @@
 # 21.46.0 - *upcoming*
 
+ - Bridge private and one to one rooms to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2269
  - Add `/goto` and `/join` slash commands, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2270
 
 
