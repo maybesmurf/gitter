@@ -64,7 +64,7 @@ var commandsList = [
   },
   {
     command: 'channel',
-    description: 'Create/join a channel',
+    description: 'Create a channel',
     completion: 'channel ',
     regexp: /^\/channel/,
     action: function(text) {
@@ -87,6 +87,32 @@ var commandsList = [
       var isFavourite = !context.troupe().get('favourite');
 
       apiClient.userRoom.put('', { favourite: isFavourite });
+    }
+  },
+  {
+    command: 'goto',
+    description: 'Goto the room (foo/bar)',
+    completion: 'goto ',
+    regexp: /^\/goto/,
+    action: function(text) {
+      const gotoMatch = text.match(/^\s*\/goto(?:\s+((?:[^/]+\/?){2,3}))?/);
+      if (!gotoMatch) return;
+      const roomUri = gotoMatch[1];
+
+      appEvents.trigger('navigation', `/${roomUri}`, 'chat', roomUri);
+    }
+  },
+  {
+    command: 'join',
+    description: 'Goto the room (foo/bar)',
+    completion: 'join ',
+    regexp: /^\/join/,
+    action: function(text) {
+      const joinMatch = text.match(/^\s*\/join(?:\s+((?:[^/]+\/?){2,3}))?/);
+      if (!joinMatch) return;
+      const roomUri = joinMatch[1];
+
+      appEvents.trigger('navigation', `/${roomUri}`, 'chat', roomUri);
     }
   },
   {

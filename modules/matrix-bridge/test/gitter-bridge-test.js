@@ -9,6 +9,7 @@ const GitterBridge = require('../lib/gitter-bridge');
 const GitterUtils = require('../lib/gitter-utils');
 const store = require('../lib/store');
 const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
+const { getCanonicalAliasLocalpartForGitterRoomUri } = require('../lib/matrix-alias-utils');
 
 const strategy = new restSerializer.ChatStrategy();
 
@@ -21,7 +22,7 @@ describe('gitter-bridge', () => {
   let gitterBridge;
   let matrixBridge;
   let gitterUtils;
-  beforeEach(() => {
+  beforeEach(async () => {
     const clientSpies = {
       redactEvent: sinon.spy(),
       resolveRoom: sinon.spy(),
@@ -66,6 +67,7 @@ describe('gitter-bridge', () => {
     };
 
     gitterBridge = new GitterBridge(matrixBridge, overallFixtures.userBridge1.username);
+    await gitterBridge.start();
 
     gitterUtils = new GitterUtils(
       matrixBridge,
@@ -347,7 +349,7 @@ describe('gitter-bridge', () => {
         assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 0);
       });
 
-      it('private room is not bridged', async () => {
+      it('new message in private room is bridged', async () => {
         const strategy = new restSerializer.ChatStrategy();
         const serializedMessage = await restSerializer.serializeObject(
           fixture.messagePrivate1,
@@ -361,10 +363,20 @@ describe('gitter-bridge', () => {
           model: serializedMessage
         });
 
-        // No room creation
-        assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 0);
-        // No message sent
-        assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 0);
+        // Room is created for something that hasn't been bridged before
+        assert.strictEqual(matrixBridge.getIntent().createRoom.callCount, 1);
+        assert.deepEqual(matrixBridge.getIntent().createRoom.getCall(0).args[0], {
+          createAsClient: true,
+          options: {
+            name: fixture.troupePrivate1.uri,
+            room_alias_name: getCanonicalAliasLocalpartForGitterRoomUri(fixture.troupePrivate1.uri),
+            visibility: 'private',
+            preset: 'private_chat'
+          }
+        });
+
+        // Message is sent to the new room
+        assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
       });
 
       describe('inviteMatrixUserToDmRoomIfNeeded', async () => {
@@ -697,7 +709,7 @@ describe('gitter-bridge', () => {
         assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 0);
       });
 
-      it('private room is not bridged', async () => {
+      it('edit in private room are bridged', async () => {
         const serializedMessage = await restSerializer.serializeObject(
           fixture.messagePrivate1,
           strategy
@@ -715,11 +727,13 @@ describe('gitter-bridge', () => {
           type: 'chatMessage',
           url: `/rooms/${fixture.troupePrivate1.id}/chatMessages`,
           operation: 'update',
-          model: serializedMessage
+          model: {
+            ...serializedMessage,
+            editedAt: new Date().toUTCString()
+          }
         });
 
-        // No message sent
-        assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 0);
+        assert.strictEqual(matrixBridge.getIntent().sendMessage.callCount, 1);
       });
     });
 
@@ -789,7 +803,7 @@ describe('gitter-bridge', () => {
         assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 0);
       });
 
-      it('private room is not bridged', async () => {
+      it('message remove in private room is bridged', async () => {
         const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
         const matrixMessageEventId = `$${fixtureLoader.generateGithubId()}`;
         await store.storeBridgedMessage(
@@ -802,11 +816,10 @@ describe('gitter-bridge', () => {
           type: 'chatMessage',
           url: `/rooms/${fixture.troupePrivate1.id}/chatMessages`,
           operation: 'remove',
-          model: { id: fixture.message1.id }
+          model: { id: fixture.messagePrivate1.id }
         });
 
-        // Message remove is ignored in private rooms
-        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 0);
+        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 1);
       });
 
       it('when the Matrix API call to lookup the message author fails(`intent.getEvent()`), still deletes the message (using bridge user)', async () => {
@@ -886,7 +899,7 @@ describe('gitter-bridge', () => {
         ]);
       });
 
-      it('private room patch is not bridged', async () => {
+      it('private room patch is bridged', async () => {
         await gitterBridge.onDataChange({
           type: 'room',
           url: `/rooms/${fixture.troupePrivate1.id}`,
@@ -894,8 +907,11 @@ describe('gitter-bridge', () => {
           model: { id: fixture.troupePrivate1.id, topic: 'bar' }
         });
 
-        // No room updates propagated across
-        assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
+        const sendStateEventCalls = matrixBridge.getIntent().sendStateEvent.getCalls();
+        assert(
+          sendStateEventCalls.length > 0,
+          `sendStateEvent was called ${sendStateEventCalls.length} times, expected at least 1 call`
+        );
       });
 
       it('room update gets sent off to Matrix (same as patch)', async () => {
@@ -919,7 +935,7 @@ describe('gitter-bridge', () => {
         );
       });
 
-      it('private room update is not bridged', async () => {
+      it('private room update is bridged', async () => {
         const strategy = new restSerializer.TroupeStrategy();
         const serializedRoom = await restSerializer.serializeObject(fixture.troupe1, strategy);
 
@@ -930,8 +946,11 @@ describe('gitter-bridge', () => {
           model: serializedRoom
         });
 
-        // No room updates propagated across
-        assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 0);
+        const sendStateEventCalls = matrixBridge.getIntent().sendStateEvent.getCalls();
+        assert(
+          sendStateEventCalls.length > 0,
+          `sendStateEvent was called ${sendStateEventCalls.length} times, expected at least 1 call`
+        );
       });
     });
 

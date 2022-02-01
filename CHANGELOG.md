@@ -1,3 +1,9 @@
+# 21.46.0 - 2022-02-01 - Bridge private rooms to Matrix
+
+ - Bridge private and one to one rooms to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2269
+ - Add `/goto` and `/join` slash commands, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2270
+
+
 # 21.45.0 - 2021-12-08
 
  - Fix room menu dropdown items being unclickable sometimes (backdrop covering menu), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2264
