@@ -88,7 +88,7 @@
     "node/no-unsupported-features": [
       "error",
       {
-        "version": 10
+        "version": 14
       }
     ],
     "vue/no-v-html": "off"
