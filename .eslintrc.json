@@ -85,12 +85,8 @@
     ],
     "node/no-missing-require": "error",
     "node/no-missing-import": "error",
-    "node/no-unsupported-features": [
-      "error",
-      {
-        "version": 14
-      }
-    ],
+    "node/no-unsupported-features/es-syntax": "error",
+    "node/no-unsupported-features/es-builtins": "error",
     "vue/no-v-html": "off"
   }
 }
