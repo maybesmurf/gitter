@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-
+//
+// Usage:
+//  - Linux/macOS: matrix__bridge__applicationServicePort=9001 node ./scripts/utils/rename-group.js -o old -n new
+//  - Windows: set matrix__bridge__applicationServicePort=9001&&node ./scripts/utils/rename-group.js -o old -n new
+//
 'use strict';
 
 var shutdown = require('shutdown');
