@@ -12,7 +12,8 @@
   "extends": ["plugin:jest/recommended", "plugin:backbone/recommended"],
   "rules": {
     "node/no-unpublished-require": "off",
-    "node/no-unsupported-features": "off",
+    "node/no-unsupported-features/es-syntax": "off",
+    "node/no-unsupported-features/es-builtins": "off",
     "jquery/no-ajax": "off",
     "jquery/no-animate": "off",
     "jquery/no-attr": "off",

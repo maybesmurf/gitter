@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+//
+// Usage:
+//  - Linux/macOS: matrix__bridge__applicationServicePort=9001 node ./scripts/utils/delete-messages-from-user.js --username xxx --limit 5000
+//  - Windows: set matrix__bridge__applicationServicePort=9001&&node ./scripts/utils/delete-messages-from-user.js --username xxx --limit 5000
+//
 'use strict';
 
 const shutdown = require('shutdown');
@@ -13,6 +18,7 @@ const userService = require('gitter-web-users');
 const chatService = require('gitter-web-chats');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const chatsForUserSearch = require('gitter-web-elasticsearch/lib/chats-for-user-search');
+const installBridge = require('gitter-web-matrix-bridge');
 
 require('../../server/event-listeners').install();
 
@@ -68,6 +74,11 @@ const makeBackup = async messages => {
 };
 
 const clearMessages = async () => {
+  console.log(
+    'Setting up Matrix bridge to propagate any change over to Matrix after the messages are deleted'
+  );
+  await installBridge();
+
   await onMongoConnect();
   console.log('username', opts.username, process.argv);
   const user = await userService.findByUsername(opts.username);

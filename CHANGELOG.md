@@ -1,3 +1,9 @@
+# 21.47.0 - 2022-02-18
+
+ - Bridge message deletions to Matrix when using utility script, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2272
+ - Update eslint rule to use supported Node.js v14 features, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2273
+
+
 # 21.46.0 - 2022-02-01 - Bridge private rooms to Matrix
 
  - Bridge private and one to one rooms to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2269

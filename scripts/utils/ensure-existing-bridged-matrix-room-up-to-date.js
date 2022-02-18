@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+//
+// Usage:
+//  - Linux/macOS: matrix__bridge__applicationServicePort=9001 node ./scripts/utils/ensure-existing-bridged-matrix-room-up-to-date.js --uri some/room
+//  - Windows: set matrix__bridge__applicationServicePort=9001&&node ./scripts/utils/ensure-existing-bridged-matrix-room-up-to-date.js --uri some/room
+//
 'use strict';
 
 const shutdown = require('shutdown');
