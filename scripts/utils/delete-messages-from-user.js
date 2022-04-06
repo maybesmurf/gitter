@@ -88,7 +88,9 @@ const clearMessages = async () => {
   }
 
   const response = await chatsForUserSearch.searchChatsForUserId(user.id, {
-    limit: opts.limit
+    limit: opts.limit,
+    // Order from most recent to oldest
+    sort: [{ sent: { order: 'desc' } }]
   });
   const hits = response && response.hits && response.hits.hits ? response.hits.hits : [];
   console.log('Found ' + hits.length + ' messages');

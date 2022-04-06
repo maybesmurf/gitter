@@ -16,7 +16,7 @@ function applyStandardQueryOptions(query, options) {
   }
 
   if (options.sort) {
-    query.sort = options.sort;
+    query.body.sort = options.sort;
   }
 }
 
