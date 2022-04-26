@@ -1,3 +1,13 @@
+# 21.48.0 - 2022-04-06
+
+ - Update Chinese (`zh`) translation, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2275
+    - Thanks to [@LaoshuBaby](https://gitlab.com/LaoshuBaby) for the contribution
+
+Developer facing:
+
+ - Update utility script to delete from a users most recent messages instead of oldest, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2276
+
+
 # 21.47.0 - 2022-02-18
 
  - Bridge message deletions to Matrix when using utility script, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2272
