@@ -470,13 +470,8 @@ dependency_scanning:
   stage: security
   variables:
     SECURE_LOG_LEVEL: debug
-    RETIREJS_ADVISORY_DB_INSECURE: 'true'
 
 gemnasium-dependency_scanning:
-  rules:
-    - when: always
-
-retire-js-dependency_scanning:
   rules:
     - when: always
 
@@ -495,10 +490,6 @@ sast:
   variables:
     SAST_EXCLUDED_PATHS: '/test/**,**/*-test.js,/scripts,/build-scripts'
     SEARCH_MAX_DEPTH: 4
-
-eslint-sast:
-  rules:
-    - when: always
 
 nodejs-scan-sast:
   rules:
