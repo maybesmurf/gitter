@@ -1,3 +1,10 @@
+# 21.49.0 - *upcoming*
+
+Developer facing:
+
+ - Remove CI scans deprecated in GitLab 15.0, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2280
+
+
 # 21.48.0 - 2022-04-06
 
  - Update Chinese (`zh`) translation, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2275
