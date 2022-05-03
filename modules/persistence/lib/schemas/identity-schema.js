@@ -14,6 +14,7 @@ module.exports = {
       displayName: { type: String },
       email: { type: String },
       accessToken: { type: String },
+      accessTokenExpires: Date,
       // example: google oauth2
       refreshToken: { type: String },
       // example: twitter oauth1

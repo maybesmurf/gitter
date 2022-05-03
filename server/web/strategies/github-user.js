@@ -18,7 +18,7 @@ var updateUserLocale = require('../update-user-locale');
 var debug = require('debug')('gitter:infra:passport');
 var obfuscateToken = require('gitter-web-github').obfuscateToken;
 var passportLogin = require('../passport-login');
-var callbackUrlBuilder = require('./callback-url-builder');
+var callbackUrlBuilder = require('gitter-web-oauth/lib/callback-url-builder');
 var StatusError = require('statuserror');
 
 // Move this out once we use it multiple times. We're only interested in

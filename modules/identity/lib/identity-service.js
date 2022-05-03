@@ -176,6 +176,14 @@ function findPrimaryIdentityForUser(user) {
     });
 }
 
+const updateById = function(id, newData) {
+  const query = { _id: id };
+  const update = {
+    $set: newData
+  };
+  return Identity.findOneAndUpdate(query, update).exec();
+};
+
 /**
  * Remove all the identities for a user
  */
@@ -194,6 +202,7 @@ module.exports = {
   listProvidersForUser: listProvidersForUser,
   findUserIdForProviderUsername: findUserIdForProviderUsername,
   findPrimaryIdentityForUser: Promise.method(findPrimaryIdentityForUser),
+  updateById,
   removeForUser: Promise.method(removeForUser),
 
   GITLAB_IDENTITY_PROVIDER: 'gitlab',

@@ -9,9 +9,22 @@ var trackSignupOrLogin = require('../track-signup-or-login');
 var updateUserLocale = require('../update-user-locale');
 var passportLogin = require('../passport-login');
 var identityService = require('gitter-web-identity');
-var callbackUrlBuilder = require('./callback-url-builder');
+var callbackUrlBuilder = require('gitter-web-oauth/lib/callback-url-builder');
 
-function gitlabOauthCallback(req, token, refreshToken, profile, done) {
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
+function gitlabOauthCallback(req, token, refreshToken, params, profile, done) {
+  const createdAtSeconds = params.created_at;
+  const expiresInSeconds = params.expires_in;
+  // GitLab access tokens expire after 2 hours,
+  // https://docs.gitlab.com/14.10/ee/integration/oauth_provider.html
+  let accessTokenExpiresMs = 2 * ONE_HOUR_MS;
+  // But let's try to grab this info from the request if it exists instead as
+  // that behavior could change at any time.
+  if (createdAtSeconds && expiresInSeconds) {
+    accessTokenExpiresMs = 1000 * (createdAtSeconds + expiresInSeconds);
+  }
+
   var gitlabUser = {
     username: profile.username + '_gitlab',
     displayName: profile.displayName,
@@ -24,7 +37,8 @@ function gitlabOauthCallback(req, token, refreshToken, profile, done) {
     displayName: profile.displayName,
     email: profile._json.email && profile._json.email.toLowerCase(),
     accessToken: token,
-    accessTokenSecret: refreshToken,
+    accessTokenExpires: new Date(accessTokenExpiresMs),
+    refreshToken,
     avatar: profile.avatarUrl
   };
 
