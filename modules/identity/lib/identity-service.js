@@ -66,7 +66,7 @@ var findIdentityForUser = Promise.method(function(user, provider) {
     return castUserAsGitHubIdentity(user);
   }
 
-  return Identity.findOne({ userId: user._id, provider: provider }, { _id: 0, userId: 0, __v: 0 })
+  return Identity.findOne({ userId: user._id, provider: provider }, { userId: 0, __v: 0 })
     .lean()
     .exec();
 });
@@ -177,6 +177,7 @@ function findPrimaryIdentityForUser(user) {
 }
 
 const updateById = function(id, newData) {
+  assert(id, 'Expected ID to be passed to identityService.updateById but received falsey value');
   const query = { _id: id };
   const update = {
     $set: newData

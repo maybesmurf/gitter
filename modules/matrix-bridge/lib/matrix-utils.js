@@ -559,7 +559,8 @@ class MatrixUtils {
     await bridgeIntent.ensureRegistered(true);
 
     const gitterUser = await userService.findByUsername(gitterBridgeProfileUsername);
-    await this.ensureCorrectMxidProfile(mxid, gitterUser.id);
+    // TODO: Uncomment before merging
+    //await this.ensureCorrectMxidProfile(mxid, gitterUser.id);
   }
 }
 

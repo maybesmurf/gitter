@@ -1,28 +1,36 @@
 'use strict';
 
+const assert = require('assert');
 const url = require('url');
 const util = require('util');
 const request = util.promisify(require('request'));
 const Promise = require('bluebird');
 const StatusError = require('statuserror');
+const debug = require('debug')('gitter:app:gitlab:get-gitlab-access-token-from-user');
 
-const identityService = require('gitter-web-identity');
-const callbackUrlBuilder = require('gitter-web-oauth/lib/callback-url-builder');
 const env = require('gitter-web-env');
 const config = env.config;
+const logger = env.logger;
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const obfuscateToken = require('gitter-web-github').obfuscateToken;
+const identityService = require('gitter-web-identity');
+const callbackUrlBuilder = require('gitter-web-oauth/lib/callback-url-builder');
 
-const ONE_HOUR_MS = 60 * 60 * 1000;
+const parseAccessTokenExpiresMsFromRes = require('./parse-access-token-expires-ms-from-res');
 
 async function refreshGitlabAccessToken(identity) {
+  debug(
+    `refreshGitlabAccessToken ${identity.username} (${identity.providerKey}) refreshToken=${identity.refreshToken}`
+  );
   // We're trying to construct a URL that looks like:
   // https://gitlab.com/oauth/token?grant_type=refresh_token&client_id=abc&client_secret=abc&refresh_token=abc&redirect_uri=abc
   const gitlabRefreshTokenUrl = new url.URL('https://gitlab.com/oauth/token');
 
-  gitlabRefreshTokenUrl.searchParams.grant_type = 'refresh_token';
-  gitlabRefreshTokenUrl.searchParams.client_id = config.get('gitlaboauth:client_id');
-  gitlabRefreshTokenUrl.searchParams.client_secret = config.get('gitlaboauth:client_secret');
-  gitlabRefreshTokenUrl.searchParams.refresh_token = identity.refreshToken;
-  gitlabRefreshTokenUrl.searchParams.redirect_uri = callbackUrlBuilder('gitlab');
+  gitlabRefreshTokenUrl.searchParams.set('grant_type', 'refresh_token');
+  gitlabRefreshTokenUrl.searchParams.set('client_id', config.get('gitlaboauth:client_id'));
+  gitlabRefreshTokenUrl.searchParams.set('client_secret', config.get('gitlaboauth:client_secret'));
+  gitlabRefreshTokenUrl.searchParams.set('refresh_token', identity.refreshToken);
+  gitlabRefreshTokenUrl.searchParams.set('redirect_uri', callbackUrlBuilder('gitlab'));
 
   const refreshRes = await request({
     method: 'POST',
@@ -34,22 +42,28 @@ async function refreshGitlabAccessToken(identity) {
   });
 
   if (refreshRes.statusCode !== 200) {
+    const apiUrlLogSafe = new url.URL(gitlabRefreshTokenUrl.toString());
+    apiUrlLogSafe.searchParams.set('client_id', 'xxx');
+    apiUrlLogSafe.searchParams.set('client_secret', 'xxx');
+    apiUrlLogSafe.searchParams.set('refresh_token', 'xxx');
+
+    logger.warn(
+      `Failed to refresh GitLab access token for ${identity.username} (${
+        identity.providerKey
+      }) using refreshToken=${obfuscateToken(
+        identity.refreshToken
+      )}. GitLab API (POST ${apiUrlLogSafe.toString()}) returned ${refreshRes.statusCode}: ${
+        typeof refreshRes.body === 'object' ? JSON.stringify(refreshRes.body) : refreshRes.body
+      }`
+    );
     throw new StatusError(
       500,
-      'Unable to refresh expired GitLab access token. You will probably need to sign out and back in to get a new access token or the GitLab API is down.'
+      `Unable to refresh expired GitLab access token. You will probably need to sign out and back in to get a new access token or the GitLab API is down. GitLab API returned ${refreshRes.statusCode}`
     );
   }
 
-  const createdAtSeconds = refreshRes.body.created_at;
-  const expiresInSeconds = refreshRes.body.expires_in;
-  // GitLab access tokens expire after 2 hours,
-  // https://docs.gitlab.com/14.10/ee/integration/oauth_provider.html
-  let accessTokenExpiresMs = 2 * ONE_HOUR_MS;
-  // But let's try to grab this info from the request if it exists instead as
-  // that behavior could change at any time.
-  if (createdAtSeconds && expiresInSeconds) {
-    accessTokenExpiresMs = 1000 * (createdAtSeconds + expiresInSeconds);
-  }
+  const accessTokenExpiresMs = parseAccessTokenExpiresMsFromRes(refreshRes.body);
+  assert(accessTokenExpiresMs);
 
   const accessToken = refreshRes.body.access_token;
   const refreshToken = refreshRes.body.refresh_token;
@@ -60,12 +74,15 @@ async function refreshGitlabAccessToken(identity) {
     refreshToken
   };
 
-  await identityService.updateById(identity._id, newGitlabIdentityData);
+  await identityService.updateById(identity._id || identity.id, newGitlabIdentityData);
 
   return accessToken;
 }
 
-module.exports = function(user) {
+// Cache of ongoing promises to refresh access tokens
+const waitingForNewTokenPromiseMap = {};
+
+module.exports = function getGitlabAccessTokenFromUser(user) {
   if (!user) return Promise.resolve();
 
   return identityService
@@ -80,9 +97,27 @@ module.exports = function(user) {
       // use it.
       if (
         glIdentity.accessTokenExpires &&
-        glIdentity.accessTokenExpires.getTime() - 120 * 1000 > Date.now()
+        glIdentity.accessTokenExpires.getTime() - 120 * 1000 < Date.now()
       ) {
-        accessToken = await refreshGitlabAccessToken(glIdentity);
+        // `getGitlabAccessTokenFromUser` can be called multiple times in quick
+        // succession in the same request but we can only exchange the
+        // refreshToken once for a new token, so we need to only do this once
+        // and re-use this work for all of the callers. This way they all get
+        // the new token after we successfully refresh.
+        const serializedUserId = mongoUtils.serializeObjectId(user._id || user.id);
+        const ongoingPromise = waitingForNewTokenPromiseMap[serializedUserId];
+        if (ongoingPromise) {
+          return ongoingPromise;
+        }
+
+        try {
+          waitingForNewTokenPromiseMap[serializedUserId] = refreshGitlabAccessToken(glIdentity);
+          accessToken = await waitingForNewTokenPromiseMap[serializedUserId];
+        } finally {
+          // Regardless of if this failed or succeeded, we are no longer waiting
+          // anymore and can clean up our cache for them to try again.
+          delete waitingForNewTokenPromiseMap[serializedUserId];
+        }
       }
 
       return accessToken;
