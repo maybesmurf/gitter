@@ -25,7 +25,6 @@ async function refreshGitlabAccessToken(identity) {
   // We're trying to construct a URL that looks like:
   // https://gitlab.com/oauth/token?grant_type=refresh_token&client_id=abc&client_secret=abc&refresh_token=abc&redirect_uri=abc
   const gitlabRefreshTokenUrl = new url.URL('https://gitlab.com/oauth/token');
-
   gitlabRefreshTokenUrl.searchParams.set('grant_type', 'refresh_token');
   gitlabRefreshTokenUrl.searchParams.set('client_id', config.get('gitlaboauth:client_id'));
   gitlabRefreshTokenUrl.searchParams.set('client_secret', config.get('gitlaboauth:client_secret'));
@@ -64,9 +63,10 @@ async function refreshGitlabAccessToken(identity) {
 
   const accessTokenExpiresMs = parseAccessTokenExpiresMsFromRes(refreshRes.body);
   assert(accessTokenExpiresMs);
-
   const accessToken = refreshRes.body.access_token;
+  assert(accessToken);
   const refreshToken = refreshRes.body.refresh_token;
+  assert(refreshToken);
 
   const newGitlabIdentityData = {
     accessToken,
