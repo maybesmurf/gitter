@@ -1,5 +1,6 @@
 'use strict';
 
+const assert = require('assert');
 var env = require('gitter-web-env');
 var config = env.config;
 
@@ -10,8 +11,12 @@ var updateUserLocale = require('../update-user-locale');
 var passportLogin = require('../passport-login');
 var identityService = require('gitter-web-identity');
 var callbackUrlBuilder = require('./callback-url-builder');
+const parseAccessTokenExpiresMsFromRes = require('gitter-web-gitlab/lib/parse-access-token-expires-ms-from-res');
 
-function gitlabOauthCallback(req, token, refreshToken, profile, done) {
+function gitlabOauthCallback(req, token, refreshToken, params, profile, done) {
+  const accessTokenExpiresMs = parseAccessTokenExpiresMsFromRes(params);
+  assert(accessTokenExpiresMs);
+
   var gitlabUser = {
     username: profile.username + '_gitlab',
     displayName: profile.displayName,
@@ -24,7 +29,8 @@ function gitlabOauthCallback(req, token, refreshToken, profile, done) {
     displayName: profile.displayName,
     email: profile._json.email && profile._json.email.toLowerCase(),
     accessToken: token,
-    accessTokenSecret: refreshToken,
+    accessTokenExpires: new Date(accessTokenExpiresMs),
+    refreshToken,
     avatar: profile.avatarUrl
   };
 
