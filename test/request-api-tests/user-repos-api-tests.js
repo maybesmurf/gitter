@@ -73,7 +73,7 @@ describe('user-repos #slow', function() {
     });
   });
 
-  describe('GitLab', () => {
+  describe.skip('GitLab', () => {
     fixtureLoader.ensureIntegrationEnvironment(
       '#integrationGitlabUser1',
       'GITLAB_PUBLIC_PROJECT1_ID',

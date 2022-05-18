@@ -30,23 +30,25 @@ describe('gl-project-policy-evaluator #slow #gitlab', function() {
     user2: {}
   });
 
-  it('project members should have access', function() {
-    return expect(fixture.userGitlab1, fixtureLoader.GITLAB_PUBLIC_PROJECT1_URI, {
-      canRead: true,
-      canWrite: true,
-      canJoin: false,
-      canAdmin: true,
-      canAddUser: false
+  describe.skip('gitlab', () => {
+    it('project members should have access', function() {
+      return expect(fixture.userGitlab1, fixtureLoader.GITLAB_PUBLIC_PROJECT1_URI, {
+        canRead: true,
+        canWrite: true,
+        canJoin: false,
+        canAdmin: true,
+        canAddUser: false
+      });
     });
-  });
 
-  it('non-project members should not have access ', function() {
-    return expect(fixture.userGitlab1, 'gitterHQ/webapp', {
-      canRead: false,
-      canWrite: false,
-      canJoin: false,
-      canAdmin: false,
-      canAddUser: false
+    it('non-project members should not have access ', function() {
+      return expect(fixture.userGitlab1, 'gitterHQ/webapp', {
+        canRead: false,
+        canWrite: false,
+        canJoin: false,
+        canAdmin: false,
+        canAddUser: false
+      });
     });
   });
 
