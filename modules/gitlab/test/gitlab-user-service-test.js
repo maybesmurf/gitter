@@ -5,7 +5,7 @@ const proxyquireNoCallThru = require('proxyquire').noCallThru();
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const TestError = require('gitter-web-test-utils/lib/test-error');
 
-describe('gitlab-user-service #flakey #slow #gitlab', function() {
+describe.skip('gitlab-user-service #flakey #slow #gitlab', function() {
   fixtureLoader.ensureIntegrationEnvironment('GITLAB_USER_TOKEN');
 
   const FAKE_USER = {

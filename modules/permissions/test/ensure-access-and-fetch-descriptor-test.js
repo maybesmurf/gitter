@@ -163,7 +163,7 @@ describe('ensure-access-and-fetch-descriptor #slow', function() {
     });
   });
 
-  describe('GitLab', () => {
+  describe.skip('GitLab', () => {
     it('should return a descriptor for a GitLab user if the user has access', async () => {
       const sd = await ensureAccessAndFetchDescriptor(fixture.userGitlab1, {
         type: 'GL_USER',

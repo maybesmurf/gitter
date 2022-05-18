@@ -8,7 +8,7 @@ const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const GUEST_ACCESS_LEVEL = 10;
 const OWNER_ACCESS_LEVEL = 50;
 
-describe('gitlab-project-service #flakey #slow #gitlab', function() {
+describe.skip('gitlab-project-service #flakey #slow #gitlab', function() {
   // These tests timeout at 10000 sometimes otherwise
   this.timeout(30000);
 
