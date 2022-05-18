@@ -7,7 +7,7 @@ const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 // https://docs.gitlab.com/ee/api/access_requests.html
 const OWNER_ACCESS_LEVEL = 50;
 
-describe('gitlab-group-service #flakey #slow #gitlab', function() {
+describe.skip('gitlab-group-service #flakey #slow #gitlab', function() {
   // These tests timeout at 10000 sometimes otherwise
   this.timeout(30000);
 
