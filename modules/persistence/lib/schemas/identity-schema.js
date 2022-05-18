@@ -42,6 +42,19 @@ module.exports = {
             username: { $exists: true }
           }
         }
+      },
+      // Used in scripts/migration/fill-gitlab-identity-refresh-tokens.js
+      {
+        keys: {
+          provider: 1,
+          refreshToken: 1
+        },
+        options: {
+          background: true,
+          partialFilterExpression: {
+            provider: 'gitlab'
+          }
+        }
       }
     ];
 
