@@ -64,7 +64,7 @@ describe('user-orgs #slow', () => {
     });
   });
 
-  describe('GitLab', () => {
+  describe.skip('GitLab', () => {
     fixtureLoader.ensureIntegrationEnvironment(
       '#integrationGitlabUser1',
       'GITLAB_GROUP1_ID',

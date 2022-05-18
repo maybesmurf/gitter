@@ -58,88 +58,99 @@ describe('group-service', function() {
         userGitlab1: '#integrationGitlabUser1'
       });
 
-      it('should create a group based on a GitLab user', async () => {
-        const groupUri = fixture.userGitlab1.username;
-        const user = fixture.userGitlab1;
+      describe.skip('gitlab', () => {
+        it('should create a group based on a GitLab user', async () => {
+          const groupUri = fixture.userGitlab1.username;
+          const user = fixture.userGitlab1;
 
-        const group = await groupService.createGroup(user, {
-          type: 'GL_USER',
-          name: 'Some GitLab user',
-          uri: groupUri,
-          linkPath: fixtureLoader.GITLAB_USER_USERNAME
+          const group = await groupService.createGroup(user, {
+            type: 'GL_USER',
+            name: 'Some GitLab user',
+            uri: groupUri,
+            linkPath: fixtureLoader.GITLAB_USER_USERNAME
+          });
+
+          assert.strictEqual(group.name, 'Some GitLab user');
+          assert.strictEqual(group.uri, groupUri);
+          assert.strictEqual(group.lcUri, groupUri.toLowerCase());
+          assert.strictEqual(group.lcHomeUri, `${user.username.toLowerCase()}/home`);
+
+          const securityDescriptor = await securityDescriptorService.group.findById(
+            group._id,
+            null
+          );
+
+          assert.deepEqual(securityDescriptor, {
+            admins: 'GL_USER_SAME',
+            externalId: fixtureLoader.GITLAB_USER_ID,
+            linkPath: fixtureLoader.GITLAB_USER_USERNAME,
+            members: 'PUBLIC',
+            public: true,
+            type: 'GL_USER'
+          });
         });
 
-        assert.strictEqual(group.name, 'Some GitLab user');
-        assert.strictEqual(group.uri, groupUri);
-        assert.strictEqual(group.lcUri, groupUri.toLowerCase());
-        assert.strictEqual(group.lcHomeUri, `${user.username.toLowerCase()}/home`);
+        it('should create a group based on a GitLab group', async () => {
+          const groupUri = fixtureLoader.GITLAB_GROUP1_URI;
+          const user = fixture.userGitlab1;
 
-        const securityDescriptor = await securityDescriptorService.group.findById(group._id, null);
+          const group = await groupService.createGroup(user, {
+            type: 'GL_GROUP',
+            name: 'Some GitLab group',
+            uri: groupUri,
+            linkPath: groupUri
+          });
 
-        assert.deepEqual(securityDescriptor, {
-          admins: 'GL_USER_SAME',
-          externalId: fixtureLoader.GITLAB_USER_ID,
-          linkPath: fixtureLoader.GITLAB_USER_USERNAME,
-          members: 'PUBLIC',
-          public: true,
-          type: 'GL_USER'
-        });
-      });
+          assert.strictEqual(group.name, 'Some GitLab group');
+          assert.strictEqual(group.uri, groupUri);
+          assert.strictEqual(group.lcUri, groupUri.toLowerCase());
+          assert.strictEqual(group.lcHomeUri, groupUri);
 
-      it('should create a group based on a GitLab group', async () => {
-        const groupUri = fixtureLoader.GITLAB_GROUP1_URI;
-        const user = fixture.userGitlab1;
+          const securityDescriptor = await securityDescriptorService.group.findById(
+            group._id,
+            null
+          );
 
-        const group = await groupService.createGroup(user, {
-          type: 'GL_GROUP',
-          name: 'Some GitLab group',
-          uri: groupUri,
-          linkPath: groupUri
-        });
-
-        assert.strictEqual(group.name, 'Some GitLab group');
-        assert.strictEqual(group.uri, groupUri);
-        assert.strictEqual(group.lcUri, groupUri.toLowerCase());
-        assert.strictEqual(group.lcHomeUri, groupUri);
-
-        const securityDescriptor = await securityDescriptorService.group.findById(group._id, null);
-
-        assert.deepEqual(securityDescriptor, {
-          admins: 'GL_GROUP_MAINTAINER',
-          externalId: fixtureLoader.GITLAB_GROUP1_ID,
-          linkPath: groupUri,
-          members: 'PUBLIC',
-          public: true,
-          type: 'GL_GROUP'
-        });
-      });
-
-      it('should create a group based on a GitLab project', async () => {
-        const projectUri = fixtureLoader.GITLAB_PUBLIC_PROJECT1_URI;
-        const user = fixture.userGitlab1;
-
-        const uri = 'group-uri-for-project-based-group';
-        const group = await groupService.createGroup(user, {
-          type: 'GL_PROJECT',
-          name: 'Some GitLab project',
-          uri,
-          linkPath: projectUri
+          assert.deepEqual(securityDescriptor, {
+            admins: 'GL_GROUP_MAINTAINER',
+            externalId: fixtureLoader.GITLAB_GROUP1_ID,
+            linkPath: groupUri,
+            members: 'PUBLIC',
+            public: true,
+            type: 'GL_GROUP'
+          });
         });
 
-        assert.strictEqual(group.name, 'Some GitLab project');
-        assert.strictEqual(group.uri, uri);
-        assert.strictEqual(group.lcUri, uri);
-        assert.strictEqual(group.lcHomeUri, uri);
+        it('should create a group based on a GitLab project', async () => {
+          const projectUri = fixtureLoader.GITLAB_PUBLIC_PROJECT1_URI;
+          const user = fixture.userGitlab1;
 
-        const securityDescriptor = await securityDescriptorService.group.findById(group._id, null);
+          const uri = 'group-uri-for-project-based-group';
+          const group = await groupService.createGroup(user, {
+            type: 'GL_PROJECT',
+            name: 'Some GitLab project',
+            uri,
+            linkPath: projectUri
+          });
 
-        assert.deepEqual(securityDescriptor, {
-          admins: 'GL_PROJECT_MAINTAINER',
-          externalId: fixtureLoader.GITLAB_PUBLIC_PROJECT1_ID,
-          linkPath: projectUri,
-          members: 'PUBLIC',
-          public: true,
-          type: 'GL_PROJECT'
+          assert.strictEqual(group.name, 'Some GitLab project');
+          assert.strictEqual(group.uri, uri);
+          assert.strictEqual(group.lcUri, uri);
+          assert.strictEqual(group.lcHomeUri, uri);
+
+          const securityDescriptor = await securityDescriptorService.group.findById(
+            group._id,
+            null
+          );
+
+          assert.deepEqual(securityDescriptor, {
+            admins: 'GL_PROJECT_MAINTAINER',
+            externalId: fixtureLoader.GITLAB_PUBLIC_PROJECT1_ID,
+            linkPath: projectUri,
+            members: 'PUBLIC',
+            public: true,
+            type: 'GL_PROJECT'
+          });
         });
       });
 

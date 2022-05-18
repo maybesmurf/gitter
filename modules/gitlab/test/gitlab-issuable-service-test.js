@@ -7,7 +7,7 @@ const proxyquireNoCallThru = require('proxyquire').noCallThru();
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const TestError = require('gitter-web-test-utils/lib/test-error');
 
-describe('gitlab-issue-service #slow #gitlab', function() {
+describe.skip('gitlab-issue-service #slow #gitlab', function() {
   // These tests timeout at 10000 sometimes otherwise
   this.timeout(30000);
 

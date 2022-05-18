@@ -27,23 +27,25 @@ describe('gl-group-policy-evaluator #slow #gitlab', function() {
     user2: {}
   });
 
-  it('group members should have access', function() {
-    return expect(fixture.userGitlab1, fixtureLoader.GITLAB_GROUP1_URI, {
-      canRead: true,
-      canWrite: true,
-      canJoin: false,
-      canAdmin: true,
-      canAddUser: false
+  describe.skip('gitlab', () => {
+    it('group members should have access', function() {
+      return expect(fixture.userGitlab1, fixtureLoader.GITLAB_GROUP1_URI, {
+        canRead: true,
+        canWrite: true,
+        canJoin: false,
+        canAdmin: true,
+        canAddUser: false
+      });
     });
-  });
 
-  it('non-group members should not have access ', function() {
-    return expect(fixture.userGitlab1, 'gitlab-org/gitter', {
-      canRead: false,
-      canWrite: false,
-      canJoin: false,
-      canAdmin: false,
-      canAddUser: false
+    it('non-group members should not have access ', function() {
+      return expect(fixture.userGitlab1, 'gitlab-org/gitter', {
+        canRead: false,
+        canWrite: false,
+        canJoin: false,
+        canAdmin: false,
+        canAddUser: false
+      });
     });
   });
 
