@@ -1,3 +1,8 @@
+# 21.50.0 - 2022-05-18 - GitLab 15.0 all tokens expire
+
+ - Refresh GitLab tokens after they expire (migration phase 2), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2283
+
+
 # 21.49.0 - 2022-05-18 - GitLab 15.0 breaking things
 
  - Write to the correct GitLab `identity` field for `refreshTokens` and add migration script to run after (migration phase 1), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2284

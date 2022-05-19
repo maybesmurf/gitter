@@ -9,7 +9,7 @@ var trackSignupOrLogin = require('../track-signup-or-login');
 var updateUserLocale = require('../update-user-locale');
 var passportLogin = require('../passport-login');
 var identityService = require('gitter-web-identity');
-var callbackUrlBuilder = require('./callback-url-builder');
+var callbackUrlBuilder = require('gitter-web-oauth/lib/callback-url-builder');
 
 function googleOauth2Callback(req, accessToken, refreshToken, params, profile, done) {
   var avatar = profile.photos[0].value; // is this always set?

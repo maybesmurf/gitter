@@ -10,7 +10,7 @@ var trackSignupOrLogin = require('../track-signup-or-login');
 var updateUserLocale = require('../update-user-locale');
 var passportLogin = require('../passport-login');
 var identityService = require('gitter-web-identity');
-var callbackUrlBuilder = require('./callback-url-builder');
+var callbackUrlBuilder = require('gitter-web-oauth/lib/callback-url-builder');
 const parseAccessTokenExpiresMsFromRes = require('gitter-web-gitlab/lib/parse-access-token-expires-ms-from-res');
 
 function gitlabOauthCallback(req, token, refreshToken, params, profile, done) {
