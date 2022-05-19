@@ -1,7 +1,10 @@
-# 21.49.0 - *upcoming*
+# 21.49.0 - 2022-05-18 - GitLab 15.0 breaking things
+
+ - Write to the correct GitLab `identity` field for `refreshTokens` and add migration script to run after (migration phase 1), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2284
 
 Developer facing:
 
+ - Disable failing tests that touch the GitLab API, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2285
  - Remove CI scans deprecated in GitLab 15.0, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2280
 
 
