@@ -18,7 +18,7 @@ const asToken = config.get('matrix:bridge:asToken');
 async function ensureCorrectMatrixBridgeUserProfile() {
   try {
     const matrixUtils = new MatrixUtils(matrixBridge);
-    await matrixUtils.ensureCorrectMatrixBridgeUserProfile();
+    //await matrixUtils.ensureCorrectMatrixBridgeUserProfile();
   } catch (err) {
     logger.error(`Failed to update the bridge user profile`, {
       exception: err

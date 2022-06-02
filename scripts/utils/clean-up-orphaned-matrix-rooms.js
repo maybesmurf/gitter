@@ -6,6 +6,7 @@
 //
 'use strict';
 
+const assert = require('assert');
 const shutdown = require('shutdown');
 const persistence = require('gitter-web-persistence');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
@@ -26,7 +27,7 @@ const opts = require('yargs')
     required: true,
     default: 2000,
     description:
-      'Delay timeout(in milliseconds) between rooms to update to not overwhelm the homeserver'
+      'Delay timeout(in milliseconds) between rooms to shutdown to not overwhelm the homeserver'
   })
   .option('dry-run', {
     description: 'Dry-run. Do not execute, just print',
@@ -40,9 +41,19 @@ let numberOfRoomsShutdown = 0;
 let numberOfRoomsIgnored = 0;
 const failedBridgedRoomShutdowns = [];
 
-async function shutdownMatrixRoom(matrixRoomId) {
+async function shutdownBridgedMatrixRoom(bridgedRoomEntry) {
   try {
-    await matrixUtils.shutdownMatrixRoom(matrixRoomId);
+    assert(bridgedRoomEntry.matrixRoomId);
+    assert(bridgedRoomEntry.troupeId);
+    console.log(
+      `${opts.dryRun ? 'Dry-run: ' : ''}Shutting down matrixRoomId=${
+        bridgedRoomEntry.matrixRoomId
+      }, gitterRoomId=${bridgedRoomEntry.troupeId}`
+    );
+
+    if (!opts.dryRun) {
+      await matrixUtils.shutdownMatrixRoom(bridgedRoomEntry.matrixRoomId);
+    }
     numberOfRoomsShutdown += 1;
   } catch (err) {
     // This error occurs for rooms which don't exist or we can't get access to
@@ -51,7 +62,7 @@ async function shutdownMatrixRoom(matrixRoomId) {
     // !1605079432013:localhost, and room previews are disabled"
     if (err.errcode === 'M_FORBIDDEN') {
       console.log(
-        `${matrixRoomId} is already deleted or we don't have access anymore to delete it so we can just ignore it.`
+        `${bridgedRoomEntry.matrixRoomId} is already deleted or we don't have access anymore to delete it so we can just ignore it -> ${err.errcode}: ${err.error}`
       );
       numberOfRoomsIgnored += 1;
     } else {
@@ -87,13 +98,7 @@ async function shutdownOrphanedRooms() {
 
   for await (let bridgedRoomEntry of iterable) {
     try {
-      console.log(
-        `Shutting down matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`
-      );
-
-      if (!opts.dryRun) {
-        await shutdownMatrixRoom(bridgedRoomEntry.matrixRoomId);
-      }
+      await shutdownBridgedMatrixRoom(bridgedRoomEntry);
     } catch (err) {
       console.error(
         `Failed to shutdown matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`,
@@ -103,7 +108,7 @@ async function shutdownOrphanedRooms() {
       failedBridgedRoomShutdowns.push(bridgedRoomEntry);
     }
 
-    // Put a delay between each time we process and update a bridged room
+    // Put a delay between each time we process and shutdown a bridged room
     // to avoid overwhelming and hitting the rate-limits on the Matrix homeserver
     if (opts.delay > 0) {
       await new Promise(resolve => {
