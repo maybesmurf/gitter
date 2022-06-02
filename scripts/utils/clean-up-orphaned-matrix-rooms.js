@@ -10,7 +10,6 @@ const shutdown = require('shutdown');
 const persistence = require('gitter-web-persistence');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
-const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
@@ -29,31 +28,40 @@ const opts = require('yargs')
     description:
       'Delay timeout(in milliseconds) between rooms to update to not overwhelm the homeserver'
   })
+  .option('dry-run', {
+    description: 'Dry-run. Do not execute, just print',
+    type: 'boolean',
+    default: false
+  })
   .help('help')
   .alias('help', 'h').argv;
 
 let numberOfRoomsShutdown = 0;
+let numberOfRoomsIgnored = 0;
 const failedBridgedRoomShutdowns = [];
 
-async function shutdownOrphanedRooms() {
-  // This is the date that we shipped
-  // https://gitlab.com/gitterHQ/webapp/-/merge_requests/2265 and started
-  // bridging Gitter room deletions to Matrix automatically. Shipped in
-  // https://gitlab.com/gitterHQ/webapp/-/blob/develop/CHANGELOG.md#21450-2021-12-08
-  // which shipped to production on 2021-12-14
-  // (https://twitter.com/gitchat/status/1470908553787772931). We chose
-  // 2021-12-16 just to be safe by a day.
-  //
-  // We only need to look at rooms that were created before that time.
-  const cutoffId = mongoUtils.createIdForTimestamp(new Date('2021-12-16').getTime());
+async function shutdownMatrixRoom(matrixRoomId) {
+  try {
+    await matrixUtils.shutdownMatrixRoom(matrixRoomId);
+    numberOfRoomsShutdown += 1;
+  } catch (err) {
+    // This error occurs for rooms which don't exist or we can't get access to
+    // the room anyway. We don't need to worry about these cases. e.g.
+    // "M_FORBIDDEN: User @gitter-badger:my.matrix.host not in room
+    // !1605079432013:localhost, and room previews are disabled"
+    if (err.errcode === 'M_FORBIDDEN') {
+      console.log(
+        `${matrixRoomId} is already deleted or we don't have access anymore to delete it so we can just ignore it.`
+      );
+      numberOfRoomsIgnored += 1;
+    } else {
+      throw err;
+    }
+  }
+}
 
+async function shutdownOrphanedRooms() {
   const cursor = await persistence.MatrixBridgedRoom.aggregate([
-    {
-      $match: {
-        _id: { $lt: cutoffId }
-      }
-    },
-    { $project: { troupeId: 1 } },
     {
       // Lookup troupes._id === matricesbridgedroom.troupeId
       $lookup: {
@@ -75,18 +83,6 @@ async function shutdownOrphanedRooms() {
     .cursor({ batchSize: 1000, async: true })
     .exec();
 
-  console.log('cursor', cursor);
-
-  // cursor.each(function(error, bridgedRoomEntry) {
-  //   if (error) {
-  //     console.log('cursor error', error);
-  //   }
-
-  //   console.log(
-  //     `Shutting down matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`
-  //   );
-  // });
-
   const iterable = iterableFromMongooseCursor(cursor);
 
   for await (let bridgedRoomEntry of iterable) {
@@ -95,7 +91,9 @@ async function shutdownOrphanedRooms() {
         `Shutting down matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`
       );
 
-      numberOfRoomsShutdown += 1;
+      if (!opts.dryRun) {
+        await shutdownMatrixRoom(bridgedRoomEntry.matrixRoomId);
+      }
     } catch (err) {
       console.error(
         `Failed to shutdown matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`,
@@ -117,12 +115,19 @@ async function shutdownOrphanedRooms() {
 
 async function run() {
   try {
+    if (opts.dryRun) {
+      console.log('Dry-run, nothing will actually be deleted =================');
+      console.log('===========================================================');
+    }
+
     console.log('Setting up Matrix bridge');
     await installBridge();
 
     console.log('Starting to shutdown orphaned bridged rooms');
     await shutdownOrphanedRooms();
-    console.log(`${numberOfRoomsShutdown} orphaned bridged shutdown!`);
+    console.log(
+      `${numberOfRoomsShutdown} orphaned bridged shutdown! Ignored ${numberOfRoomsIgnored} orphaned rooms which are already deleted.`
+    );
 
     if (failedBridgedRoomShutdowns.length) {
       console.warn(
