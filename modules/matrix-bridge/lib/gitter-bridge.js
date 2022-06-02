@@ -391,20 +391,28 @@ class GitterBridge {
       matrixRoomId
     });
 
-    const intent = this.matrixBridge.getIntent();
+    const bridgeIntent = this.matrixBridge.getIntent();
     let senderIntent;
     try {
-      const event = await intent.getEvent(matrixRoomId, matrixEventId);
+      const event = await bridgeIntent.getEvent(matrixRoomId, matrixEventId);
       senderIntent = this.matrixBridge.getIntent(event.sender);
     } catch (err) {
       logger.info(
         `handleChatMessageRemoveEvent(): Using bridging user intent because Matrix API call failed, intent.getEvent(${matrixRoomId}, ${matrixEventId})`
       );
       // We'll just use the bridge intent if we can't use their own user
-      senderIntent = intent;
+      senderIntent = bridgeIntent;
     }
 
-    await senderIntent.matrixClient.redactEvent(matrixRoomId, matrixEventId);
+    try {
+      await senderIntent.matrixClient.redactEvent(matrixRoomId, matrixEventId);
+    } catch (err) {
+      // If we fail to delete the message from the Gitter user, let's just do it
+      // from the bridging user (Gitter badger). This will happen whenever a
+      // Gitter user tries to delete a message from someone on Matrix
+      // (M_FORBIDDEN: Application service cannot masquerade as this user.)
+      await bridgeIntent.matrixClient.redactEvent(matrixRoomId, matrixEventId);
+    }
 
     return null;
   }
