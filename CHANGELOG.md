@@ -1,4 +1,4 @@
-# 21.51.0 - *upcoming*
+# 21.51.0 - 2022-06-02
 
  - Fallback to using the Matrix bridging user (Gitter badger) when we fail to delete a message from a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2289
 
