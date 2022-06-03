@@ -4,7 +4,7 @@
 
 Developer facing:
 
- - Add utility script to clean up orphaned Matrix rooms, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2290
+ - Add utility script to clean up orphaned Matrix rooms, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2290, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2292
 
 
 # 21.50.0 - 2022-05-18 - GitLab 15.0 all tokens expire
