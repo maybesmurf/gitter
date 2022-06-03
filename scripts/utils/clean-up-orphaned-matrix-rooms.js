@@ -54,6 +54,7 @@ async function shutdownBridgedMatrixRoom(bridgedRoomEntry) {
     if (!opts.dryRun) {
       await matrixUtils.shutdownMatrixRoom(bridgedRoomEntry.matrixRoomId);
     }
+    console.log('\t✅');
     numberOfRoomsShutdown += 1;
   } catch (err) {
     // This error occurs for rooms which don't exist or we can't get access to
@@ -61,9 +62,7 @@ async function shutdownBridgedMatrixRoom(bridgedRoomEntry) {
     // "M_FORBIDDEN: User @gitter-badger:my.matrix.host not in room
     // !1605079432013:localhost, and room previews are disabled"
     if (err.errcode === 'M_FORBIDDEN') {
-      console.log(
-        `${bridgedRoomEntry.matrixRoomId} is already deleted or we don't have access anymore to delete it so we can just ignore it -> ${err.errcode}: ${err.error}`
-      );
+      console.log(`\t⏩ -> ${err.errcode}: ${err.error}`);
       numberOfRoomsIgnored += 1;
     } else {
       throw err;
