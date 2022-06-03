@@ -72,12 +72,15 @@ async function shutdownBridgedMatrixRoom(bridgedRoomEntry) {
 }
 
 async function shutdownOrphanedRooms() {
+  // Find bridged Matrix rooms where the Gitter room (troupe) no longer exists
   const cursor = await persistence.MatrixBridgedRoom.aggregate([
     {
       // Lookup troupes._id === matricesbridgedroom.troupeId
       $lookup: {
         from: 'troupes',
+        // Field from MatrixBridgedRoom
         localField: 'troupeId',
+        // Field from Troupe
         foreignField: '_id',
         as: 'troupe'
       }
