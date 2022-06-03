@@ -94,7 +94,7 @@ async function shutdownOrphanedRooms() {
     }
   ])
     .read(mongoReadPrefs.secondaryPreferred)
-    .cursor({ batchSize: 1000, async: true })
+    .cursor({ batchSize: 100, async: true })
     .exec();
 
   const iterable = iterableFromMongooseCursor(cursor);
