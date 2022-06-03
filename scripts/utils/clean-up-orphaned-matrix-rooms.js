@@ -11,10 +11,14 @@ const shutdown = require('shutdown');
 const persistence = require('gitter-web-persistence');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
+const env = require('gitter-web-env');
+const config = env.config;
 
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
+
+const configuredServerName = config.get('matrix:bridge:serverName');
 
 require('../../server/event-listeners').install();
 
@@ -37,8 +41,14 @@ const opts = require('yargs')
   .help('help')
   .alias('help', 'h').argv;
 
+// Number of rooms we shutdown
 let numberOfRoomsShutdown = 0;
+// Number of we tried to shutdown but ran into an error
+// probably because they are already deleted.
 let numberOfRoomsIgnored = 0;
+// Number of rooms skipped because they don't belong to the `gitter.im`
+// homeserver
+let numberOfRoomsSkipped = 0;
 const failedBridgedRoomShutdowns = [];
 
 async function shutdownBridgedMatrixRoom(bridgedRoomEntry) {
@@ -100,6 +110,17 @@ async function shutdownOrphanedRooms() {
 
   for await (let bridgedRoomEntry of iterable) {
     try {
+      // Only shutdown `*:gitter.im` rooms. Someone could have granted the
+      // `@gitter-badger:gitter.im` admin power_levels on their own Matrix room
+      // (portal room) and had us set up the bridge. We don't want to delete
+      // their own room.
+      const [, serverName] = bridgedRoomEntry.matrixRoomId.split(':');
+      if (serverName !== configuredServerName) {
+        console.log(`🕳 Skipping non-${configuredServerName} room ${bridgedRoomEntry.matrixRoomId}`);
+        numberOfRoomsSkipped += 1;
+        continue;
+      }
+
       await shutdownBridgedMatrixRoom(bridgedRoomEntry);
     } catch (err) {
       console.error(
@@ -133,7 +154,9 @@ async function run() {
     console.log('Starting to shutdown orphaned bridged rooms');
     await shutdownOrphanedRooms();
     console.log(
-      `${numberOfRoomsShutdown} orphaned bridged shutdown! Ignored ${numberOfRoomsIgnored} orphaned rooms which are already deleted.`
+      `${numberOfRoomsShutdown} orphaned bridged rooms shutdown!\n` +
+        `Ignored ${numberOfRoomsIgnored} orphaned rooms which are already deleted.\n` +
+        `Skipped ${numberOfRoomsSkipped} non-${configuredServerName} rooms.`
     );
 
     if (failedBridgedRoomShutdowns.length) {
