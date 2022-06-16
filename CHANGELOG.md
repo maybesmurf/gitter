@@ -1,3 +1,12 @@
+# 21.51.0 - 2022-06-02
+
+ - Fallback to using the Matrix bridging user (Gitter badger) when we fail to delete a message from a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2289
+
+Developer facing:
+
+ - Add utility script to clean up orphaned Matrix rooms, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2290, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2292
+
+
 # 21.50.0 - 2022-05-18 - GitLab 15.0 all tokens expire
 
  - Refresh GitLab tokens after they expire (migration phase 2), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2283

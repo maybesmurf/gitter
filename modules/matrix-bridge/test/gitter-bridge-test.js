@@ -787,7 +787,7 @@ describe('gitter-bridge', () => {
       });
 
       it('non-bridged message that gets removed is ignored', async () => {
-        // We purposely do not associate bridged message. We are testing that the
+        // We purposely do not associate a bridged message. We are testing that the
         // remove is ignored if no association in the database.
         //const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
         //await store.storeBridgedMessage(fixture.message1, matrixRoomId, matrixMessageEventId);
@@ -841,6 +841,36 @@ describe('gitter-bridge', () => {
 
         // Message remove is sent off to Matrix
         assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 1);
+        assert.deepEqual(
+          matrixBridge.getIntent().matrixClient.redactEvent.getCall(0).args[1],
+          matrixMessageEventId
+        );
+      });
+
+      it('when the Matrix API call to redact the message fails, still deletes the message (using bridge user)', async () => {
+        // Make the event redaction Matrix API call fail
+        let callCount = 0;
+        matrixBridge.getIntent().matrixClient.redactEvent = sinon.spy(() => {
+          // Only fail the first call
+          if (callCount === 0) {
+            callCount++;
+            throw new Error('Fake error and failed to fetch event');
+          }
+        });
+
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        const matrixMessageEventId = `$${fixtureLoader.generateGithubId()}`;
+        await store.storeBridgedMessage(fixture.message1, matrixRoomId, matrixMessageEventId);
+
+        await gitterBridge.onDataChange({
+          type: 'chatMessage',
+          url: `/rooms/${fixture.troupe1.id}/chatMessages`,
+          operation: 'remove',
+          model: { id: fixture.message1.id }
+        });
+
+        // Message remove is sent off to Matrix
+        assert.strictEqual(matrixBridge.getIntent().matrixClient.redactEvent.callCount, 2);
         assert.deepEqual(
           matrixBridge.getIntent().matrixClient.redactEvent.getCall(0).args[1],
           matrixMessageEventId
