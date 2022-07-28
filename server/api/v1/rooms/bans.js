@@ -63,7 +63,6 @@ module.exports = {
       .then(function(troupe) {
         var roomWithPolicyService = new RoomWithPolicyService(troupe, req.user, req.userRoomPolicy);
 
-        console.log('req.troupeBan.virtualUser', req.troupeBan.virtualUser);
         if (req.troupeBan.virtualUser) {
           return roomWithPolicyService.unbanVirtualUserFromRoom(req.troupeBan.virtualUser);
         }

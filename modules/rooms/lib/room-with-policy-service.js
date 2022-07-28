@@ -371,8 +371,6 @@ RoomWithPolicyService.prototype.unbanVirtualUserFromRoom = secureMethod(
     const currentUser = this.user;
     const room = this.room;
 
-    console.log('unbanVirtualUserFromRoom', virtualUser.type, virtualUser.externalId);
-
     await persistence.Troupe.update(
       {
         _id: mongoUtils.asObjectID(room._id)
