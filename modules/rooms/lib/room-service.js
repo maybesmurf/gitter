@@ -291,6 +291,8 @@ async function findBanByUsername(troupeId, bannedUsername) {
     query['bans.userId'] = user._id;
   }
 
+  console.log('findBanByUsername query', query);
+
   return persistence.Troupe.findOne(query, { _id: 0, 'bans.$': 1 }, { lean: true })
     .exec()
     .then(function(troupe) {
