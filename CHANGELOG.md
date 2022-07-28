@@ -1,3 +1,8 @@
+# 21.52.0 - 2022-07-28
+
+ - Fix wrong person being unbanned when unbanning a Matrix user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2295
+
+
 # 21.51.0 - 2022-06-02
 
  - Fallback to using the Matrix bridging user (Gitter badger) when we fail to delete a message from a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2289
