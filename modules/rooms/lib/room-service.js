@@ -282,8 +282,42 @@ async function findBanByUsername(troupeId, bannedUsername) {
   };
 
   if (checkForMatrixUsername(bannedUsername)) {
-    query['bans.virtualUser.type'] = 'matrix';
-    query['bans.virtualUser.externalId'] = bannedUsername;
+    // We can't use the following way to match multiple conditions against an
+    // array of sub-documents because we will run into undefined behavior when
+    // using it with the `bans.$` projection. This caused a noticable bugged
+    // behavior where it unbanned the first Matrix user in the list of bans
+    // (https://gitlab.com/gitterHQ/webapp/-/issues/2848)
+    // ```js
+    // db.troupes.findOne({
+    //   _id: mongoUtils.asObjectID(troupeId),
+    //   'bans.virtualUser.type': 'matrix',
+    //   'bans.virtualUser.externalId': bannedUsername
+    // }, { _id: 0, 'bans.$': 1 })
+    // ```
+    //
+    // The Mongo docs around this undefined behavior:
+    //
+    // > # $ (projection)
+    // >
+    // > ### Array Field Limitations
+    // >
+    // > The query document should only contain a single condition on the array
+    // > field to which it is applied. Multiple conditions may override each
+    // > other internally and lead to undefined behavior.
+    // >
+    // > To specify criteria on multiple fields of documents inside that array,
+    // > use the `$elemMatch` query operator.
+    // >
+    // > *--
+    // > https://www.mongodb.com/docs/manual/reference/operator/projection/positional/#array-field-limitations*
+    //
+    // As the docs suggestion, the correct way to do this is with `$elemMatch` as we're doing here.
+    query.bans = {
+      $elemMatch: {
+        'virtualUser.type': 'matrix',
+        'virtualUser.externalId': bannedUsername
+      }
+    };
   } else {
     const user = await userService.findByUsername(bannedUsername);
     if (!user) return;
