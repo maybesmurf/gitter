@@ -210,7 +210,7 @@
     "csswring": "^6.0.0",
     "cumberbatch-name": "^1.2.1",
     "cypress": "^7.1.0",
-    "datadog-metrics": "^0.8.1",
+    "datadog-metrics": "^0.10.0",
     "del": "^3.0.0",
     "eslint": "^5.9.0",
     "eslint-config-prettier": "^3.6.0",
