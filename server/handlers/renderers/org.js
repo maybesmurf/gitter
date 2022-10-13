@@ -165,7 +165,7 @@ function renderOrgPage(req, res, next) {
             fonts: fonts.getFonts(),
             socialUrl: url,
             isLoggedIn: !!req.user,
-            exploreBaseUrl: '/home/~explore',
+            exploreBaseUrl: req.user ? '/home/explore' : '/explore',
             orgDirectoryUrl: fullUrl,
             roomCount: roomCount,
             orgUserCount: orgUserCount,
