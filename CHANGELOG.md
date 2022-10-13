@@ -1,3 +1,9 @@
+# 21.53.0 - 2022-10-13
+
+ - Fix tag links on org page to correctly navigate to explore page, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2300
+    - Thanks to [@spaschall-llminc](https://gitlab.com/spaschall-llminc) for the contribution
+
+
 # 21.52.0 - 2022-07-28
 
  - Fix wrong person being unbanned when unbanning a Matrix user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2295
