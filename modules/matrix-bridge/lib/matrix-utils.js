@@ -69,7 +69,9 @@ class MatrixUtils {
       // We use this as a locking mechanism.
       // The bridge will return an error: `M_ROOM_IN_USE: Room alias already taken`
       // if another process is already in the working on creating the room
-      room_alias_name: roomAlias
+      room_alias_name: roomAlias,
+      // TODO: idk, is this temporary?
+      room_version: 'org.matrix.msc2716v4'
     };
     if (isGitterRoomPublic) {
       matrixRoomCreateOptions.visibility = 'public';
