@@ -10,6 +10,7 @@ var debug = require('debug')('gitter:tests:test-fixtures');
 // This corresponds with require("giter-web-rooms/lib/room-membership-flags").MODES.all
 var DEFAULT_ROOM_MEMBERSHIP_FLAGS = 109;
 
+// eslint-disable-next-line complexity
 function generateSecurityDescriptorForTroupeFixture(f, fixture) {
   var securityDescriptor = f.securityDescriptor || {};
 
@@ -55,6 +56,8 @@ function generateSecurityDescriptorForTroupeFixture(f, fixture) {
 
   if ('admins' in securityDescriptor) {
     admins = securityDescriptor.admins;
+  } else if (f.oneToOne) {
+    admins = undefined;
   } else {
     admins = 'MANUAL';
   }

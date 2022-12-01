@@ -7,6 +7,8 @@ const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const roomService = require('gitter-web-rooms');
 const userService = require('gitter-web-users');
 const generatePermalink = require('gitter-web-shared/chat/generate-permalink');
+const policyFactory = require('gitter-web-permissions/lib/policy-factory');
+const RoomWithPolicyService = require('gitter-web-rooms/lib/room-with-policy-service');
 const env = require('gitter-web-env');
 const stats = env.stats;
 const logger = env.logger;
@@ -20,6 +22,7 @@ const GitterUtils = require('./gitter-utils');
 const parseGitterMxid = require('./parse-gitter-mxid');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
+const mxcUrlToHttp = require('./mxc-url-to-http');
 
 // 30 minutes in milliseconds
 const MAX_EVENT_ACCEPTANCE_WINDOW = 1000 * 60 * 30;
@@ -138,6 +141,7 @@ class MatrixEventHandler {
     this.gitterUtils = new GitterUtils(matrixBridge, gitterBridgeBackingUsername, matrixDmGroupUri);
   }
 
+  // Creates a Matrix room when someone first tries to query for it on the Matrix side
   async onAliasQuery(alias, aliasLocalpart) {
     debug('onAliasQuery', alias, aliasLocalpart);
 
@@ -228,6 +232,12 @@ class MatrixEventHandler {
       matrixEventId: matrixEventId
     });
 
+    const policy = await policyFactory.createPolicyForRoomId(
+      gitterBridgeUser,
+      chatMessage.toTroupeId
+    );
+    const roomWithPolicyService = new RoomWithPolicyService(gitterRoom, gitterBridgeUser, policy);
+
     const newText = await transformMatrixEventContentIntoGitterMessage(
       event.content['m.new_content'],
       event
@@ -239,7 +249,7 @@ class MatrixEventHandler {
         `Matrix edit is too old to apply to original bridged Gitter message so we're sending a new message (event_id=${event.event_id} old_matrix_event_we_are_replacing=${matrixEventId} old_gitter_chat_id=${chatMessage.id})`
       );
 
-      await chatService.newChatMessageToTroupe(gitterRoom, gitterBridgeUser, {
+      await roomWithPolicyService.sendMessage({
         parentId: chatMessage.parentId,
         virtualUser: chatMessage.virtualUser,
         text: `:point_up: [Edit](${generatePermalink(gitterRoom.uri, chatMessage.id)}): ${newText}`,
@@ -249,7 +259,7 @@ class MatrixEventHandler {
       return null;
     }
 
-    await chatService.updateChatMessage(gitterRoom, chatMessage, gitterBridgeUser, newText);
+    await roomWithPolicyService.editMessage(chatMessage, newText);
 
     return null;
   }
@@ -381,15 +391,16 @@ class MatrixEventHandler {
     const newText = await transformMatrixEventContentIntoGitterMessage(event.content, event);
     const resultantText = `${fallbackReplyContent}${newText}`;
 
-    const newChatMessage = await chatService.newChatMessageToTroupe(gitterRoom, gitterBridgeUser, {
+    const policy = await policyFactory.createPolicyForRoomId(gitterBridgeUser, gitterRoomId);
+    const roomWithPolicyService = new RoomWithPolicyService(gitterRoom, gitterBridgeUser, policy);
+
+    const newChatMessage = await roomWithPolicyService.sendMessage({
       parentId,
       virtualUser: {
         type: 'matrix',
         externalId,
         displayName,
-        avatarUrl: profile.avatar_url
-          ? intent.getClient().mxcUrlToHttp(profile.avatar_url)
-          : undefined
+        avatarUrl: profile.avatar_url ? mxcUrlToHttp(profile.avatar_url) : undefined
       },
       text: resultantText,
       status: isStatusMessage

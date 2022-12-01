@@ -4,8 +4,6 @@ var env = require('gitter-web-env');
 var config = env.config;
 var logger = env.logger;
 var mailerService = require('gitter-web-mailer');
-var crypto = require('crypto');
-var passphrase = config.get('email:unsubscribeNotificationsSecret');
 const senderAddress = config.get('notifications:notificationsSender');
 const replyToAddress = config.get('notifications:replyToAddress');
 var userSettingsService = require('gitter-web-user-settings');
@@ -17,6 +15,7 @@ var Promise = require('bluebird');
 var i18nFactory = require('gitter-web-i18n');
 var securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
 const { sanitizeChatText } = require('./sanitizer');
+const unsubscribeHashes = require('./unsubscribe-hashes');
 
 /*
  * Return a nice sane
@@ -112,9 +111,7 @@ function sendInvite(invitingUser, invite, room, isReminder, template, eventName)
 
 module.exports = {
   sendUnreadItemsNotification: Promise.method(function(user, troupesWithUnreadCounts) {
-    var plaintext = user.id + ',' + 'unread_notifications';
-    var cipher = crypto.createCipher('aes256', passphrase);
-    var hash = cipher.update(plaintext, 'utf8', 'hex') + cipher.final('hex');
+    const hash = unsubscribeHashes.createHash(user.id, 'unread_notifications');
 
     if (user.state) {
       logger.info('Skipping email notification for ' + user.username + ', not active state.');
@@ -227,9 +224,7 @@ module.exports = {
       return;
     }
 
-    var plaintext = user.id + ',' + 'created_room';
-    var cipher = crypto.createCipher('aes256', passphrase);
-    var hash = cipher.update(plaintext, 'utf8', 'hex') + cipher.final('hex');
+    const hash = unsubscribeHashes.createHash(user.id, 'created_room');
     var emailBasePath = config.get('email:emailBasePath');
     var unsubscribeUrl = emailBasePath + '/settings/unsubscribe/' + hash;
 
@@ -285,9 +280,7 @@ module.exports = {
   }),
 
   addedToRoomNotification: Promise.method(function(fromUser, toUser, room) {
-    var plaintext = toUser.id + ',' + 'unread_notifications';
-    var cipher = crypto.createCipher('aes256', passphrase);
-    var hash = cipher.update(plaintext, 'utf8', 'hex') + cipher.final('hex');
+    const hash = unsubscribeHashes.createHash(toUser.id, 'unread_notifications');
     var emailBasePath = config.get('email:emailBasePath');
     var unsubscribeUrl = emailBasePath + '/settings/unsubscribe/' + hash;
 

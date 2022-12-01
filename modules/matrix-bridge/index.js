@@ -27,6 +27,8 @@ async function ensureCorrectMatrixBridgeUserProfile() {
   }
 }
 
+const gitterBridge = new GitterBridge(matrixBridge);
+
 async function install(bridgePort = bridgePortFromConfig) {
   if (!bridgePort || !hsToken || !asToken) {
     logger.error(
@@ -37,16 +39,18 @@ async function install(bridgePort = bridgePortFromConfig) {
     return;
   }
 
-  // config is always null, see https://github.com/matrix-org/matrix-appservice-bridge/issues/262
-  const bridgeConfig = null;
-
-  await matrixBridge.run(bridgePort, bridgeConfig);
+  await matrixBridge.run(bridgePort);
   logger.info(`Matrix bridge listening on port ${bridgePort}`);
 
-  new GitterBridge(matrixBridge);
+  await gitterBridge.start();
 
   // Fire and forget this (no need to hold up the process by awaiting it)
   ensureCorrectMatrixBridgeUserProfile();
+
+  return async function stop() {
+    await matrixBridge.close();
+    await gitterBridge.stop();
+  };
 }
 
 module.exports = install;

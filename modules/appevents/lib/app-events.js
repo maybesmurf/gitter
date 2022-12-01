@@ -13,6 +13,10 @@ function makeEmitter() {
   var localEventEmitter = new events.EventEmitter();
 
   return {
+    removeListener: function(...args) {
+      localEventEmitter.removeListener(...args);
+    },
+
     /* This is only good for testing */
     removeAllListeners: function() {
       localEventEmitter.removeAllListeners();

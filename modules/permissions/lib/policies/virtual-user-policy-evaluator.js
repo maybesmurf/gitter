@@ -10,6 +10,7 @@ const {
 function bansIncludesVirtualUser(bans, virtualUser) {
   return _.some(bans, function(ban) {
     return (
+      ban.virtualUser &&
       ban.virtualUser.type === virtualUser.type &&
       ban.virtualUser.externalId === virtualUser.externalId
     );
@@ -28,12 +29,7 @@ function VirtualUserPolicyEvaluator(virtualUser, securityDescriptor) {
 
 VirtualUserPolicyEvaluator.prototype = {
   canRead: async function() {
-    // virtualUsers can only chat in public rooms
-    if (this._securityDescriptor.public) {
-      return true;
-    }
-
-    return false;
+    return true;
   },
 
   canWrite: async function() {
@@ -42,12 +38,7 @@ VirtualUserPolicyEvaluator.prototype = {
       return false;
     }
 
-    // virtualUsers can only chat in public rooms
-    if (this._securityDescriptor.public) {
-      return true;
-    }
-
-    return false;
+    return true;
   },
 
   canJoin: async function() {

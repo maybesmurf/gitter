@@ -3,6 +3,7 @@
 const debug = require('debug')('gitter:app:matrix-bridge:gitter-bridge');
 const assert = require('assert');
 const StatusError = require('statuserror');
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const appEvents = require('gitter-web-appevents');
 const userService = require('gitter-web-users');
 const chatService = require('gitter-web-chats');
@@ -19,7 +20,7 @@ const transformGitterTextIntoMatrixMessage = require('./transform-gitter-text-in
 const checkIfDatesSame = require('./check-if-dates-same');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
-const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
 
 class GitterBridge {
   constructor(
@@ -32,13 +33,19 @@ class GitterBridge {
     this.matrixUtils = new MatrixUtils(matrixBridge);
     this._gitterBridgeBackingUsername = gitterBridgeBackingUsername;
 
-    appEvents.onDataChange2(data => {
-      this.onDataChange(data);
-      return null;
-    });
+    this.onDataChangeWithBind = this.onDataChange.bind(this);
   }
 
-  // eslint-disable-next-line complexity
+  async start() {
+    appEvents.onDataChange2(this.onDataChangeWithBind);
+  }
+
+  // Stop the listeners and processing any more events
+  async stop() {
+    appEvents.removeListener('dataChange2', this.onDataChangeWithBind);
+  }
+
+  // eslint-disable-next-line complexity, max-statements
   async onDataChange(data) {
     try {
       debug('onDataChange', data);
@@ -66,6 +73,8 @@ class GitterBridge {
         const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)/) || [];
         if (gitterRoomId && (data.operation === 'patch' || data.operation === 'update')) {
           await this.handleRoomUpdateEvent(gitterRoomId, data.model);
+        } else if (gitterRoomId && data.operation === 'remove') {
+          await this.handleRoomRemoveEvent(gitterRoomId, data.model);
         }
       }
 
@@ -75,6 +84,13 @@ class GitterBridge {
           await this.handleUserJoiningRoom(gitterRoomId, data.model);
         } else if (gitterRoomId && data.operation === 'remove') {
           await this.handleUserLeavingRoom(gitterRoomId, data.model);
+        }
+      }
+
+      if (data.type === 'ban') {
+        const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/bans/) || [];
+        if ((gitterRoomId && data.operation === 'create') || data.operation === 'remove') {
+          await this.handleRoomBanEvent(gitterRoomId, data.model, data.operation);
         }
       }
 
@@ -375,20 +391,28 @@ class GitterBridge {
       matrixRoomId
     });
 
-    const intent = this.matrixBridge.getIntent();
+    const bridgeIntent = this.matrixBridge.getIntent();
     let senderIntent;
     try {
-      const event = await intent.getEvent(matrixRoomId, matrixEventId);
+      const event = await bridgeIntent.getEvent(matrixRoomId, matrixEventId);
       senderIntent = this.matrixBridge.getIntent(event.sender);
     } catch (err) {
       logger.info(
         `handleChatMessageRemoveEvent(): Using bridging user intent because Matrix API call failed, intent.getEvent(${matrixRoomId}, ${matrixEventId})`
       );
       // We'll just use the bridge intent if we can't use their own user
-      senderIntent = intent;
+      senderIntent = bridgeIntent;
     }
 
-    await senderIntent.getClient().redactEvent(matrixRoomId, matrixEventId);
+    try {
+      await senderIntent.matrixClient.redactEvent(matrixRoomId, matrixEventId);
+    } catch (err) {
+      // If we fail to delete the message from the Gitter user, let's just do it
+      // from the bridging user (Gitter badger). This will happen whenever a
+      // Gitter user tries to delete a message from someone on Matrix
+      // (M_FORBIDDEN: Application service cannot masquerade as this user.)
+      await bridgeIntent.matrixClient.redactEvent(matrixRoomId, matrixEventId);
+    }
 
     return null;
   }
@@ -404,6 +428,14 @@ class GitterBridge {
     await this.matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
   }
 
+  async handleRoomRemoveEvent(gitterRoomId /*, model*/) {
+    const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+
+    if (matrixRoomId) {
+      await this.matrixUtils.shutdownMatrixRoom(matrixRoomId);
+    }
+  }
+
   async handleUserJoiningRoom(gitterRoomId, model) {
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
     if (!allowedToBridge) {
@@ -413,7 +445,7 @@ class GitterBridge {
     const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     // Just ignore the bridging join if the Matrix room hasn't been created yet
     if (!matrixRoomId) {
-      return;
+      return null;
     }
 
     const gitterUserId = model.id;
@@ -471,7 +503,7 @@ class GitterBridge {
     const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     // Just ignore the bridging leave if the Matrix room hasn't been created yet
     if (!matrixRoomId) {
-      return;
+      return null;
     }
 
     const gitterUserId = model.id;
@@ -481,6 +513,46 @@ class GitterBridge {
 
     const intent = this.matrixBridge.getIntent(matrixId);
     await intent.leave(matrixRoomId);
+  }
+
+  async handleRoomBanEvent(gitterRoomId, model, operation) {
+    const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
+    if (!allowedToBridge) {
+      return null;
+    }
+
+    const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
+    if (!matrixRoomId) {
+      return null;
+    }
+
+    stats.event('gitter_bridge.user_ban', {
+      gitterRoomId,
+      matrixRoomId,
+      operation,
+      userId: model.userId,
+      virtualUser: model.virtualUser
+    });
+
+    let bannedMxid;
+    if (model.userId) {
+      const gitterUser = await userService.findById(model.userId);
+      assert(gitterUser);
+
+      bannedMxid = getMxidForGitterUser(gitterUser);
+    } else if (model.virtualUser) {
+      bannedMxid = `@${model.virtualUser.externalId}`;
+    }
+    assert(bannedMxid);
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    if (operation === 'create') {
+      logger.info(`Banning ${bannedMxid} from ${matrixRoomId}`);
+      await bridgeIntent.ban(matrixRoomId, bannedMxid, 'Banned on Gitter');
+    } else if (operation === 'remove') {
+      logger.info(`Unbanning ${bannedMxid} from ${matrixRoomId}`);
+      await bridgeIntent.unban(matrixRoomId, bannedMxid);
+    }
   }
 }
 

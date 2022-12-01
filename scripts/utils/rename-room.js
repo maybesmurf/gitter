@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-
+//
+// Usage:
+//  - Linux/macOS: matrix__bridge__applicationServicePort=9001 node ./scripts/utils/rename-room.js -o old/room -n new/room
+//  - Windows: set matrix__bridge__applicationServicePort=9001&&node ./scripts/utils/rename-room.js -o old/room -n new/room
+//
 'use strict';
 
 var shutdown = require('shutdown');

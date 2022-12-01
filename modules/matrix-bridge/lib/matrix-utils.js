@@ -21,6 +21,7 @@ const {
 const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter-dm-room-uri-by-gitter-user-id-and-other-person-mxid');
 const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
 const downloadFileToBuffer = require('./download-file-to-buffer');
+const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
 
 const store = require('./store');
 
@@ -38,31 +39,49 @@ class MatrixUtils {
 
   async createMatrixRoomByGitterRoomId(gitterRoomId) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
-
-    // Protect from accidentally creating a public room for a private Gitter room (like a DM).
-    // We should only be creating a DM room from `createMatrixDmRoomByGitterUserAndOtherPersonMxid`
-    const isPublic = securityDescriptorUtils.isPublic(gitterRoom);
-    assert.strictEqual(
-      !isPublic,
-      false,
-      `Only public rooms can be creatd with createMatrixRoomByGitterRoomId. gitterRoomId=${gitterRoomId} is private`
+    assert(
+      gitterRoom,
+      `Unable to create Matrix Room for Gitter room ID that does not exist gitterRoomId=${gitterRoomId}`
     );
+
+    const isGitterRoomPublic = securityDescriptorUtils.isPublic(gitterRoom);
+
+    // Protect from accidentally creating Matrix DM room.
+    // We should only be creating a Matrix DM room from `createMatrixDmRoomByGitterUserAndOtherPersonMxid`
+    const isMatrixDmRoom = !!discoverMatrixDmUri(gitterRoom.lcUri);
+    assert.strictEqual(
+      isMatrixDmRoom,
+      false,
+      `DM rooms with Matrix users can only be created with createMatrixDmRoomByGitterUserAndOtherPersonMxid. gitterRoomId=${gitterRoomId} gitterLcUri=${gitterRoom.lcUri}`
+    );
+
+    // Let's handle ONE_TO_ONE rooms in their own way
+    if (gitterRoom.sd.type === 'ONE_TO_ONE') {
+      return this._createMatrixRoomForOneToOne(gitterRoom);
+    }
 
     const roomAlias = getCanonicalAliasLocalpartForGitterRoomUri(gitterRoom.uri);
 
     const bridgeIntent = this.matrixBridge.getIntent();
 
+    const matrixRoomCreateOptions = {
+      name: gitterRoom.uri,
+      // We use this as a locking mechanism.
+      // The bridge will return an error: `M_ROOM_IN_USE: Room alias already taken`
+      // if another process is already in the working on creating the room
+      room_alias_name: roomAlias
+    };
+    if (isGitterRoomPublic) {
+      matrixRoomCreateOptions.visibility = 'public';
+      matrixRoomCreateOptions.preset = 'public_chat';
+    } else {
+      matrixRoomCreateOptions.visibility = 'private';
+      matrixRoomCreateOptions.preset = 'private_chat';
+    }
+
     const newRoom = await bridgeIntent.createRoom({
       createAsClient: true,
-      options: {
-        name: gitterRoom.uri,
-        visibility: 'public',
-        preset: 'public_chat',
-        // We use this as a locking mechanism.
-        // The bridge will return an error: `M_ROOM_IN_USE: Room alias already taken`
-        // if another process is already in the working on creating the room
-        room_alias_name: roomAlias
-      }
+      options: matrixRoomCreateOptions
     });
     // Store the bridged room right away!
     // If we created a bridged room, we want to make sure we store it 100% of the time
@@ -77,6 +96,61 @@ class MatrixUtils {
     return newRoom.room_id;
   }
 
+  // This is an internal function used for Gitter ONE_TO_ONE rooms (not to be
+  // confused with Matrix DM rooms between a Gitter user and a Matrix user).
+  async _createMatrixRoomForOneToOne(gitterRoom) {
+    const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+    assert.strictEqual(
+      gitterRoom.sd.type,
+      'ONE_TO_ONE',
+      `_createMatrixRoomForOneToOne can only be used with ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
+    );
+
+    // Sanity check that we're working with a one to one between 2 users as expected
+    assert.strictEqual(
+      gitterRoom.oneToOneUsers && gitterRoom.oneToOneUsers.length,
+      2,
+      `ONE_TO_ONE room can only have 2 users in it but found ${gitterRoom.oneToOneUsers &&
+        gitterRoom.oneToOneUsers.length}. gitterRoomId=${gitterRoomId}`
+    );
+
+    // The room creator can be the first person in the list of users (doesn't matter)
+    const gitterUserCreatorMxid = await this.getOrCreateMatrixUserByGitterUserId(
+      gitterRoom.oneToOneUsers[0].userId
+    );
+    const gitterUserOtherMxid = await this.getOrCreateMatrixUserByGitterUserId(
+      gitterRoom.oneToOneUsers[1].userId
+    );
+
+    const intent = this.matrixBridge.getIntent(gitterUserCreatorMxid);
+
+    const newRoom = await intent.createRoom({
+      createAsClient: true,
+      options: {
+        visibility: 'private',
+        // This means all invitees are given the same power level as the room creator.
+        preset: 'trusted_private_chat',
+        is_direct: true,
+        invite: [gitterUserOtherMxid]
+      }
+    });
+
+    // Store the bridged room right away!
+    // If we created a bridged room, we want to make sure we store it 100% of the time
+    logger.info(
+      `Storing bridged ONE_TO_ONE room (Gitter room id=${gitterRoomId} -> Matrix room_id=${newRoom.room_id})`
+    );
+    await store.storeBridgedRoom(gitterRoomId, newRoom.room_id);
+
+    return newRoom.room_id;
+  }
+
+  // Used to create bridged DM room between a Gitter user and a Matrix user.
+  //
+  // This does not store the bridged room that was created because we want to
+  // see that the Matrix room was created successfully before creating the
+  // Gitter room which is needed to store the bridged connection.
   async createMatrixDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
     const gitterUserId = gitterUser.id || gitterUser._id;
     const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterUserId);
@@ -99,9 +173,10 @@ class MatrixUtils {
       return newRoom.room_id;
     } catch (err) {
       if (
-        err.errcode === 'M_NOT_FOUND' ||
-        err.errcode === 'M_UNAUTHORIZED' ||
-        err.errcode === 'M_UNKNOWN'
+        err.body &&
+        (err.body.errcode === 'M_NOT_FOUND' ||
+          err.body.errcode === 'M_UNAUTHORIZED' ||
+          err.body.errcode === 'M_UNKNOWN')
       ) {
         throw new StatusError(
           404,
@@ -146,18 +221,18 @@ class MatrixUtils {
     const bridgeIntent = this.matrixBridge.getIntent();
 
     let isAliasAlreadySet = false;
-    let currentAliasedRoom;
+    let currentAliasedRoomId;
     try {
-      currentAliasedRoom = await bridgeIntent.getClient().getRoomIdForAlias(alias);
+      currentAliasedRoomId = await bridgeIntent.matrixClient.resolveRoom(alias);
     } catch (err) {
       // no-op
     }
 
-    if (currentAliasedRoom && currentAliasedRoom.room_id === matrixRoomId) {
+    if (currentAliasedRoomId === matrixRoomId) {
       isAliasAlreadySet = true;
-    } else if (currentAliasedRoom) {
+    } else if (currentAliasedRoomId) {
       // Delete the alias from the other room
-      await bridgeIntent.getClient().deleteAlias(alias);
+      await bridgeIntent.matrixClient.deleteRoomAlias(alias);
     }
 
     debug(`ensureRoomAlias(${matrixRoomId}, ${alias}) isAliasAlreadySet=${isAliasAlreadySet}`);
@@ -212,6 +287,21 @@ class MatrixUtils {
     const gitterRoom = await troupeService.findById(gitterRoomId);
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
 
+    // Protect from accidentally running this on a ONE_TO_ONE room.
+    assert.notStrictEqual(
+      gitterRoom.sd.type,
+      'ONE_TO_ONE',
+      `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
+    );
+
+    // Protect from accidentally running this on a Matrix DM room.
+    const isMatrixDmRoom = !!discoverMatrixDmUri(gitterRoom.lcUri);
+    assert.strictEqual(
+      isMatrixDmRoom,
+      false,
+      `ensureCorrectRoomState should not be sued on DM rooms with Matrix users. gitterRoomId=${gitterRoomId}`
+    );
+
     const bridgeIntent = this.matrixBridge.getIntent();
 
     // Set the aliases first because we can always change our own aliases
@@ -225,18 +315,34 @@ class MatrixUtils {
       topic: gitterRoom.topic
     });
 
-    const roomDirectoryVisibility = await bridgeIntent
-      .getClient()
-      .getRoomDirectoryVisibility(matrixRoomId);
-    if (roomDirectoryVisibility !== 'public') {
-      await bridgeIntent.getClient().setRoomDirectoryVisibility(matrixRoomId, 'public');
+    const isGitterRoomPublic = securityDescriptorUtils.isPublic(gitterRoom);
+
+    const roomDirectoryVisibility = await bridgeIntent.matrixClient.getDirectoryVisibility(
+      matrixRoomId
+    );
+    if (isGitterRoomPublic) {
+      if (roomDirectoryVisibility !== 'public') {
+        await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'public');
+      }
+      await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
+        history_visibility: 'world_readable'
+      });
+      await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
+        join_rule: 'public'
+      });
     }
-    await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
-      history_visibility: 'world_readable'
-    });
-    await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
-      join_rule: 'public'
-    });
+    // Private
+    else {
+      if (roomDirectoryVisibility !== 'private') {
+        await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
+      }
+      await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
+        history_visibility: 'shared'
+      });
+      await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
+        join_rule: 'invite'
+      });
+    }
 
     const bridgeMxid = this.getMxidForMatrixBridgeUser();
     // https://matrix.org/docs/spec/client_server/r0.2.0#m-room-power-levels
@@ -288,6 +394,64 @@ class MatrixUtils {
         external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
       }
     });
+  }
+
+  async deleteRoomAliasesForMatrixRoomId(matrixRoomId) {
+    const bridgeIntent = this.matrixBridge.getIntent();
+
+    const roomAliases = await bridgeIntent.matrixClient.unstableApis.getRoomAliases(matrixRoomId);
+    if (roomAliases) {
+      for (const roomAlias of roomAliases) {
+        // Delete the alias from the other room
+        await bridgeIntent.matrixClient.deleteRoomAlias(roomAlias);
+      }
+    }
+  }
+
+  async shutdownMatrixRoom(matrixRoomId) {
+    // Delete aliases
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Deleting room aliases`);
+    await this.deleteRoomAliasesForMatrixRoomId(matrixRoomId);
+
+    // Change history visiblity so future people can't read the room
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Changing history visibility so the history isn't visible if anyone is able to join again`
+    );
+    await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
+      history_visibility: 'joined'
+    });
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+
+    // Remove it from the room directory
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Removing room from directory`);
+    await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
+
+    // Make it so people can't join back in
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Changing the join_rules to invite-only so people can't join back`
+    );
+    await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
+      join_rule: 'invite'
+    });
+
+    // Kick everyone out
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Kicking everyone out of the room`);
+    const roomMembers = await bridgeIntent.matrixClient.getRoomMembers(matrixRoomId, null, [
+      'join'
+    ]);
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMembers && roomMembers.length} people`
+    );
+    if (roomMembers) {
+      for (let roomMember of roomMembers) {
+        // Kick everyone except the main bridge user
+        if (roomMember.membershipFor !== this.getMxidForMatrixBridgeUser()) {
+          debug(`\tshutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMember.membershipFor}`);
+          await bridgeIntent.kick(matrixRoomId, roomMember.membershipFor);
+        }
+      }
+    }
   }
 
   async getOrCreateMatrixRoomByGitterRoomId(gitterRoomId) {

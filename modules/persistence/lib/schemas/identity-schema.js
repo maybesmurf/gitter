@@ -14,6 +14,7 @@ module.exports = {
       displayName: { type: String },
       email: { type: String },
       accessToken: { type: String },
+      accessTokenExpires: Date,
       // example: google oauth2
       refreshToken: { type: String },
       // example: twitter oauth1
@@ -39,6 +40,19 @@ module.exports = {
           unique: true,
           partialFilterExpression: {
             username: { $exists: true }
+          }
+        }
+      },
+      // Used in scripts/migration/fill-gitlab-identity-refresh-tokens.js
+      {
+        keys: {
+          provider: 1,
+          refreshToken: 1
+        },
+        options: {
+          background: true,
+          partialFilterExpression: {
+            provider: 'gitlab'
           }
         }
       }

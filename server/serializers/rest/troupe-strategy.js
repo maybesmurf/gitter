@@ -327,12 +327,20 @@ function TroupeStrategy(options) {
       user: otherUser
     });
 
+    // Let's only have a Matrix room link for public rooms otherwise people will
+    // be confused when they can't see their own private or one to one rooms on
+    // Matrix even they are still bridged behind the scenes
     let matrixRoomLink;
-    if (matrixBridgedRoomStrategy) {
-      if (matrixBridgedRoomStrategy.map(id)) {
-        matrixRoomLink = `https://matrix.to/#/${getCanonicalAliasForGitterRoomUri(
-          item.uri
-        )}?utm_source=gitter`;
+    if (matrixBridgedRoomStrategy && isPublic) {
+      const matrixRoomId = matrixBridgedRoomStrategy.map(id);
+      if (matrixRoomId) {
+        // ONE_TO_ONE rooms don't have a `uri` so lets default to the matrixRoomId instead
+        let roomAliasOrId = matrixRoomId;
+        if (item.uri) {
+          roomAliasOrId = getCanonicalAliasForGitterRoomUri(item.uri);
+        }
+
+        matrixRoomLink = `https://matrix.to/#/${roomAliasOrId}?utm_source=gitter`;
       }
     }
 

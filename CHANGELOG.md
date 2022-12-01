@@ -1,8 +1,96 @@
-# 21.42.0 - *upcoming*
+# 21.53.0 - 2022-10-13
+
+ - Fix tag links on org page to correctly navigate to explore page, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2300
+    - Thanks to [@spaschall-llminc](https://gitlab.com/spaschall-llminc) for the contribution
+
+
+# 21.52.0 - 2022-07-28
+
+ - Fix wrong person being unbanned when unbanning a Matrix user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2295
+
+
+# 21.51.0 - 2022-06-02
+
+ - Fallback to using the Matrix bridging user (Gitter badger) when we fail to delete a message from a Gitter user, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2289
+
+Developer facing:
+
+ - Add utility script to clean up orphaned Matrix rooms, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2290, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2292
+
+
+# 21.50.0 - 2022-05-18 - GitLab 15.0 all tokens expire
+
+ - Refresh GitLab tokens after they expire (migration phase 2), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2283
+
+
+# 21.49.0 - 2022-05-18 - GitLab 15.0 breaking things
+
+ - Write to the correct GitLab `identity` field for `refreshTokens` and add migration script to run after (migration phase 1), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2284
+
+Developer facing:
+
+ - Disable failing tests that touch the GitLab API, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2285
+ - Remove CI scans deprecated in GitLab 15.0, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2280
+
+
+# 21.48.0 - 2022-04-06
+
+ - Update Chinese (`zh`) translation, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2275
+    - Thanks to [@LaoshuBaby](https://gitlab.com/LaoshuBaby) for the contribution
+
+Developer facing:
+
+ - Update utility script to delete from a users most recent messages instead of oldest, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2276
+
+
+# 21.47.0 - 2022-02-18
+
+ - Bridge message deletions to Matrix when using utility script, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2272
+ - Update eslint rule to use supported Node.js v14 features, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2273
+
+
+# 21.46.0 - 2022-02-01 - Bridge private rooms to Matrix
+
+ - Bridge private and one to one rooms to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2269
+ - Add `/goto` and `/join` slash commands, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2270
+
+
+# 21.45.0 - 2021-12-08
+
+ - Fix room menu dropdown items being unclickable sometimes (backdrop covering menu), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2264
+ - Bridge room deletions to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2265
+
+Developer facing:
+
+ - Add utility script to delete Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2263, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2267
+
+
+# 21.44.1 - 2021-11-17
+
+ - Fix Matrix messages not bridging to Gitter when a room has non-virtualUser bans, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2260
+
+
+# 21.44.0 - 2021-11-16
+
+ - Bridge bans to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2257
+
+
+# 21.43.0 - 2021-09-23
+
+Developer facing:
+
+ - Major upgrade to `matrix-appservice-bridge@3.x`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2245
+
+
+# 21.42.0 - 2021-08-19
+
+ - Always show "Reply in thread" (instead of switching between "Start a Thread") to make the language consistent and recognizable, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2244
+    - Thanks to [@bradcray](https://gitlab.com/bradcray) for the contribution
 
 Developer facing:
 
  - Actually fail tests when function in question does not throw error as expected, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2238
+ - Fix `MongoError: No query solutions` in tests for `userService.findAllByEmail`, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2246
 
 
 # 21.41.0 - 2021-08-04
@@ -12,6 +100,7 @@ Developer facing:
  - Add some automation to unsubscribing users that send spam complaints,
    - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2240
    - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2243
+   - https://gitlab.com/gitterHQ/webapp/-/merge_requests/2242
 
 
 # 21.40.0 - 2021-08-02

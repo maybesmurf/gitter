@@ -4,7 +4,7 @@ var env = require('gitter-web-env');
 var config = env.config;
 var logger = env.logger;
 var GitHubStrategy = require('passport-github2').Strategy;
-var callbackUrlBuilder = require('./callback-url-builder');
+var callbackUrlBuilder = require('gitter-web-oauth/lib/callback-url-builder');
 
 function githubUpgradeCallback(req, accessToken, refreshToken, params, _profile, done) {
   var requestedScopes = params.scope.split(/,/);

@@ -3,7 +3,7 @@
 const GitLabGroupService = require('./group-service');
 const GitLabProjectService = require('./project-service');
 const GitLabUserService = require('./user-service');
-const debug = require('debug')('gitter:app:github:gitlab-uri-validator');
+const debug = require('debug')('gitter:app:gitlab:gitlab-uri-validator');
 
 // If it's a network or permissions problem, throw the error
 // We don't care about the errors when it does not find a user because it could
