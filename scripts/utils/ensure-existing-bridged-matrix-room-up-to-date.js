@@ -46,11 +46,10 @@ async function run() {
         bridgedRoomEntry.matrixRoomId,
         bridgedRoomEntry.troupeId
       );
+      console.log(`Bridged matrix room updated!`);
     } catch (err) {
       console.error(`Failed to update Matrix room`, err, err.stack);
     }
-
-    console.log(`Bridged matrix room updated!`);
 
     // wait 5 seconds to allow for asynchronous `event-listeners` to finish
     // This isn't clean but works

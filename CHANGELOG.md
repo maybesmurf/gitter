@@ -1,3 +1,8 @@
+# 21.54.0 - 2022-12-01
+
+ - Add Matrix moderation user to rooms, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2303
+
+
 # 21.53.0 - 2022-10-13
 
  - Fix tag links on org page to correctly navigate to explore page, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2300
