@@ -1,3 +1,10 @@
+# 21.56.0 - *upcoming*
+
+Developer facing:
+
+ - Update Synapse and Element Docker dev resources, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2307
+
+
 # 21.55.0 - 2022-12-02
 
  - Keep existing snowflake user power levels around on Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2305
