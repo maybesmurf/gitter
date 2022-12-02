@@ -28,11 +28,22 @@ const opts = require('yargs')
     description:
       'Delay timeout(in milliseconds) between rooms to update to not overwhelm the homeserver'
   })
+  .option('keep-existing-user-power-levels', {
+    type: 'boolean',
+    default: true,
+    description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
+  })
   .help('help')
   .alias('help', 'h').argv;
 
 let numberOfRoomsUpdated = 0;
 const failedRoomUpdates = [];
+
+if (opts.keepExistingUserPowerLevels) {
+  console.log(
+    `Note: Keeping existing user power levels around (opts.keepExistingUserPowerLevels=${opts.keepExistingUserPowerLevels}).`
+  );
+}
 
 async function updateAllRooms() {
   const cursor = persistence.MatrixBridgedRoom.find()
@@ -50,7 +61,10 @@ async function updateAllRooms() {
       );
       await matrixUtils.ensureCorrectRoomState(
         bridgedRoomEntry.matrixRoomId,
-        bridgedRoomEntry.troupeId
+        bridgedRoomEntry.troupeId,
+        {
+          keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels
+        }
       );
       numberOfRoomsUpdated += 1;
     } catch (err) {
