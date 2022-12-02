@@ -355,7 +355,6 @@ class MatrixUtils {
       });
     }
 
-    console.log('asdf extraPowerLevelUsers', extraPowerLevelUsers);
     const bridgeMxid = this.getMxidForMatrixBridgeUser();
     // https://matrix.org/docs/spec/client_server/r0.2.0#m-room-power-levels
     await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
