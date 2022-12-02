@@ -1,3 +1,20 @@
+# 21.56.0 - *upcoming*
+
+Developer facing:
+
+ - Update Synapse and Element Docker dev resources, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2307
+ - Adjust homeserver config so it launches with latest Synapse, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2308
+
+# 21.55.0 - 2022-12-02
+
+ - Keep existing snowflake user power levels around on Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2305
+
+
+# 21.54.0 - 2022-12-01
+
+ - Add power-levels for Matrix moderation user to rooms, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2303
+
+
 # 21.53.0 - 2022-10-13
 
  - Fix tag links on org page to correctly navigate to explore page, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2300

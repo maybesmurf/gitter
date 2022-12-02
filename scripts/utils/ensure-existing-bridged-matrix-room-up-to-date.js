@@ -24,8 +24,19 @@ const opts = require('yargs')
     required: true,
     description: 'URI of the Gitter room to update'
   })
+  .option('keep-existing-user-power-levels', {
+    type: 'boolean',
+    default: true,
+    description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
+  })
   .help('help')
   .alias('help', 'h').argv;
+
+if (opts.keepExistingUserPowerLevels) {
+  console.log(
+    `Note: Keeping existing user power levels around (opts.keepExistingUserPowerLevels=${opts.keepExistingUserPowerLevels}).`
+  );
+}
 
 async function run() {
   try {
@@ -44,13 +55,15 @@ async function run() {
       );
       await matrixUtils.ensureCorrectRoomState(
         bridgedRoomEntry.matrixRoomId,
-        bridgedRoomEntry.troupeId
+        bridgedRoomEntry.troupeId,
+        {
+          keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels
+        }
       );
+      console.log(`Bridged matrix room updated!`);
     } catch (err) {
       console.error(`Failed to update Matrix room`, err, err.stack);
     }
-
-    console.log(`Bridged matrix room updated!`);
 
     // wait 5 seconds to allow for asynchronous `event-listeners` to finish
     // This isn't clean but works

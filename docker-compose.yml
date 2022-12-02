@@ -30,7 +30,6 @@ services:
       - gitter-mongodb:/data/db2
     ports:
       - '27017:27017'
-
   mongo-express:
     image: mongo-express
     links:
@@ -58,18 +57,17 @@ services:
 
   synapse:
     container_name: 'synapse'
-    image: 636c3ba4b7b3
+    image: registry.gitlab.com/gitterhq/webapp/synapse:latest
     restart: always
     ports:
       - '18008:8008'
       - '18448:8448'
     volumes:
       - './scripts/docker/matrix/synapse/data/:/data/'
-    entrypoint: ['/start.py']
 
   element:
-    container_name: 'gitter-element'
-    image: 'vectorim/element-web:v1.9.3'
+    container_name: 'element'
+    image: 'vectorim/element-web:v1.11.15'
     restart: 'unless-stopped'
     ports:
       - '18010:80'

@@ -32,6 +32,17 @@ const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLoca
 const gitterBridgeProfileUsername = config.get('matrix:bridge:gitterBridgeProfileUsername');
 const gitterLogoMxc = config.get('matrix:bridge:gitterLogoMxc');
 
+const extraPowerLevelUserList = config.get('matrix:bridge:extraPowerLevelUserList') || [];
+// Workaround the fact that we can't have a direct map from MXID to power levels because
+// nconf doesn't like when we put colons (`:`) in keys (see
+// https://gitlab.com/gitterHQ/env/-/merge_requests/34). So instead we have  list of
+// object entries to re-interprete into a object.
+const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLevelUsers, entry) => {
+  const [key, value] = entry;
+  accumulatedPowerLevelUsers[key] = value;
+  return accumulatedPowerLevelUsers;
+}, {});
+
 class MatrixUtils {
   constructor(matrixBridge) {
     this.matrixBridge = matrixBridge;
@@ -285,7 +296,17 @@ class MatrixUtils {
     }
   }
 
-  async ensureCorrectRoomState(matrixRoomId, gitterRoomId) {
+  // eslint-disable-next-line max-statements
+  async ensureCorrectRoomState(
+    matrixRoomId,
+    gitterRoomId,
+    {
+      // We have some snowflake Matrix room permissions setup for some particular
+      // communities to be able to self-manage and moderate. Avoid regressing them back
+      // to defaults.
+      keepExistingUserPowerLevels = true
+    } = {}
+  ) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
 
@@ -346,11 +367,30 @@ class MatrixUtils {
       });
     }
 
+    // We have some snowflake Matrix room permissions setup for some particular
+    // communities to be able to self-manage and moderate. Avoid regressing them back
+    // to defaults.
+    let existingUserPowerLevels = {};
+    if (keepExistingUserPowerLevels) {
+      let currentPowerLevelContent;
+      try {
+        currentPowerLevelContent = await bridgeIntent.getStateEvent(
+          matrixRoomId,
+          'm.room.power_levels'
+        );
+        existingUserPowerLevels = currentPowerLevelContent.users;
+      } catch (err) {
+        // no-op
+      }
+    }
+
     const bridgeMxid = this.getMxidForMatrixBridgeUser();
     // https://matrix.org/docs/spec/client_server/r0.2.0#m-room-power-levels
     await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
       users_default: 0,
       users: {
+        ...existingUserPowerLevels,
+        ...extraPowerLevelUsers,
         [bridgeMxid]: 100
       },
       events: {
