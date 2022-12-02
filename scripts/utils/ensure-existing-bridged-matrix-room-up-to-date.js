@@ -25,9 +25,9 @@ const opts = require('yargs')
     description: 'URI of the Gitter room to update'
   })
   .option('keep-existing-user-power-levels', {
-    type: 'number',
+    type: 'boolean',
     default: true,
-    description: 'Whether to keep snowflake user power that may already be set on the room.'
+    description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
   })
   .help('help')
   .alias('help', 'h').argv;

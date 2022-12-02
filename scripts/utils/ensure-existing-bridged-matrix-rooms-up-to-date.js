@@ -29,9 +29,9 @@ const opts = require('yargs')
       'Delay timeout(in milliseconds) between rooms to update to not overwhelm the homeserver'
   })
   .option('keep-existing-user-power-levels', {
-    type: 'number',
+    type: 'boolean',
     default: true,
-    description: 'Whether to keep snowflake user power that may already be set on the room.'
+    description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
   })
   .help('help')
   .alias('help', 'h').argv;
