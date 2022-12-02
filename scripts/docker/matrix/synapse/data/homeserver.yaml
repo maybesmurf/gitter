@@ -1719,7 +1719,7 @@ sso:
   # DO NOT UNCOMMENT THIS SETTING unless you want to customise the templates.
   # If you *do* uncomment it, you will need to make sure that all the templates
   # below are in the directory.
-  #e
+  #
   # Synapse will look for the following templates in this directory:
   #
   # * HTML page for a confirmation step before redirecting back to the client
