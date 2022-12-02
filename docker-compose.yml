@@ -65,9 +65,9 @@ services:
     volumes:
       - './scripts/docker/matrix/synapse/data/:/data/'
 
-  riot:
-    container_name: 'riot'
-    image: 'vectorim/riot-web:v1.7.8'
+  element:
+    container_name: 'element'
+    image: 'vectorim/element-web:v1.11.15'
     restart: 'unless-stopped'
     ports:
       - '18010:80'
