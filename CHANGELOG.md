@@ -3,7 +3,7 @@
 Developer facing:
 
  - Update Synapse and Element Docker dev resources, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2307
-
+ - Adjust homeserver config so it launches with latest Synapse, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2308
 
 # 21.55.0 - 2022-12-02
 
