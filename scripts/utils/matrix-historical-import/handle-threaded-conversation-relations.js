@@ -83,7 +83,7 @@ async function handleThreadedConversationRelations(gitterRoom, matrixRoomId) {
 
     const { mxid } = await getMatrixProfileFromGitterUserId(message.fromUserId);
 
-    const matrixContent = generateMatrixContentFromGitterMessage(message);
+    const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
     matrixContent[MSC2716_HISTORICAL_CONTENT_FIELD] = true;
 
     const fallbackMatrixContent = {

@@ -169,7 +169,7 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
       message.fromUserId
     );
 
-    const matrixContent = generateMatrixContentFromGitterMessage(message);
+    const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
     matrixContent[MSC2716_HISTORICAL_CONTENT_FIELD] = true;
 
     // Message event
