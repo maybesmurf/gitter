@@ -37,7 +37,11 @@ module.exports = function gitHubProfileService(gitHubUser, options) {
     //standard
     profile.company = body.company;
     profile.location = body.location;
-    profile.email = body.email;
+    // We don't need to expose people's public email. They can instead just get it from
+    // GitHub which restricts it to signed in users and probably has other heuristics to
+    // prevent wide-spread scrapers.
+    //
+    //profile.email = body.email;
     profile.website = blogUrl;
     profile.profile = body.html_url;
 
