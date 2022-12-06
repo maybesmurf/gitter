@@ -221,7 +221,10 @@ class GitterBridge {
 
     // Handle threaded conversations
     let parentMatrixEventId;
+    let lastMatrixEventIdInThread;
     if (model.parentId) {
+      parentMatrixEventId = await store.getMatrixEventIdByGitterMessageId(model.parentId);
+
       // Try to reference the last message in thread
       // Otherwise, will just reference the thread parent
       const lastMessagesInThread = await chatService.findThreadChatMessages(
@@ -234,11 +237,11 @@ class GitterBridge {
       );
 
       let lastMessageId = model.parentId;
-      if (lastMessagesInThread.length) {
+      if (lastMessagesInThread.length > 0) {
         lastMessageId = lastMessagesInThread[0].id;
       }
 
-      parentMatrixEventId = await store.getMatrixEventIdByGitterMessageId(lastMessageId);
+      lastMatrixEventIdInThread = await store.getMatrixEventIdByGitterMessageId(lastMessageId);
     }
 
     // Send the message to the Matrix room
@@ -273,8 +276,16 @@ class GitterBridge {
     // Handle threaded conversations
     if (parentMatrixEventId) {
       matrixContent['m.relates_to'] = {
+        rel_type: 'm.thread',
+        // Always reference thread root for the thread
+        event_id: parentMatrixEventId,
+        // Handle the reply fallback
+        is_falling_back: true,
         'm.in_reply_to': {
-          event_id: parentMatrixEventId
+          // But the reply fallback should reference the last message in the thread.
+          // This could be the same as the thread root if there are no other thread
+          // replies yet.
+          event_id: lastMatrixEventIdInThread
         }
       };
     }
