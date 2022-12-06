@@ -57,15 +57,16 @@ function validateEventForMessageDeleteEvent(event) {
 // threaded conversation.
 async function findGitterThreadParentIdForMatrixEvent(event) {
   let parentId = undefined;
-  if (
+
+  const threadRootEventId = event.content['m.relates_to'] && event.content['m.relates_to'].event_id;
+  const inReplyToMatrixEventId =
     event.content['m.relates_to'] &&
     event.content['m.relates_to']['m.in_reply_to'] &&
-    event.content['m.relates_to']['m.in_reply_to'].event_id
-  ) {
-    const inReplyToMatrixEventId = event.content['m.relates_to']['m.in_reply_to'].event_id;
+    event.content['m.relates_to']['m.in_reply_to'].event_id;
+  if (threadRootEventId || inReplyToMatrixEventId) {
     const inReplyToGitterMessageId = await store.getGitterMessageIdByMatrixEventId(
       event.room_id,
-      inReplyToMatrixEventId
+      threadRootEventId || inReplyToMatrixEventId
     );
 
     if (!inReplyToGitterMessageId) {
@@ -370,6 +371,9 @@ class MatrixEventHandler {
       displayName = splitMxid[0];
     }
 
+    const threadRootEventId =
+      event.content['m.relates_to'] && event.content['m.relates_to'].event_id;
+
     const inReplyToMatrixEventId =
       event.content['m.relates_to'] &&
       event.content['m.relates_to']['m.in_reply_to'] &&
@@ -382,7 +386,7 @@ class MatrixEventHandler {
     // we are unable to put it in the appropriate threaded conversation.
     // Let's just put their message in the MMF and add a warning note about the problem.
     let fallbackReplyContent = '';
-    if (inReplyToMatrixEventId && !parentId) {
+    if ((threadRootEventId || inReplyToMatrixEventId) && !parentId) {
       fallbackReplyContent = `> This message is replying to a [Matrix event](https://matrix.to/#/${matrixRoomId}/${inReplyToMatrixEventId}) but we were unable to find associated bridged Gitter message to put it in the appropriate threaded conversation.\n\n`;
     }
 

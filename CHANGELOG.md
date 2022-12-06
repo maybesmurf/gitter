@@ -1,3 +1,13 @@
+# 21.56.0 - 2022-12-06
+
+ - Add support for sending native Matrix threads, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2309
+ - Remove email from popover profile, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2311
+
+Developer facing:
+
+ - Update Synapse and Element Docker dev resources, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2307
+ - Adjust homeserver config so it launches with latest Synapse, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2308
+
 # 21.55.0 - 2022-12-02
 
  - Keep existing snowflake user power levels around on Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2305
