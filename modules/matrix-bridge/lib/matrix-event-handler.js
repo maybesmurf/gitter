@@ -386,7 +386,7 @@ class MatrixEventHandler {
     // we are unable to put it in the appropriate threaded conversation.
     // Let's just put their message in the MMF and add a warning note about the problem.
     let fallbackReplyContent = '';
-    if (inReplyToMatrixEventId && !parentId) {
+    if ((threadRootEventId || inReplyToMatrixEventId) && !parentId) {
       fallbackReplyContent = `> This message is replying to a [Matrix event](https://matrix.to/#/${matrixRoomId}/${inReplyToMatrixEventId}) but we were unable to find associated bridged Gitter message to put it in the appropriate threaded conversation.\n\n`;
     }
 

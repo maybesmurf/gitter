@@ -68,7 +68,9 @@ describe('Gitter <-> Matrix bridging e2e', () => {
   });
 
   after(async () => {
-    await stopBridge();
+    if (stopBridge) {
+      await stopBridge();
+    }
   });
 
   it('bridges message to Matrix in public Gitter room', async () => {
