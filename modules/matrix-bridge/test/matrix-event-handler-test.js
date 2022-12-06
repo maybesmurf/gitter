@@ -575,6 +575,41 @@ describe('matrix-event-handler', () => {
         assert.strictEqual(messages[2].parentId, undefined);
       });
 
+      it('thread reply to message starts threaded conversation', async () => {
+        const matrixMessageEventId = `$${fixtureLoader.generateGithubId()}`;
+        const eventData = createEventData({
+          type: 'm.room.message',
+          content: {
+            body: 'my matrix threaded reply',
+            'm.relates_to': {
+              rel_type: 'm.thread',
+              event_id: matrixMessageEventId
+              // We purposely don't have a fallback in this test
+              // 'm.in_reply_to': {
+              //   event_id: matrixMessageEventId
+              // }
+            }
+          }
+        });
+        await store.storeBridgedRoom(fixture.troupeWithThreads1.id, eventData.room_id);
+        // Store the thread root we're going to reply to
+        await store.storeBridgedMessage(
+          fixture.messageThread1,
+          eventData.room_id,
+          matrixMessageEventId
+        );
+
+        await matrixEventHandler.onEventData(eventData);
+
+        const messages = await chatService.findChatMessagesForTroupe(
+          fixture.troupeWithThreads1.id,
+          { includeThreads: true }
+        );
+        assert.strictEqual(messages.length, 3);
+        assert.strictEqual(messages[2].text, 'my matrix threaded reply');
+        assert(mongoUtils.isLikeObjectId(messages[2].parentId, fixture.messageParent1.id));
+      });
+
       it('When we receive Matrix image upload, creates Gitter message linking the image in Gitter room', async () => {
         const eventData = createEventData({
           type: 'm.room.message',

@@ -251,6 +251,9 @@ describe('gitter-bridge', () => {
           formatted_body: fixture.messageThreaded1.html,
           msgtype: 'm.text',
           'm.relates_to': {
+            rel_type: 'm.thread',
+            event_id: parentMessageEventId,
+            is_falling_back: true,
             'm.in_reply_to': {
               event_id: parentMessageEventId
             }
@@ -290,6 +293,9 @@ describe('gitter-bridge', () => {
           formatted_body: fixture.messageThreaded2.html,
           msgtype: 'm.text',
           'm.relates_to': {
+            rel_type: 'm.thread',
+            event_id: parentMessageEventId,
+            is_falling_back: true,
             'm.in_reply_to': {
               event_id: threadReplyMessageEventId1
             }
