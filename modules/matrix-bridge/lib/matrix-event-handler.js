@@ -57,15 +57,16 @@ function validateEventForMessageDeleteEvent(event) {
 // threaded conversation.
 async function findGitterThreadParentIdForMatrixEvent(event) {
   let parentId = undefined;
-  if (
+
+  const threadRootEventId = event.content['m.relates_to'] && event.content['m.relates_to'].event_id;
+  const inReplyToMatrixEventId =
     event.content['m.relates_to'] &&
     event.content['m.relates_to']['m.in_reply_to'] &&
-    event.content['m.relates_to']['m.in_reply_to'].event_id
-  ) {
-    const inReplyToMatrixEventId = event.content['m.relates_to']['m.in_reply_to'].event_id;
+    event.content['m.relates_to']['m.in_reply_to'].event_id;
+  if (threadRootEventId || inReplyToMatrixEventId) {
     const inReplyToGitterMessageId = await store.getGitterMessageIdByMatrixEventId(
       event.room_id,
-      inReplyToMatrixEventId
+      threadRootEventId || inReplyToMatrixEventId
     );
 
     if (!inReplyToGitterMessageId) {
@@ -369,6 +370,9 @@ class MatrixEventHandler {
       const splitMxid = externalId.split(':');
       displayName = splitMxid[0];
     }
+
+    const threadRootEventId =
+      event.content['m.relates_to'] && event.content['m.relates_to'].event_id;
 
     const inReplyToMatrixEventId =
       event.content['m.relates_to'] &&
