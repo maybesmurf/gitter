@@ -1,4 +1,7 @@
-# 21.56.0 - *upcoming*
+# 21.56.0 - 2022-12-06
+
+ - Add support for sending native Matrix threads, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2309
+ - Remove email from popover profile, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2311
 
 Developer facing:
 
