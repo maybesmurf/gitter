@@ -1,5 +1,7 @@
 # 21.56.0 - *upcoming*
 
+ - Add support for sending native Matrix threads, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2309
+
 Developer facing:
 
  - Update Synapse and Element Docker dev resources, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2307
