@@ -41,9 +41,16 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
   });
   performance.mark('batchSendEnd');
 
-  performance.measure('measure /batch_send request time', 'batchSendStart', 'batchSendEnd');
+  performance.measure('measure /batch_send request time', {
+    start: 'batchSendStart',
+    end: 'batchSendEnd',
+    detail: {
+      // Will get tracked by the `PerformanceObserver` elsewhere
+      statName: 'matrix-bridge.import.batch_send_request.time'
+    }
+  });
 
-  logger.info(`batch res`, res.statusCode, res.body);
+  //logger.info(`batch res`, res.statusCode, res.body);
   if (res.statusCode !== 200) {
     throw new Error(`Batch send request failed ${res.statusCode}: ${JSON.stringify(res.body)}`);
   }

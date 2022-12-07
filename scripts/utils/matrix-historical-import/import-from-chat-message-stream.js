@@ -5,11 +5,9 @@ const { performance } = require('perf_hooks');
 const debug = require('debug')('gitter:scripts:matrix-historical-import:handle-main-messages');
 const env = require('gitter-web-env');
 const config = env.config;
+const stats = env.stats;
 const Promise = require('bluebird');
 const request = Promise.promisify(require('request'));
-const persistence = require('gitter-web-persistence');
-const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
-const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge/lib/generate-matrix-content-from-gitter-message');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
@@ -24,8 +22,6 @@ const matrixBridgeUserMxid = matrixUtils.getMxidForMatrixBridgeUser();
 
 const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
 const asToken = config.get('matrix:bridge:asToken');
-
-const BATCH_SIZE = 100;
 
 async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
   const res = await request({
@@ -76,45 +72,17 @@ async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
 }
 
 // eslint-disable-next-line max-statements
-async function handleMainMessages(gitterRoom, matrixRoomId) {
+async function importFromChatMessageStreamIterable({
+  gitterRoom,
+  matrixRoomId,
+  chatMessageStreamIterable,
+  batchSize
+}) {
   assert(gitterRoom);
   assert(matrixRoomId);
+  assert(chatMessageStreamIterable);
+  assert(batchSize);
   const gitterRoomId = gitterRoom.id || gitterRoom._id;
-
-  // Find the earliest-in-time message that we have already bridged,
-  // ie. where we need to start backfilling from
-  const firstBridgedMessageInRoomResult = await persistence.MatrixBridgedChatMessage.where(
-    'matrixRoomId',
-    matrixRoomId
-  )
-    .limit(1)
-    .select({ _id: 0, gitterMessageId: 1 })
-    .sort({ gitterMessageId: 'asc' })
-    .lean()
-    .exec();
-  const firstBridgedMessageIdInRoom = firstBridgedMessageInRoomResult[0];
-
-  // TODO: Add fallback when we haven't bridged any messages in the room before
-  assert(firstBridgedMessageIdInRoom);
-
-  debug(`firstBridgedMessageInRoom=${JSON.stringify(firstBridgedMessageIdInRoom)}`);
-
-  const messageCursor = persistence.ChatMessage.find({
-    // Start the stream of messages where we left off
-    _id: { $lt: firstBridgedMessageIdInRoom.gitterMessageId },
-    toTroupeId: gitterRoomId,
-    // Although we probably won't find any Matrix bridged messages in the old
-    // batch of messages we try to backfill, let's just be careful and not try
-    // to re-bridge any previously bridged Matrix messages by accident.
-    virtualUser: { $exists: false }
-  })
-    .sort({ _id: 'desc' })
-    .lean()
-    .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(BATCH_SIZE)
-    .cursor();
-
-  const chatMessageStreamIterable = iterableFromMongooseCursor(messageCursor);
 
   let eventEntries = [];
   let stateEvents = [];
@@ -134,12 +102,21 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
   let batchCount = 0;
   const _processBatch = async function() {
     performance.mark(`batchAssembleEnd${batchCount}`);
-
-    performance.measure(
-      'measure batch assembly',
-      `batchAssembleStart${batchCount}`,
-      `batchAssembleEnd${batchCount}`
+    stats.eventHF(
+      'matrix-bridge.import.event_prepared_for_batch.count',
+      eventEntries.length,
+      // We only need to report back once every 200 messages (frequency)
+      1 / 200
     );
+
+    performance.measure('measure batch assembly', {
+      start: `batchAssembleStart${batchCount}`,
+      end: `batchAssembleEnd${batchCount}`,
+      detail: {
+        // Will get tracked by the `PerformanceObserver` elsewhere
+        statName: 'matrix-bridge.import.batch_assemble.time'
+      }
+    });
 
     // Put the events in chronological order for the batch.
     // They are originally looped in descending order to go from newest to oldest
@@ -152,6 +129,17 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
       bridgeJoinEvent.event_id,
       nextBatchId
     );
+
+    performance.mark(`batchProcessEnd${batchCount}`);
+
+    performance.measure('measure batch overall time', {
+      start: `batchAssembleStart${batchCount}`,
+      end: `batchProcessEnd${batchCount}`,
+      detail: {
+        // Will get tracked by the `PerformanceObserver` elsewhere
+        statName: 'matrix-bridge.import.batch_total.time'
+      }
+    });
 
     // Reset the batch now that it was processed
     eventEntries = [];
@@ -221,7 +209,7 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
       authorMap[message.fromUserId] = true;
     }
 
-    if (eventEntries.length >= BATCH_SIZE) {
+    if (eventEntries.length >= batchSize) {
       await _processBatch();
     }
   }
@@ -230,4 +218,4 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
   await _processBatch();
 }
 
-module.exports = handleMainMessages;
+module.exports = importFromChatMessageStreamIterable;

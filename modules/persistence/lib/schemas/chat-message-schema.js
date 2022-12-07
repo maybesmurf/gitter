@@ -44,7 +44,6 @@ var ChatMessageSchema = new Schema({
   _md: Number // Meta parse version
 });
 ChatMessageSchema.index({ toTroupeId: 1, sent: -1 });
-ChatMessageSchema.index({ threadMessageCount: 1 }, { background: true });
 ChatMessageSchema.index({ parentId: 1, sent: -1 }, { background: true });
 ChatMessageSchema.index({ fromUserId: 1 }, { background: true });
 ChatMessageSchema.schemaTypeName = 'ChatMessageSchema';

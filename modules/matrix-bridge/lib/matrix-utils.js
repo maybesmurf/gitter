@@ -255,19 +255,16 @@ class MatrixUtils {
   }
 
   async uploadAvatarUrlToMatrix(avatarUrl) {
+    // No avatarURL, no problem, just bail early
+    if (!avatarUrl) {
+      return undefined;
+    }
+
     const bridgeIntent = this.matrixBridge.getIntent();
 
-    let mxcUrl;
+    let data;
     try {
-      if (avatarUrl) {
-        const data = await downloadFileToBuffer(avatarUrl);
-        mxcUrl = await bridgeIntent.uploadContent(data.buffer, {
-          onlyContentUri: true,
-          rawResponse: false,
-          name: path.basename(avatarUrl),
-          type: data.mimeType
-        });
-      }
+      data = await downloadFileToBuffer(avatarUrl);
     } catch (err) {
       // Just log an error and noop if the user avatar fails to download.
       // It's more important that we just send their message without the avatar.
@@ -277,6 +274,29 @@ class MatrixUtils {
           exception: err
         }
       );
+      return undefined;
+    }
+
+    let mxcUrl;
+    if (data) {
+      try {
+        mxcUrl = await bridgeIntent.uploadContent(data.buffer, {
+          onlyContentUri: true,
+          rawResponse: false,
+          name: path.basename(avatarUrl),
+          type: data.mimeType
+        });
+      } catch (err) {
+        // Just log an error and noop if the user avatar fails to upload.
+        // It's more important that we just send their message without the avatar.
+        logger.error(
+          `Failed to upload avatar (avatarUrl=${avatarUrl}) which we were going to use for bridging something in Matrix`,
+          {
+            exception: err
+          }
+        );
+        return undefined;
+      }
     }
 
     return mxcUrl;
