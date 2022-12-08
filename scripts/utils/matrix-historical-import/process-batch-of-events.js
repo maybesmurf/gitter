@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 const { performance } = require('perf_hooks');
-const debug = require('debug')('gitter:scripts:matrix-historical-import');
+const debug = require('debug')('gitter:scripts:matrix-historical-import:process-batch-of-events');
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
@@ -41,14 +41,14 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
   });
   performance.mark('batchSendEnd');
 
-  performance.measure('measure /batch_send request time', {
-    start: 'batchSendStart',
-    end: 'batchSendEnd',
-    detail: {
-      // Will get tracked by the `PerformanceObserver` elsewhere
-      statName: 'matrix-bridge.import.batch_send_request.time'
-    }
-  });
+  performance.measure(
+    'matrix-bridge.import.batch_send_request.time',
+    'batchSendStart',
+    'batchSendEnd'
+  );
+
+  performance.clearMarks(`batchSendStart`);
+  performance.clearMarks(`batchSendEnd`);
 
   //logger.info(`batch res`, res.statusCode, res.body);
   if (res.statusCode !== 200) {
@@ -64,6 +64,10 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
     const matrixEventId = historicalMessages[i];
     const gitterMessage = eventEntries[i].gitterMessage;
 
+    // TODO: Make sure we try hard to only allow the script to shutdown gracefully after
+    // we have saved the result of the request. Otherwise, we will end up with
+    // duplicates where we sent off the batch, canceled script before saving, and resume
+    // later where we last saved.
     await matrixStore.storeBridgedMessage(gitterMessage, matrixRoomId, matrixEventId);
   }
 

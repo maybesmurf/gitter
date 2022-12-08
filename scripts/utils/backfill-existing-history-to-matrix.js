@@ -4,7 +4,7 @@
 const assert = require('assert');
 const { PerformanceObserver } = require('perf_hooks');
 const shutdown = require('shutdown');
-const debug = require('debug')('gitter:scripts:backfill-existing-history-to-matrix');
+const debug = require('debug')('gitter:scripts:matrix-historical-import');
 const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
@@ -25,12 +25,10 @@ const matrixUtils = new MatrixUtils(matrixBridge);
 // Will log out any `performance.measure(...)` calls in subsequent code
 const observer = new PerformanceObserver(list =>
   list.getEntries().forEach(entry => {
+    console.log('entry', entry);
     debug(`${entry.name} took ${entry.duration / 1000}s`);
 
-    const statName = entry.detail.statName;
-    if (statName) {
-      stats.responseTime(statName, entry.duration);
-    }
+    stats.responseTime(entry.name, entry.duration);
   })
 );
 observer.observe({ buffered: true, entryTypes: ['measure'] });
@@ -39,7 +37,7 @@ const opts = require('yargs')
   .option('uri', {
     alias: 'u',
     required: true,
-    description: 'Uri of the room to delete'
+    description: 'URI of the Gitter room to backfill'
   })
   .help('help')
   .alias('help', 'h').argv;
@@ -61,15 +59,22 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
     .lean()
     .exec();
   const firstBridgedMessageIdInRoom = firstBridgedMessageInRoomResult[0];
-
-  // TODO: Add fallback when we haven't bridged any messages in the room before
-  assert(firstBridgedMessageIdInRoom);
-
-  debug(`firstBridgedMessageInRoom=${JSON.stringify(firstBridgedMessageIdInRoom)}`);
+  if (firstBridgedMessageIdInRoom) {
+    debug(
+      `Resuming from firstBridgedMessageInRoom=${JSON.stringify(
+        firstBridgedMessageIdInRoom
+      )} (matrixRoomId=${matrixRoomId})`
+    );
+  }
 
   const messageCursor = persistence.ChatMessage.find({
     // Start the stream of messages where we left off
-    _id: { $lt: firstBridgedMessageIdInRoom.gitterMessageId },
+    _id: (() => {
+      if (firstBridgedMessageIdInRoom) {
+        return { $lt: firstBridgedMessageIdInRoom.gitterMessageId };
+      }
+      return { $exists: true };
+    })(),
     toTroupeId: gitterRoomId,
     // Although we probably won't find any Matrix bridged messages in the old
     // batch of messages we try to backfill, let's just be careful and not try
@@ -130,7 +135,11 @@ async function exec() {
   const gitterRoom = await troupeService.findByUri(opts.uri);
   const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
-  const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+  //const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+  const matrixRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+    gitterRoomId
+  );
+  // TODO: Handle DM
   debug(
     `Found matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
   );
@@ -141,6 +150,11 @@ async function exec() {
 
   await handleMainMessages(gitterRoom, matrixRoomId);
   await handleThreadedConversationRelations(gitterRoom, matrixRoomId);
+
+  // TODO: Ensure tombstone event pointing to main room
+  // matrixUtils.ensureStateEvent(matrixRoomId, 'm.room.tombstone', {
+  //   "replacement_room": TODO
+  // });
 }
 
 exec()

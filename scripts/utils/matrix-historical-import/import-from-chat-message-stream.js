@@ -3,6 +3,7 @@
 const assert = require('assert');
 const { performance } = require('perf_hooks');
 const debug = require('debug')('gitter:scripts:matrix-historical-import:handle-main-messages');
+const shutdown = require('shutdown');
 const env = require('gitter-web-env');
 const config = env.config;
 const stats = env.stats;
@@ -71,6 +72,13 @@ async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
   return joinEvents[0];
 }
 
+let finalPromiseToAwaitBeforeShutdown = Promise.resolve();
+shutdown.addHandler('matrix-bridge-batch-import', 20, async callback => {
+  console.log('Waiting for last batch import to finish...');
+  await finalPromiseToAwaitBeforeShutdown;
+  callback();
+});
+
 // eslint-disable-next-line max-statements
 async function importFromChatMessageStreamIterable({
   gitterRoom,
@@ -109,14 +117,11 @@ async function importFromChatMessageStreamIterable({
       1 / 200
     );
 
-    performance.measure('measure batch assembly', {
-      start: `batchAssembleStart${batchCount}`,
-      end: `batchAssembleEnd${batchCount}`,
-      detail: {
-        // Will get tracked by the `PerformanceObserver` elsewhere
-        statName: 'matrix-bridge.import.batch_assemble.time'
-      }
-    });
+    performance.measure(
+      'matrix-bridge.import.batch_assemble.time',
+      `batchAssembleStart${batchCount}`,
+      `batchAssembleEnd${batchCount}`
+    );
 
     // Put the events in chronological order for the batch.
     // They are originally looped in descending order to go from newest to oldest
@@ -132,19 +137,20 @@ async function importFromChatMessageStreamIterable({
 
     performance.mark(`batchProcessEnd${batchCount}`);
 
-    performance.measure('measure batch overall time', {
-      start: `batchAssembleStart${batchCount}`,
-      end: `batchProcessEnd${batchCount}`,
-      detail: {
-        // Will get tracked by the `PerformanceObserver` elsewhere
-        statName: 'matrix-bridge.import.batch_total.time'
-      }
-    });
+    performance.measure(
+      'matrix-bridge.import.batch_total.time',
+      `batchAssembleStart${batchCount}`,
+      `batchProcessEnd${batchCount}`
+    );
 
     // Reset the batch now that it was processed
     eventEntries = [];
     stateEvents = [];
     authorMap = {};
+    // Clear out the marks before we increment the `batchCount`
+    performance.clearMarks(`batchAssembleStart${batchCount}`);
+    performance.clearMarks(`batchAssembleEnd${batchCount}`);
+    performance.clearMarks(`batchProcessEnd${batchCount}`);
     // Increment the batch count
     batchCount += 1;
 
@@ -210,7 +216,11 @@ async function importFromChatMessageStreamIterable({
     }
 
     if (eventEntries.length >= batchSize) {
-      await _processBatch();
+      const processBatchPromise = _processBatch();
+      // Assign this so we safely finish the batch we're working on before shutting down
+      finalPromiseToAwaitBeforeShutdown = processBatchPromise;
+
+      await processBatchPromise;
     }
   }
 
