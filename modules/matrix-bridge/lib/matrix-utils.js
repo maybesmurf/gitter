@@ -5,6 +5,9 @@ const assert = require('assert');
 const path = require('path');
 const urlJoin = require('url-join');
 const StatusError = require('statuserror');
+
+const Promise = require('bluebird');
+const request = Promise.promisify(require('request'));
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const groupService = require('gitter-web-groups');
 const userService = require('gitter-web-users');
@@ -42,6 +45,12 @@ const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLev
   accumulatedPowerLevelUsers[key] = value;
   return accumulatedPowerLevelUsers;
 }, {});
+
+let txnCount = 0;
+function getTxnId() {
+  txnCount++;
+  return `${new Date().getTime()}--${txnCount}`;
+}
 
 class MatrixUtils {
   constructor(matrixBridge) {
@@ -699,6 +708,83 @@ class MatrixUtils {
 
     const gitterUser = await userService.findByUsername(gitterBridgeProfileUsername);
     await this.ensureCorrectMxidProfile(mxid, gitterUser.id);
+  }
+
+  async _sendEventAtTimestmapRaw({ type, matrixRoomId, mxid, matrixContent, timestamp }) {
+    assert(type);
+    assert(matrixRoomId);
+    assert(mxid);
+    assert(matrixContent);
+    assert(timestamp);
+
+    const homeserverUrl = this.matrixBridge.opts.homeserverUrl;
+    assert(homeserverUrl);
+    const asToken = this.matrixBridge.registration.getAppServiceToken();
+    assert(asToken);
+
+    const sendEndpoint = `${homeserverUrl}/_matrix/client/v3/rooms/${matrixRoomId}/send/${type}/${getTxnId()}?user_id=${mxid}&ts=${timestamp}`;
+    const res = await request({
+      method: 'POST',
+      uri: sendEndpoint,
+      json: true,
+      headers: {
+        Authorization: `Bearer ${asToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: matrixContent
+    });
+
+    if (res.statusCode !== 200) {
+      throw new StatusError(
+        res.statusCode,
+        `sendEventAtTimestmap({ matrixRoomId: ${matrixRoomId} }) failed ${
+          res.statusCode
+        }: ${JSON.stringify(res.body)}`
+      );
+    }
+
+    const eventId = res.body.event_id;
+    assert(
+      eventId,
+      `The request made in sendEventAtTimestmap (${sendEndpoint}) did not return \`event_id\` as expected. ` +
+        `This is probably a problem with that homeserver.`
+    );
+
+    return eventId;
+  }
+
+  async sendEventAtTimestmap({ type, matrixRoomId, mxid, matrixContent, timestamp }) {
+    const _sendEventWrapper = async () => {
+      const eventId = await this._sendEventAtTimestmapRaw({
+        type,
+        matrixRoomId,
+        mxid,
+        matrixContent,
+        timestamp
+      });
+
+      return eventId;
+    };
+
+    let eventId;
+    try {
+      // Try the happy-path first and assume we're joined to the room
+      eventId = await _sendEventWrapper();
+    } catch (err) {
+      // If we get a 403 forbidden indicating we're not in the room yet, let's try to join
+      if (err.status === 403) {
+        const intent = this.matrixBridge.getIntent(mxid);
+        await intent._ensureJoined(matrixRoomId);
+      } else {
+        // We don't know how to recover from an arbitrary error that isn't about joining
+        throw err;
+      }
+
+      // Now that we're joined, try again
+      eventId = await _sendEventWrapper();
+    }
+
+    return eventId;
   }
 }
 
