@@ -2,7 +2,9 @@
 
 const assert = require('assert');
 const { performance } = require('perf_hooks');
-const debug = require('debug')('gitter:scripts:matrix-historical-import:handle-main-messages');
+const debug = require('debug')(
+  'gitter:scripts:matrix-historical-import:import-from-chat-message-stream'
+);
 const shutdown = require('shutdown');
 const env = require('gitter-web-env');
 const config = env.config;
@@ -75,7 +77,11 @@ async function getMatrixBridgeUserJoinEvent(matrixRoomId) {
 let finalPromiseToAwaitBeforeShutdown = Promise.resolve();
 shutdown.addHandler('matrix-bridge-batch-import', 20, async callback => {
   console.log('Waiting for last batch import to finish...');
-  await finalPromiseToAwaitBeforeShutdown;
+  try {
+    await finalPromiseToAwaitBeforeShutdown;
+  } catch (err) {
+    // We don't care about the error, we only care that the promise finished.
+  }
   callback();
 });
 
@@ -104,17 +110,17 @@ async function importFromChatMessageStreamIterable({
   // because it is before the application service joined the room.
   // So we just use the first join event for the application service.
   const bridgeJoinEvent = await getMatrixBridgeUserJoinEvent(matrixRoomId);
-  debug(`Found bridgeJoinEvent`, bridgeJoinEvent);
+  debug(`Found bridgeJoinEvent to import off of`, bridgeJoinEvent);
 
   // Just a small wrapper around processing that can process and reset
   let batchCount = 0;
   const _processBatch = async function() {
     performance.mark(`batchAssembleEnd${batchCount}`);
     stats.eventHF(
-      'matrix-bridge.import.event_prepared_for_batch.count',
+      'matrix-bridge.import.event_prepared_for_batch',
       eventEntries.length,
-      // We only need to report back once every 200 messages (frequency)
-      1 / 200
+      // We can afford to report this every time since it's only run once per-batch
+      1
     );
 
     performance.measure(

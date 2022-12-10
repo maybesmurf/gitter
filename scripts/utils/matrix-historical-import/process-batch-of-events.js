@@ -9,9 +9,13 @@ const logger = env.logger;
 const Promise = require('bluebird');
 const request = Promise.promisify(require('request'));
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
+const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
+const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 
 const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
 const asToken = config.get('matrix:bridge:asToken');
+
+const matrixUtils = new MatrixUtils(matrixBridge);
 
 async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, prevEventId, batchId) {
   assert(matrixRoomId);
@@ -57,6 +61,7 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
 
   const nextBatchId = res.body.next_batch_id;
   const historicalMessages = res.body.event_ids;
+  const baseInsertionEventId = res.body.base_insertion_event_id;
 
   // Record all of the newly bridged messages
   assert.strictEqual(historicalMessages.length, eventEntries.length);
@@ -69,6 +74,14 @@ async function processBatchOfEvents(matrixRoomId, eventEntries, stateEvents, pre
     // duplicates where we sent off the batch, canceled script before saving, and resume
     // later where we last saved.
     await matrixStore.storeBridgedMessage(gitterMessage, matrixRoomId, matrixEventId);
+  }
+
+  // Put marker in room so the history is discoverable by other federating homservers
+  // with MSC2716 enabled
+  if (baseInsertionEventId) {
+    await matrixUtils.ensureStateEvent(matrixRoomId, 'org.matrix.msc2716.marker', {
+      insertion_event_reference: baseInsertionEventId
+    });
   }
 
   return nextBatchId;

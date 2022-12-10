@@ -18,14 +18,29 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const importFromChatMessageStreamIterable = require('./matrix-historical-import/import-from-chat-message-stream');
 
 // The number of messages per MSC2716 import batch
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 500;
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 // Will log out any `performance.measure(...)` calls in subsequent code
 const observer = new PerformanceObserver(list =>
   list.getEntries().forEach(entry => {
-    console.log('entry', entry);
+    if (entry.startTime === 0) {
+      logger.warn(
+        'Performance measurement entry had `startTime` of `0` which seems a bit fishy. ' +
+          " Your measurement probably didn't start exactly when the app started up at time `0` so" +
+          'this is probably more indicative a typo in the start/end marker string'
+      );
+    }
+
+    if (entry.duration === 0) {
+      logger.warn(
+        'Performance measurement entry had `duration` of `0` which seems a bit fishy. ' +
+          " Your measurement probably didn't last `0` seconds so" +
+          'this is probably more indicative a typo in the start/end marker string'
+      );
+    }
+
     debug(`${entry.name} took ${entry.duration / 1000}s`);
 
     stats.responseTime(entry.name, entry.duration);
@@ -42,11 +57,7 @@ const opts = require('yargs')
   .help('help')
   .alias('help', 'h').argv;
 
-async function handleMainMessages(gitterRoom, matrixRoomId) {
-  const gitterRoomId = gitterRoom.id || gitterRoom._id;
-  logger.info(
-    `Starting import of main messages for ${gitterRoom.uri} (${gitterRoomId}) <-> ${matrixRoomId}`
-  );
+async function findFirstBridgedMessageInRoom(matrixRoomId) {
   // Find the earliest-in-time message that we have already bridged,
   // ie. where we need to start backfilling from to resume (resumability)
   const firstBridgedMessageInRoomResult = await persistence.MatrixBridgedChatMessage.where(
@@ -67,6 +78,19 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
     );
   }
 
+  return firstBridgedMessageIdInRoom;
+}
+
+async function handleMainMessages(gitterRoom, matrixRoomId) {
+  assert(gitterRoom);
+  assert(matrixRoomId);
+  const gitterRoomId = gitterRoom.id || gitterRoom._id;
+  logger.info(
+    `Starting import of main messages for ${gitterRoom.uri} (${gitterRoomId}) <-> ${matrixRoomId}`
+  );
+
+  const firstBridgedMessageIdInRoom = await findFirstBridgedMessageInRoom(matrixRoomId);
+
   const messageCursor = persistence.ChatMessage.find({
     // Start the stream of messages where we left off
     _id: (() => {
@@ -76,6 +100,8 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
       return { $exists: true };
     })(),
     toTroupeId: gitterRoomId,
+    // No threaded messages in this first pass
+    parentId: { $exists: false },
     // Although we probably won't find any Matrix bridged messages in the old
     // batch of messages we try to backfill, let's just be careful and not try
     // to re-bridge any previously bridged Matrix messages by accident.
@@ -97,14 +123,26 @@ async function handleMainMessages(gitterRoom, matrixRoomId) {
   });
 }
 
+// We have to handle threaded conversations in a separate pass because we need the
+// Matrix event ID's the the thread parents to reference for each thread reply
 async function handleThreadedConversationRelations(gitterRoom, matrixRoomId) {
+  assert(gitterRoom);
+  assert(matrixRoomId);
   const gitterRoomId = gitterRoom.id || gitterRoom._id;
   logger.info(
     `Starting import of threaded conversations for ${gitterRoom.uri} (${gitterRoomId}) <-> ${matrixRoomId}`
   );
+
+  const firstBridgedMessageIdInRoom = await findFirstBridgedMessageInRoom(matrixRoomId);
+
   const threadedMessageCursor = persistence.ChatMessage.find({
-    // TODO: Start the stream of messages where we left off
-    //_id: { $lt: firstBridgedMessageIdInRoom.gitterMessageId },
+    // Start the stream of messages where we left off
+    _id: (() => {
+      if (firstBridgedMessageIdInRoom) {
+        return { $lt: firstBridgedMessageIdInRoom.gitterMessageId };
+      }
+      return { $exists: true };
+    })(),
     toTroupeId: gitterRoomId,
     parentId: { $exists: true },
     // We don't want to re-bridge any previously bridged Matrix messages
@@ -135,31 +173,42 @@ async function exec() {
   const gitterRoom = await troupeService.findByUri(opts.uri);
   const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
-  //const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
-  const matrixRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
-    gitterRoomId
-  );
-  // TODO: Handle DM
+  // XXX: If we ever change this to MSC2716 import in the main room, we need to ensure
+  // we only do it room we control because we know the @gitter-badger:gitter.im is the
+  // room creator which is the only user who can MSC2716 backfill in existing room versions.
+  //
+  // Find the historical Matrix room we should import the history into
+  let matrixHistoricalRoomId;
+  if (gitterRoom.sd.type === 'ONE_TO_ONE') {
+    // TODO: Handle DM
+  } else {
+    matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+      gitterRoomId
+    );
+  }
   debug(
-    `Found matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
+    `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
   );
 
-  // TODO: We can only backfill in rooms which we can control
-  // because we know the @gitter-badger:gitter.im is the room creator
-  // which is the only user who can backfill in existing room versions.
+  await handleMainMessages(gitterRoom, matrixHistoricalRoomId);
+  // We have to handle threaded conversations in a separate pass because we need the
+  // Matrix event ID's the the thread parents to reference for each thread reply
+  await handleThreadedConversationRelations(gitterRoom, matrixHistoricalRoomId);
 
-  await handleMainMessages(gitterRoom, matrixRoomId);
-  await handleThreadedConversationRelations(gitterRoom, matrixRoomId);
+  // Ensure tombstone event pointing to the main room
+  const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+  await matrixUtils.ensureStateEvent(matrixHistoricalRoomId, 'm.room.tombstone', {
+    replacement_room: matrixRoomId
+  });
 
-  // TODO: Ensure tombstone event pointing to main room
-  // matrixUtils.ensureStateEvent(matrixRoomId, 'm.room.tombstone', {
-  //   "replacement_room": TODO
-  // });
+  return matrixHistoricalRoomId;
 }
 
 exec()
-  .then(() => {
-    logger.info(`Successfully imported all historical messages for ${opts.uri}`);
+  .then(matrixHistoricalRoomId => {
+    logger.info(
+      `Successfully imported all historical messages for ${opts.uri} to ${matrixHistoricalRoomId}`
+    );
     shutdown.shutdownGracefully();
   })
   .catch(err => {
