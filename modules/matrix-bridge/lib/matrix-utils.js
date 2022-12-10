@@ -151,13 +151,6 @@ class MatrixUtils {
       }
     });
 
-    // Store the bridged room right away!
-    // If we created a bridged room, we want to make sure we store it 100% of the time
-    logger.info(
-      `Storing bridged ONE_TO_ONE room (Gitter room id=${gitterRoomId} -> Matrix room_id=${newRoom.room_id})`
-    );
-    await store.storeBridgedRoom(gitterRoomId, newRoom.room_id);
-
     return newRoom.room_id;
   }
 
@@ -561,8 +554,15 @@ class MatrixUtils {
     );
     await store.storeBridgedRoom(gitterRoomId, matrixRoomId);
 
-    // Propagate all of the room details over to Matrix like the room topic and avatar
-    await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `gitterRoomId=${gitterRoomId} unexpectedly does not exist after we just created a Matrix room for it. We are unable to determine whether we need to ensureCorrectRoomState for it.`
+    );
+    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      // Propagate all of the room details over to Matrix like the room topic and avatar
+      await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
+    }
 
     return matrixRoomId;
   }
@@ -591,14 +591,21 @@ class MatrixUtils {
     );
     await store.storeBridgedHistoricalRoom(gitterRoomId, matrixRoomId);
 
-    // Propagate all of the room details over to Matrix like the room topic and avatar
-    await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
-      // We don't want this historical room to show up in the room directory. It will
-      // only be pointed back to by the current room in its predecessor.
-      shouldUpdateRoomDirectory: false,
-      // Make the room read-only so no one can mess up the history
-      readOnly: true
-    });
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `gitterRoomId=${gitterRoomId} unexpectedly does not exist after we just created a Matrix room for it. We are unable to determine whether we need to ensureCorrectRoomState for it.`
+    );
+    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      // Propagate all of the room details over to Matrix like the room topic and avatar
+      await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
+        // We don't want this historical room to show up in the room directory. It will
+        // only be pointed back to by the current room in its predecessor.
+        shouldUpdateRoomDirectory: false,
+        // Make the room read-only so no one can mess up the history
+        readOnly: true
+      });
+    }
 
     return matrixRoomId;
   }
