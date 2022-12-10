@@ -722,9 +722,9 @@ class MatrixUtils {
     const asToken = this.matrixBridge.registration.getAppServiceToken();
     assert(asToken);
 
-    const sendEndpoint = `${homeserverUrl}/_matrix/client/v3/rooms/${matrixRoomId}/send/${type}/${getTxnId()}?user_id=${mxid}&ts=${timestamp}`;
+    const sendEndpoint = `${homeserverUrl}/_matrix/client/r0/rooms/${matrixRoomId}/send/${type}/${getTxnId()}?user_id=${mxid}&ts=${timestamp}`;
     const res = await request({
-      method: 'POST',
+      method: 'PUT',
       uri: sendEndpoint,
       json: true,
       headers: {
