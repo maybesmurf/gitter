@@ -2,7 +2,7 @@
 'use strict';
 
 const shutdown = require('shutdown');
-const debug = require('debug')('gitter:scripts:matrix-historical-import');
+const debug = require('debug')('gitter:scripts:matrix-historical-import-one-room');
 
 const env = require('gitter-web-env');
 const logger = env.logger;
