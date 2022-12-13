@@ -78,7 +78,7 @@ const opts = require('yargs')
   .alias('help', 'h').argv;
 
 // Find the earliest-in-time message that we have already bridged,
-// ie. where we need to start backfilling from to resume (resumability)
+// ie. where we need to stop backfilling from to resume (resumability)
 async function findEarliestBridgedMessageInRoom(matrixRoomId) {
   const firstBridgedMessageEntryInRoomResult = await persistence.MatrixBridgedChatMessage.where(
     'matrixRoomId',
@@ -92,6 +92,23 @@ async function findEarliestBridgedMessageInRoom(matrixRoomId) {
   const firstBridgedMessageEntryInRoom = firstBridgedMessageEntryInRoomResult[0];
 
   return firstBridgedMessageEntryInRoom;
+}
+
+// Find the latest-in-time message that we have already bridged,
+// ie. where we need to start backfilling from to resume (resumability)
+async function findLatestBridgedMessageInRoom(matrixRoomId) {
+  const lastBridgedMessageEntryInRoomResult = await persistence.MatrixBridgedChatMessage.where(
+    'matrixRoomId',
+    matrixRoomId
+  )
+    .limit(1)
+    .select({ _id: 0, gitterMessageId: 1 })
+    .sort({ gitterMessageId: 'desc' })
+    .lean()
+    .exec();
+  const lastBridgedMessageEntryInRoom = lastBridgedMessageEntryInRoomResult[0];
+
+  return lastBridgedMessageEntryInRoom;
 }
 
 const gitterUserIdToMxidCache = LRU({
@@ -118,16 +135,34 @@ async function importThreadReplies({
   matrixRoomId,
   matrixHistoricalRoomId,
   threadParentId,
-  resumeFromMessageId
+  resumeFromMessageId,
+  stopAtMessageId
 }) {
   assert(gitterRoomId);
   assert(matrixRoomId);
   assert(matrixHistoricalRoomId);
   assert(threadParentId);
   assert(resumeFromMessageId);
+  // stopAtMessageId is not required since it's possible we have not bridged any
+  // messages in this room.
+  //
+  //assert(stopAtMessageId);
 
   const threadReplyMessageCursor = persistence.ChatMessage.find({
-    id: { $gt: resumeFromMessageId },
+    id: (() => {
+      const idQuery = {
+        $gt: resumeFromMessageId
+      };
+
+      if (stopAtMessageId) {
+        // Protect from the edge-case scenario where the first live bridged message in the
+        // room was a reply to a thread. We should only import up to the live point since
+        // we can't have duplicate entries in the `MatrixBridgedChatMessageSchema`
+        idQuery['$lt'] = stopAtMessageId;
+      }
+
+      return idQuery;
+    })(),
     toTroupeId: gitterRoomId,
     // No threaded messages in our main iterable.
     parentId: threadParentId,
@@ -149,14 +184,16 @@ async function importThreadReplies({
   await importFromChatMessageStreamIterable({
     gitterRoomId,
     matrixHistoricalRoomId,
-    chatMessageStreamIterable: threadReplyMessageStreamIterable
+    chatMessageStreamIterable: threadReplyMessageStreamIterable,
+    stopAtMessageId
   });
 }
 
 async function importFromChatMessageStreamIterable({
   gitterRoomId,
   matrixHistoricalRoomId,
-  chatMessageStreamIterable
+  chatMessageStreamIterable,
+  stopAtMessageId
 }) {
   for await (let message of chatMessageStreamIterable) {
     const messageId = message.id || message._id;
@@ -182,7 +219,8 @@ async function importFromChatMessageStreamIterable({
         threadParentId: messageId,
         // Any message with an ID greater than the thread parent is good (this means
         // every thread reply)
-        resumeFromMessageId: messageId
+        resumeFromMessageId: messageId,
+        stopAtMessageId
       });
     }
   }
@@ -202,41 +240,51 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   );
 
   // Where to resume from
-  const firstBridgedMessageEntryInHistoricalRoom = await findEarliestBridgedMessageInRoom(
+  const lastBridgedMessageEntryInHistoricalRoom = await findLatestBridgedMessageInRoom(
     matrixHistoricalRoomId
   );
-  const messageIdToResumeFrom =
-    firstBridgedMessageEntryInHistoricalRoom &&
-    firstBridgedMessageEntryInHistoricalRoom.gitterMessageId;
-  if (messageIdToResumeFrom) {
+  const gitterMessageIdToResumeFrom =
+    lastBridgedMessageEntryInHistoricalRoom &&
+    lastBridgedMessageEntryInHistoricalRoom.gitterMessageId;
+  if (gitterMessageIdToResumeFrom) {
     debug(
-      `Resuming from messageIdToResumeFrom=${messageIdToResumeFrom} matrixEventId=${firstBridgedMessageEntryInHistoricalRoom.matrixEventId} (matrixRoomId=${matrixRoomId})`
+      `Resuming from gitterMessageIdToResumeFrom=${gitterMessageIdToResumeFrom} matrixEventId=${lastBridgedMessageEntryInHistoricalRoom.matrixEventId} (matrixRoomId=${matrixRoomId})`
     );
   }
 
   // Where we should stop importing at because the live room will pick up from this point
   const firstBridgedMessageEntryInLiveRoom = await findEarliestBridgedMessageInRoom(matrixRoomId);
-  const messageIdToStopImportingAt =
+  const gitterMessageIdToStopImportingAt =
     firstBridgedMessageEntryInLiveRoom && firstBridgedMessageEntryInLiveRoom.gitterMessageId;
 
-  // If we see that the resume position is thread reply, then we need to finish off that
-  // thread first before moving on to the main messages again. We must have failed out
-  // in the middle of the thread before.
-  if (messageIdToResumeFrom) {
-    const firstBridgedMessageInHistoricalRoom = await chatService.findByIdLean(
-      messageIdToResumeFrom
-    );
-    if (firstBridgedMessageInHistoricalRoom.threadMessageCount > 0) {
-      const firstBridgedMessageIdInHistoricalRoom =
-        firstBridgedMessageInHistoricalRoom.id || firstBridgedMessageInHistoricalRoom._id;
-      assert(firstBridgedMessageIdInHistoricalRoom);
+  // If we see that the resume position is a thread reply or we stopped at a thread
+  // parent, then we need to finish off that thread first before moving on to the main
+  // messages again. We must have failed out in the middle of the thread before.
+  if (gitterMessageIdToResumeFrom) {
+    const gitterMessageToResumeFrom = await chatService.findByIdLean(gitterMessageIdToResumeFrom);
+    const isInThread = gitterMessageToResumeFrom.parentId;
+    const isThreadParent = gitterMessageToResumeFrom.threadMessageCount > 0;
+
+    let threadParentId;
+    if (isThreadParent) {
+      threadParentId = gitterMessageToResumeFrom.id || gitterMessageToResumeFrom._id;
+    } else if (isInThread) {
+      threadParentId = gitterMessageToResumeFrom.parentId;
+    }
+
+    if (threadParentId) {
+      debug(
+        `Resuming threadParentId=${threadParentId} before continuing to main message loop (matrixRoomId=${matrixRoomId})`
+      );
+
       await importThreadReplies({
         gitterRoomId,
         matrixRoomId,
         matrixHistoricalRoomId,
-        threadParentId: firstBridgedMessageIdInHistoricalRoom,
+        threadParentId,
         // Resume and finish importing the thread we left off at
-        resumeFromMessageId: messageIdToResumeFrom
+        resumeFromMessageId: gitterMessageIdToResumeFrom,
+        stopAtMessageId: gitterMessageIdToStopImportingAt
       });
     }
   }
@@ -247,18 +295,18 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   const messageCursor = persistence.ChatMessage.find({
     // Start the stream of messages where we left off, earliest message, going forwards
     _id: (() => {
-      let idQuery = {};
+      const idQuery = {};
       // Where to resume from
-      if (messageIdToResumeFrom) {
-        idQuery['$gt'] = messageIdToResumeFrom;
+      if (gitterMessageIdToResumeFrom) {
+        idQuery['$gt'] = gitterMessageIdToResumeFrom;
       }
       // Where we should stop importing at because the live room will pick up from this point
-      if (messageIdToStopImportingAt) {
-        idQuery['$lt'] = messageIdToStopImportingAt;
+      if (gitterMessageIdToStopImportingAt) {
+        idQuery['$lt'] = gitterMessageIdToStopImportingAt;
       }
 
       // If we haven't imported any history yet, just fallback to an `exists` (get all messages)
-      if (!messageIdToResumeFrom && !messageIdToStopImportingAt) {
+      if (!gitterMessageIdToResumeFrom && !gitterMessageIdToStopImportingAt) {
         idQuery['$exists'] = true;
       }
 
@@ -285,7 +333,8 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   await importFromChatMessageStreamIterable({
     gitterRoomId,
     matrixHistoricalRoomId,
-    chatMessageStreamIterable
+    chatMessageStreamIterable,
+    stopAtMessageId: gitterMessageIdToStopImportingAt
   });
 }
 
@@ -298,6 +347,7 @@ async function exec() {
   const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
   // Find our current live Matrix room
+  // TODO: Create the room as private, then after successful import, make it public with readOnly power-levels.
   let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
   // Find the historical Matrix room we should import the history into
   let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
@@ -313,9 +363,10 @@ async function exec() {
     matrixHistoricalRoomId
   });
 
-  // Ensure tombstone event pointing to the main live room
-  await matrixUtils.ensureStateEvent(matrixHistoricalRoomId, 'm.room.tombstone', {
-    replacement_room: matrixRoomId
+  await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
+    matrixRoomId,
+    matrixHistoricalRoomId,
+    gitterRoomId
   });
 
   logger.info(

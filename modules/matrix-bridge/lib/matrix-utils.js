@@ -485,6 +485,48 @@ class MatrixUtils {
     });
   }
 
+  // Will make the historical Matrix room read-only and tombstone the room to point at
+  // the current one.
+  //
+  // The reason we don't run this when the room is created is because we need
+  // power-levels for the bridge to import and be able to send messages as all of the
+  // `gitter.im` homeserver users. And we only want to send the tombstone event at the
+  // end after all of the history for maximum semantics (history continues after this
+  // point at the end).
+  async ensureCorrectHistoricalMatrixRoomStateAfterImport({
+    // The current live room
+    matrixRoomId,
+    // The historical room to ensure correct state in
+    matrixHistoricalRoomId,
+    gitterRoomId
+  }) {
+    assert(matrixRoomId);
+    assert(matrixHistoricalRoomId);
+    assert(gitterRoomId);
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `ensureCorrectHistoricalMatrixRoomStateAfterImport: gitterRoomId=${gitterRoomId} does not exist`
+    );
+
+    // One to one rooms are setup correctly from the beginning and never need updates
+    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      // Propagate all of the room details over to Matrix like the room topic and avatar
+      await this.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
+        // We don't want this historical room to show up in the room directory. It will
+        // only be pointed back to by the current room in its predecessor.
+        shouldUpdateRoomDirectory: false,
+        // Make the room read-only so no one can mess up the history
+        readOnly: true
+      });
+    }
+
+    // Ensure tombstone event pointing to the main live room
+    await this.ensureStateEvent(matrixHistoricalRoomId, 'm.room.tombstone', {
+      replacement_room: matrixRoomId
+    });
+  }
+
   async deleteRoomAliasesForMatrixRoomId(matrixRoomId) {
     const bridgeIntent = this.matrixBridge.getIntent();
 
@@ -603,16 +645,29 @@ class MatrixUtils {
     const gitterRoom = await troupeService.findById(gitterRoomId);
     assert(
       gitterRoom,
-      `gitterRoomId=${gitterRoomId} unexpectedly does not exist after we just created a Matrix room for it. We are unable to determine whether we need to ensureCorrectRoomState for it.`
+      `ensureCorrectRoomStateForHistoricalMatrixRoom: gitterRoomId=${gitterRoomId} unexpectedly does not exist after we just created a Matrix room for it. We are unable to determine whether we need to ensureCorrectRoomState for it.`
     );
+
+    // One to one rooms are setup correctly from the beginning and never need updates
     if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
       // Propagate all of the room details over to Matrix like the room topic and avatar
       await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
         // We don't want this historical room to show up in the room directory. It will
         // only be pointed back to by the current room in its predecessor.
         shouldUpdateRoomDirectory: false,
-        // Make the room read-only so no one can mess up the history
-        readOnly: true
+        // In the end, we want to make the room read-only so no one can mess up the
+        // history. But we leave it so people can send messages in the room for now so
+        // we can import everything first.
+        //
+        // XXX: It's important to call
+        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` after you're done
+        // importing! The reason we don't call
+        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` here when the room is
+        // created is because we need power-levels for the bridge to import and be able
+        // to send messages as all of the `gitter.im` homeserver users. And we only want
+        // to send the tombstone event at the end after all of the history for maximum
+        // semantics (history continues after this point at the end).
+        readOnly: false
       });
     }
 
