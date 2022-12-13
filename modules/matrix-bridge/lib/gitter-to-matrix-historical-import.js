@@ -2,6 +2,7 @@
 
 const assert = require('assert');
 const LRU = require('lru-cache');
+const { performance } = require('perf_hooks');
 const debug = require('debug')('gitter:app:matrix-bridge:gitter-to-matrix-historical-import');
 
 const persistence = require('gitter-web-persistence');
@@ -17,6 +18,22 @@ const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const DB_BATCH_SIZE = 100;
+
+function sampledPerformance(frequency) {
+  if (Math.random() < frequency) {
+    return {
+      performanceMark: performance.mark.bind(performance),
+      performanceClearMarks: performance.clearMarks.bind(performance),
+      performanceMeasure: performance.measure.bind(performance)
+    };
+  }
+
+  return {
+    performanceMark: () => {},
+    performanceClearMarks: () => {},
+    performanceMeasure: () => {}
+  };
+}
 
 // Find the earliest-in-time message that we have already bridged,
 // ie. where we need to stop backfilling from to resume (resumability)
@@ -137,11 +154,18 @@ async function importFromChatMessageStreamIterable({
   stopAtMessageId
 }) {
   for await (let message of chatMessageStreamIterable) {
+    // To avoid spamming our stats server, only send stats 1/50 of the time
+    const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
+      1 / 50
+    );
+
+    performanceMark(`importMessageStart`);
     const messageId = message.id || message._id;
     const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
     const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
 
     // Will send message and join the room if necessary
+    performanceMark(`request.sendEventStart`);
     const eventId = await matrixUtils.sendEventAtTimestmap({
       type: 'm.room.message',
       matrixRoomId: matrixHistoricalRoomId,
@@ -149,7 +173,25 @@ async function importFromChatMessageStreamIterable({
       matrixContent,
       timestamp: new Date(message.sent).getTime()
     });
+    performanceMark(`request.sendEventEnd`);
     await matrixStore.storeBridgedMessage(message, matrixHistoricalRoomId, eventId);
+    performanceMark(`importMessageEnd`);
+
+    performanceMeasure(
+      'matrix-bridge.event_send.time',
+      'request.sendEventStart',
+      'request.sendEventEnd'
+    );
+    performanceMeasure(
+      'matrix-bridge.import_message.time',
+      'importMessageStart',
+      'importMessageEnd'
+    );
+
+    performanceClearMarks(`request.sendEventStart`);
+    performanceClearMarks(`request.sendEventEnd`);
+    performanceClearMarks(`importMessageStart`);
+    performanceClearMarks(`importMessageEnd`);
 
     // Import all thread replies after the thread parent
     if (message.threadMessageCount) {
@@ -279,6 +321,23 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   });
 }
 
+// Why aren't we using MSC2716?
+//
+// - MSC2716 isn't fully polished. It works but it still a bit crunchy for federated
+//   homeservers to backfill all of the history in order and we just punted this problem
+//   to when Synapse supports online topological ordering which is beeeg future task.
+// - Trying the MSC2716 version of this script out now (see
+//   `scripts/utils/msc2716-backfill-existing-history-to-matrix.js`), the threads don't
+//   automatically show up in Element. I'm not sure why Element isn't using the bundled
+//   aggregations to show the thread preview. The threads do appear in the timeline once
+//   you open the thread list view. This seems like it could be fixed but it's yet
+//   another thing to do.
+// - Also since Hydrogen doesn't support threads yet, the threads won't be visible in
+//   the Matrix Public Archive or if they are, it will just be a big chunk where all the
+//   thread reply fallbacks will be. It will be better if we can import messages one by
+//   one and mix the thread replies right under the thread parent for easy viewing in
+//   clients where threads aren't supported.
+//
 async function gitterToMatrixHistoricalImport(gitterRoomId) {
   const gitterRoom = await troupeService.findByIdLean(gitterRoomId);
 
