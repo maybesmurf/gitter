@@ -3,6 +3,7 @@
 const assert = require('assert');
 const LRU = require('lru-cache');
 const { performance } = require('perf_hooks');
+const { EventEmitter } = require('events');
 const debug = require('debug')('gitter:app:matrix-bridge:gitter-to-matrix-historical-import');
 
 const persistence = require('gitter-web-persistence');
@@ -15,9 +16,14 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge/lib/generate-matrix-content-from-gitter-message');
 
+// The number of chat messages we pull out at once to reduce database roundtrips
+const DB_BATCH_SIZE_FOR_MESSAGES = 100;
+
+const QUARTER_SECOND_IN_MS = 250;
+
 const matrixUtils = new MatrixUtils(matrixBridge);
 
-const DB_BATCH_SIZE = 100;
+const matrixHistoricalImportEvents = new EventEmitter();
 
 function sampledPerformance(frequency) {
   if (Math.random() < frequency) {
@@ -38,12 +44,19 @@ function sampledPerformance(frequency) {
 // Find the earliest-in-time message that we have already bridged,
 // ie. where we need to stop backfilling from to resume (resumability)
 async function findEarliestBridgedMessageInRoom(matrixRoomId) {
+  // XXX: This check is currently flawed as we didn't have `matrixRoomId` in the
+  // beginning of the Gitter bridge (introduced in
+  // https://gitlab.com/gitterHQ/webapp/-/merge_requests/2069). This means that we could
+  // have bridged a few messages in the room before we started tracking this.
+  //
+  // TODO: Should we add a background update to fill in this field for all of the entries missing it?
+  // `db.matricesbridgedchatmessage.find({ matrixRoomId: { $exists: false } }).count()` is only 44 in production
   const firstBridgedMessageEntryInRoomResult = await persistence.MatrixBridgedChatMessage.where(
     'matrixRoomId',
     matrixRoomId
   )
     .limit(1)
-    .select({ _id: 0, gitterMessageId: 1 })
+    // From oldest to most recent
     .sort({ gitterMessageId: 'asc' })
     .lean()
     .exec();
@@ -60,7 +73,7 @@ async function findLatestBridgedMessageInRoom(matrixRoomId) {
     matrixRoomId
   )
     .limit(1)
-    .select({ _id: 0, gitterMessageId: 1 })
+    // From most recent to oldest
     .sort({ gitterMessageId: 'desc' })
     .lean()
     .exec();
@@ -134,7 +147,7 @@ async function importThreadReplies({
     .sort({ _id: 'asc' })
     .lean()
     .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(DB_BATCH_SIZE)
+    .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
     .cursor();
   const threadReplyMessageStreamIterable = iterableFromMongooseCursor(threadReplyMessageCursor);
 
@@ -153,6 +166,8 @@ async function importFromChatMessageStreamIterable({
   chatMessageStreamIterable,
   stopAtMessageId
 }) {
+  let runningEventImportCount = 0;
+  let lastImportMetricReportTs = Date.now();
   for await (let message of chatMessageStreamIterable) {
     // To avoid spamming our stats server, only send stats 1/50 of the time
     const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
@@ -165,7 +180,7 @@ async function importFromChatMessageStreamIterable({
     const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
 
     // Will send message and join the room if necessary
-    performanceMark(`request.sendEventStart`);
+    performanceMark(`request.sendEventRequestStart`);
     const eventId = await matrixUtils.sendEventAtTimestmap({
       type: 'm.room.message',
       matrixRoomId: matrixHistoricalRoomId,
@@ -173,14 +188,15 @@ async function importFromChatMessageStreamIterable({
       matrixContent,
       timestamp: new Date(message.sent).getTime()
     });
-    performanceMark(`request.sendEventEnd`);
+
+    performanceMark(`request.sendEventRequestEnd`);
     await matrixStore.storeBridgedMessage(message, matrixHistoricalRoomId, eventId);
     performanceMark(`importMessageEnd`);
 
     performanceMeasure(
-      'matrix-bridge.event_send.time',
-      'request.sendEventStart',
-      'request.sendEventEnd'
+      'matrix-bridge.event_send_request.time',
+      'request.sendEventRequestStart',
+      'request.sendEventRequestEnd'
     );
     performanceMeasure(
       'matrix-bridge.import_message.time',
@@ -188,10 +204,23 @@ async function importFromChatMessageStreamIterable({
       'importMessageEnd'
     );
 
-    performanceClearMarks(`request.sendEventStart`);
-    performanceClearMarks(`request.sendEventEnd`);
+    performanceClearMarks(`request.sendEventRequestStart`);
+    performanceClearMarks(`request.sendEventRequestEnd`);
     performanceClearMarks(`importMessageStart`);
     performanceClearMarks(`importMessageEnd`);
+
+    runningEventImportCount++;
+    // Only report back every 1/4 of a second
+    if (Date.now() - lastImportMetricReportTs >= QUARTER_SECOND_IN_MS) {
+      matrixHistoricalImportEvents.emit('eventImported', {
+        gitterRoomId,
+        count: runningEventImportCount
+      });
+
+      // Reset the running count after we report it
+      runningEventImportCount = 0;
+      lastImportMetricReportTs = Date.now();
+    }
 
     // Import all thread replies after the thread parent
     if (message.threadMessageCount) {
@@ -209,6 +238,7 @@ async function importFromChatMessageStreamIterable({
   }
 }
 
+// eslint-disable-next-line complexity
 async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   gitterRoom,
   matrixRoomId,
@@ -219,7 +249,9 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   assert(matrixHistoricalRoomId);
   const gitterRoomId = gitterRoom.id || gitterRoom._id;
   debug(
-    `Starting import of main messages for ${gitterRoom.uri} (${gitterRoomId}) --> matrixHistoricalRoomId=${matrixHistoricalRoomId} (live matrixRoomId=${matrixRoomId})`
+    `Starting import of main messages for ${
+      gitterRoom.oneToOne ? 'ONE_TO_ONE' : gitterRoom.uri
+    } (${gitterRoomId}) --> matrixHistoricalRoomId=${matrixHistoricalRoomId} (live matrixRoomId=${matrixRoomId})`
   );
 
   // Where to resume from
@@ -231,14 +263,19 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     lastBridgedMessageEntryInHistoricalRoom.gitterMessageId;
   if (gitterMessageIdToResumeFrom) {
     debug(
-      `Resuming from gitterMessageIdToResumeFrom=${gitterMessageIdToResumeFrom} matrixEventId=${lastBridgedMessageEntryInHistoricalRoom.matrixEventId} (matrixRoomId=${matrixRoomId})`
+      `Resuming from gitterMessageIdToResumeFrom=${gitterMessageIdToResumeFrom} matrixEventId=${lastBridgedMessageEntryInHistoricalRoom.matrixEventId} (matrixHistoricalRoomId=${matrixHistoricalRoomId})`
     );
   }
 
-  // Where we should stop importing at because the live room will pick up from this point
+  // Where we should stop importing at because the live room will pick up from this point.
   const firstBridgedMessageEntryInLiveRoom = await findEarliestBridgedMessageInRoom(matrixRoomId);
   const gitterMessageIdToStopImportingAt =
     firstBridgedMessageEntryInLiveRoom && firstBridgedMessageEntryInLiveRoom.gitterMessageId;
+  if (gitterMessageIdToStopImportingAt) {
+    debug(
+      `Stopping import at gitterMessageIdToStopImportingAt=${gitterMessageIdToStopImportingAt} where the live room picks up from - matrixEventId=${firstBridgedMessageEntryInLiveRoom.matrixEventId} (matrixRoomId=${matrixRoomId})`
+    );
+  }
 
   // If we see that the resume position is a thread reply or we stopped at a thread
   // parent, then we need to finish off that thread first before moving on to the main
@@ -308,7 +345,7 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     .sort({ _id: 'asc' })
     .lean()
     .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(DB_BATCH_SIZE)
+    .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
     .cursor();
 
   const chatMessageStreamIterable = iterableFromMongooseCursor(messageCursor);
@@ -319,6 +356,12 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     chatMessageStreamIterable,
     stopAtMessageId: gitterMessageIdToStopImportingAt
   });
+
+  debug(
+    `Done importing of messages for ${
+      gitterRoom.oneToOne ? 'ONE_TO_ONE' : gitterRoom.uri
+    } (${gitterRoomId}) --> matrixHistoricalRoomId=${matrixHistoricalRoomId} (live matrixRoomId=${matrixRoomId})`
+  );
 }
 
 // Why aren't we using MSC2716?
@@ -365,5 +408,6 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
 }
 
 module.exports = {
-  gitterToMatrixHistoricalImport
+  gitterToMatrixHistoricalImport,
+  matrixHistoricalImportEvents
 };

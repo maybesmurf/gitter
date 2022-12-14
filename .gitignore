@@ -82,6 +82,7 @@ scripts/docker/matrix/synapse/data/gitter-matrix-as-registration.yaml
 scripts/docker/matrix/synapse/data/homeserver.db
 scripts/docker/matrix/synapse/data/homeserver.db-shm
 scripts/docker/matrix/synapse/data/homeserver.db-wal
+scripts/utils/gitter-to-matrix-historical-import/_lane-worker-status-data.json
 homeserver.db-journal
 hostaliases
 config/redis-docker

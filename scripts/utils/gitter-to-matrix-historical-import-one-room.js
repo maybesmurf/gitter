@@ -28,12 +28,13 @@ const opts = require('yargs')
   .alias('help', 'h').argv;
 
 // eslint-disable-next-line max-statements
+let gitterRoomId;
 async function exec() {
   logger.info('Setting up Matrix bridge');
   await installBridge();
 
   const gitterRoom = await troupeService.findByUri(opts.uri);
-  const gitterRoomId = gitterRoom.id || gitterRoom._id;
+  gitterRoomId = gitterRoom.id || gitterRoom._id;
 
   // Find our current live Matrix room
   let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
@@ -58,6 +59,9 @@ exec()
     shutdown.shutdownGracefully();
   })
   .catch(err => {
-    logger.error(`Error occurred while backfilling events for ${opts.uri}:`, err.stack);
+    logger.error(
+      `Error occurred while backfilling events for opts.uri=${opts.uri} gitterRoomId=${gitterRoomId}:`,
+      err.stack
+    );
     shutdown.shutdownGracefully();
   });
