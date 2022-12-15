@@ -62,6 +62,7 @@ const laneStatusFilePath = path.resolve(
 );
 concurrentQueue.continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath);
 
+let eventsImportedRunningTotal = 0;
 const debugEventsImported = require('debug')('gitter:scripts-debug:events-imported');
 matrixHistoricalImportEvents.on('eventImported', ({ gitterRoomId, count }) => {
   if (!gitterRoomId) {
@@ -76,6 +77,12 @@ matrixHistoricalImportEvents.on('eventImported', ({ gitterRoomId, count }) => {
     );
     return;
   }
+
+  // Keep track of the grand total
+  eventsImportedRunningTotal += count;
+  concurrentQueue.updateLaneStatusOverallAttributes({
+    eventsImportedRunningTotal
+  });
 
   const laneIndex = concurrentQueue.findLaneIndexFromItemId(String(gitterRoomId));
   // We don't know the lane for this room, just bail
@@ -97,7 +104,6 @@ matrixHistoricalImportEvents.on('eventImported', ({ gitterRoomId, count }) => {
   }
 
   concurrentQueue.updateLaneStatus(laneIndex, {
-    ...laneStatusInfo,
     numMessagesImported: (laneStatusInfo.numMessagesImported || 0) + count
   });
 });
@@ -154,9 +160,7 @@ async function exec() {
         matrixHistoricalRoomId,
         { read: true }
       );
-      const laneStatusInfo = concurrentQueue.getLaneStatus(laneIndex);
       concurrentQueue.updateLaneStatus(laneIndex, {
-        ...laneStatusInfo,
         startTs: Date.now(),
         gitterRoom: {
           id: gitterRoomId,
@@ -180,11 +184,15 @@ async function exec() {
 
   const failedItemIds = concurrentQueue.getFailedItemIds();
   if (failedItemIds.length === 0) {
-    logger.info(`Successfully imported all historical messages for all rooms`);
+    logger.info(
+      `Successfully imported all historical messages for all rooms (aprox. ${eventsImportedRunningTotal} messages)`
+    );
   } else {
     logger.info(
-      `Done importing all historical messages for all rooms but failed to process ${failedItemIds.length} rooms`
+      `Done importing all historical messages for all rooms (aprox. ${eventsImportedRunningTotal} messages) but failed to process ${failedItemIds.length} rooms`
     );
+    // TODO: Loop through all of these failed rooms and log out the room URI so we can
+    // more easily look at the list and see if any of them are relevant.
     logger.info(`failedItemIds`, failedItemIds);
   }
 }

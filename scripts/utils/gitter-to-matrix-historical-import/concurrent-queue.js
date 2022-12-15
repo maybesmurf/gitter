@@ -18,7 +18,16 @@ class ConcurrentQueue {
 
     // Bootstrap the lane status info
     this._laneStatusInfo = {
-      lanes: {}
+      writeTs: null,
+      startTs: null,
+      finishTs: null,
+      // User-defined fields
+      overallAttributes: {},
+      // User-defined fields for each lane
+      lanes: {
+        // 0: { ... }
+        // 1: { ... }
+      }
     };
     for (let laneIndex = 0; laneIndex < this.concurrency; laneIndex++) {
       this._laneStatusInfo.lanes[laneIndex] = {};
@@ -37,6 +46,9 @@ class ConcurrentQueue {
   async processFromGenerator(itemGenerator, filterItemFunc, asyncProcesssorTask) {
     assert(itemGenerator);
     assert(asyncProcesssorTask);
+
+    // Mark when we started
+    this._laneStatusInfo.startTs = Date.now();
 
     // There will be N lanes to process things in
     const lanes = Array.from(Array(this.concurrency));
@@ -96,6 +108,9 @@ class ConcurrentQueue {
 
     // Wait for all of the lanes to finish
     await Promise.all(laneDonePromises);
+
+    // Mark when we finished
+    this._laneStatusInfo.finishTs = Date.now();
   }
 
   findLaneIndexFromItemId(itemId) {
@@ -106,8 +121,22 @@ class ConcurrentQueue {
     return this._laneStatusInfo.lanes[laneIndex];
   }
 
-  updateLaneStatus(laneIndex, laneStatusInfo) {
-    this._laneStatusInfo.lanes[laneIndex] = laneStatusInfo;
+  updateLaneStatus(laneIndex, newLaneStatusInfo) {
+    this._laneStatusInfo.lanes[laneIndex] = {
+      ...this._laneStatusInfo.lanes[laneIndex],
+      ...newLaneStatusInfo
+    };
+  }
+
+  getLaneStatusOverallAttributes() {
+    return this._laneStatusInfo.overallAttributes;
+  }
+
+  updateLaneStatusOverallAttributes(newOverallAttributes) {
+    this._laneStatusInfo.overallAttributes = {
+      ...this._laneStatusInfo.overallAttributes,
+      ...newOverallAttributes
+    };
   }
 
   continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath) {
@@ -123,7 +152,7 @@ class ConcurrentQueue {
 
       writingStatusInfoLock = true;
       try {
-        this._laneStatusInfo.writeTime = Date.now();
+        this._laneStatusInfo.writeTs = Date.now();
         await fs.writeFile(laneStatusFilePath, JSON.stringify(this._laneStatusInfo));
       } catch (err) {
         logger.error(`Problem persisting lane status to disk`, { exception: err });

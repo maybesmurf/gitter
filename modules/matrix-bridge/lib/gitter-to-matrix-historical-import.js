@@ -265,6 +265,14 @@ async function importFromChatMessageStreamIterable({
       });
     }
   }
+
+  // Send the final amount of messages that were left over when we were done
+  if (runningEventImportCount > 0) {
+    matrixHistoricalImportEvents.emit('eventImported', {
+      gitterRoomId,
+      count: runningEventImportCount
+    });
+  }
 }
 
 // eslint-disable-next-line complexity
