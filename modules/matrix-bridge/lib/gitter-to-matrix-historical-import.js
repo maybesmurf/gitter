@@ -11,8 +11,10 @@ const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
 const persistence = require('gitter-web-persistence');
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
+const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const chatService = require('gitter-web-chats');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
@@ -421,7 +423,18 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
 async function gitterToMatrixHistoricalImport(gitterRoomId) {
   const gitterRoom = await troupeService.findByIdLean(gitterRoomId);
 
-  // TODO: Ignore Matrix DMs, rooms under the matrix/ group (matrixDmGroupUri)
+  // Ignore Matrix DMs, rooms under the matrix/ group (matrixDmGroupUri). By their
+  // nature, they have been around since the Matrix bridge so there is nothing to
+  // import.
+  const matrixDmGroupUri = 'matrix';
+  const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
+  if (
+    matrixDmGroup &&
+    mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
+  ) {
+    debug(`Skipping Matrix DM (gitterRoomId=${gitterRoomId})`);
+    return;
+  }
 
   // Find our current live Matrix room
   let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
