@@ -52,8 +52,6 @@ async function resetBridgingingForMatrixHistoricalRoomId(matrixHistoricalRoomId)
     matrixRoomId: matrixHistoricalRoomId
   }).exec();
 
-  // TODO: If ONE_TO_ONE, leave from both sides
-
   // Shutdown the room so people don't get confused about it
   await matrixUtils.shutdownMatrixRoom(matrixHistoricalRoomId);
 
