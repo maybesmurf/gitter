@@ -17,9 +17,11 @@ class ConcurrentQueue {
     this.itemIdGetterFromItem = itemIdGetterFromItem;
 
     // Bootstrap the lane status info
-    this._laneStatusInfo = {};
+    this._laneStatusInfo = {
+      lanes: {}
+    };
     for (let laneIndex = 0; laneIndex < this.concurrency; laneIndex++) {
-      this._laneStatusInfo[laneIndex] = {};
+      this._laneStatusInfo.lanes[laneIndex] = {};
     }
 
     // Since this process is meant to be very long-running, prevent it from growing forever
@@ -94,18 +96,18 @@ class ConcurrentQueue {
   }
 
   getLaneStatus(laneIndex) {
-    return this._laneStatusInfo[laneIndex];
+    return this._laneStatusInfo.lanes[laneIndex];
   }
 
   updateLaneStatus(laneIndex, laneStatusInfo) {
-    this._laneStatusInfo[laneIndex] = laneStatusInfo;
+    this._laneStatusInfo.lanes[laneIndex] = laneStatusInfo;
   }
 
   continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath) {
     assert(laneStatusFilePath);
 
     let writingStatusInfoLock;
-    async function writeStatusInfo() {
+    const writeStatusInfo = async () => {
       // Prevent multiple writes from building up. We only allow one write every 0.5
       // seconds until it finishes
       if (writingStatusInfoLock) {
@@ -113,9 +115,16 @@ class ConcurrentQueue {
       }
 
       writingStatusInfoLock = true;
-      await fs.writeFile(laneStatusFilePath, JSON.stringify(this._laneStatusInfo));
-      writingStatusInfoLock = false;
-    }
+      try {
+        this._laneStatusInfo.writeTime = Date.now();
+        await fs.writeFile(laneStatusFilePath, JSON.stringify(this._laneStatusInfo));
+      } catch (err) {
+        logger.error(`Problem persisting lane status to disk`, { exception: err });
+      } finally {
+        writingStatusInfoLock = false;
+      }
+    };
+
     // Write every 0.5 seconds
     const writeStatusInfoIntervalId = setInterval(writeStatusInfo, 500);
     this._writeStatusInfoIntervalId = writeStatusInfoIntervalId;
