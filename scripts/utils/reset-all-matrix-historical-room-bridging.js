@@ -9,7 +9,6 @@ const logger = env.logger;
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const persistence = require('gitter-web-persistence');
-const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');

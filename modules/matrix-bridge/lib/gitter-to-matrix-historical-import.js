@@ -4,8 +4,11 @@ const assert = require('assert');
 const LRU = require('lru-cache');
 const { performance } = require('perf_hooks');
 const { EventEmitter } = require('events');
+const shutdown = require('shutdown');
 const debug = require('debug')('gitter:app:matrix-bridge:gitter-to-matrix-historical-import');
 
+const env = require('gitter-web-env');
+const logger = env.logger;
 const persistence = require('gitter-web-persistence');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
@@ -24,6 +27,22 @@ const QUARTER_SECOND_IN_MS = 250;
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const matrixHistoricalImportEvents = new EventEmitter();
+
+let finalPromiseToAwaitBeforeShutdown = Promise.resolve();
+shutdown.addHandler('matrix-bridge-batch-import', 20, async callback => {
+  // This is to try to best avoid us resuming and duplicating the last message we were
+  // sending in each room. Say we sent off the request, canceled the script before we
+  // `storeBridgedMessage`, then we would resume and try to send that message again.
+  logger.warn(
+    'Waiting for this ongoing message send request to finish and bridged information stored...'
+  );
+  try {
+    await finalPromiseToAwaitBeforeShutdown;
+  } catch (err) {
+    // We don't care about the error, we only care that the promise finished.
+  }
+  callback();
+});
 
 function sampledPerformance(frequency) {
   if (Math.random() < frequency) {
@@ -173,18 +192,31 @@ async function importFromChatMessageStreamIterable({
     const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
 
     // Will send message and join the room if necessary
-    performanceMark(`request.sendEventRequestStart`);
-    const eventId = await matrixUtils.sendEventAtTimestmap({
-      type: 'm.room.message',
-      matrixRoomId: matrixHistoricalRoomId,
-      mxid: matrixId,
-      matrixContent,
-      timestamp: new Date(message.sent).getTime()
+    const messageSendAndStorePromise = new Promise(async (resolve, reject) => {
+      try {
+        performanceMark(`request.sendEventRequestStart`);
+        const eventId = await matrixUtils.sendEventAtTimestmap({
+          type: 'm.room.message',
+          matrixRoomId: matrixHistoricalRoomId,
+          mxid: matrixId,
+          matrixContent,
+          timestamp: new Date(message.sent).getTime()
+        });
+
+        performanceMark(`request.sendEventRequestEnd`);
+        await matrixStore.storeBridgedMessage(message, matrixHistoricalRoomId, eventId);
+        performanceMark(`importMessageEnd`);
+
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
     });
 
-    performanceMark(`request.sendEventRequestEnd`);
-    await matrixStore.storeBridgedMessage(message, matrixHistoricalRoomId, eventId);
-    performanceMark(`importMessageEnd`);
+    // Assign this so we safely finish the send we're working on before shutting down
+    finalPromiseToAwaitBeforeShutdown = messageSendAndStorePromise;
+    // Then actually wait for the work to be doen
+    await messageSendAndStorePromise;
 
     performanceMeasure(
       'matrix-bridge.event_send_request.time',
