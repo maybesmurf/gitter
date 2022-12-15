@@ -1,9 +1,12 @@
 'use strict';
 
+const assert = require('assert');
 const path = require('path');
 const fs = require('fs').promises;
 const readline = require('readline');
 const _ = require('lodash');
+
+const formatDurationInMsToPrettyString = require('./gitter-to-matrix-historical-import/format-duration-in-ms-to-pretty-string');
 
 const laneStatusFilePath = path.resolve(
   __dirname,
@@ -13,19 +16,27 @@ const laneStatusFilePath = path.resolve(
 let isLaneStatusInfoState = false;
 let laneStatusInfo = {};
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
 function getLaneStatusMessage() {
   const laneStrings = Object.keys(laneStatusInfo.lanes || {}).map(laneIndex => {
     const laneStatus = laneStatusInfo.lanes[laneIndex];
 
+    const laneString = `${String(laneIndex).padStart(2)}`;
+
     const gitterRoom = laneStatus.gitterRoom;
     const gitterRoomString = `${gitterRoom && gitterRoom.uri} (${gitterRoom && gitterRoom.id})`;
 
-    return `${laneIndex}: ${laneStatus.numMessagesImported}/${laneStatus.numTotalMessagesInRoom} ${gitterRoomString}`;
+    const progressString = `${String(laneStatus.numMessagesImported).padStart(6)}/${String(
+      laneStatus.numTotalMessagesInRoom
+    ).padEnd(7)}`;
+
+    const progressDecimal = laneStatus.numMessagesImported / laneStatus.numTotalMessagesInRoom;
+    const progressBarWidth = 30;
+    const progressBarJuice = '='.repeat(Math.floor(progressBarWidth * progressDecimal));
+    const progressBarString = `[${progressBarJuice.padEnd(progressBarWidth)}]`;
+
+    const durationString = `${formatDurationInMsToPrettyString(Date.now() - laneStatus.startTs)}`;
+
+    return `${laneString}: ${progressBarString} ${progressString} ${gitterRoomString} - ${durationString}`;
   });
 
   const currentTimeString = `Current time: ${new Date().toISOString()}`;
@@ -34,6 +45,11 @@ function getLaneStatusMessage() {
 
   return `${currentTimeString}\n${laneWriteTimeString}\n${laneStrings.join('\n')}`;
 }
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
 
 function updateCli() {
   readline.cursorTo(rl, 0, 0);

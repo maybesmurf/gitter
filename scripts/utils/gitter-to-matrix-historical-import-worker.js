@@ -9,6 +9,7 @@ const debug = require('debug')('gitter:scripts:matrix-historical-import-worker')
 const env = require('gitter-web-env');
 const logger = env.logger;
 const persistence = require('gitter-web-persistence');
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const mongooseUtils = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
@@ -50,25 +51,43 @@ const laneStatusFilePath = path.resolve(
 );
 concurrentQueue.continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath);
 
+const debugEventsImported = require('debug')('gitter:scripts-debug:events-imported');
 matrixHistoricalImportEvents.on('eventImported', ({ gitterRoomId, count }) => {
-  assert(gitterRoomId);
-  assert(Number.isSafeInteger(count));
+  if (!gitterRoomId) {
+    debugEventsImported(
+      `Unable to associate events imported to lane: gitterRoomId=${gitterRoomId} not defined`
+    );
+    return;
+  }
+  if (!Number.isSafeInteger(count)) {
+    debugEventsImported(
+      `Unable to associate events imported to lane: count=${count} is not a safe integer`
+    );
+    return;
+  }
 
   const laneIndex = concurrentQueue.findLaneIndexFromItemId(String(gitterRoomId));
   // We don't know the lane for this room, just bail
   if (!laneIndex) {
+    debugEventsImported(
+      `Unable to associate events imported to lane: unknown laneIndex=${laneIndex}`
+    );
     return;
   }
   const laneStatusInfo = concurrentQueue.getLaneStatus(laneIndex);
 
   // The lane isn't working on this room anymore, bail
-  if (laneStatusInfo.gitterRoom && laneStatusInfo.gitterRoom.id !== gitterRoomId) {
+  const laneWorkingOnGitterRoomId = laneStatusInfo.gitterRoom && laneStatusInfo.gitterRoom.id;
+  if (!mongoUtils.objectIDsEqual(laneWorkingOnGitterRoomId, gitterRoomId)) {
+    debugEventsImported(
+      `Unable to associate events imported to lane: lane no longer working on the same room laneWorkingOnGitterRoomId=${laneWorkingOnGitterRoomId} vs gitterRoomId=${gitterRoomId}`
+    );
     return;
   }
 
   concurrentQueue.updateLaneStatus(laneIndex, {
     ...laneStatusInfo,
-    numMessagesImported: laneStatusInfo.numMessagesImported + count
+    numMessagesImported: (laneStatusInfo.numMessagesImported || 0) + count
   });
 });
 
@@ -91,9 +110,6 @@ async function exec() {
     async ({ value: gitterRoom, laneIndex }) => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
-      // TODO: Make sure failure in one room doesn't stop the whole queue, just keep
-      // moving on and log the failure. Maybe some safety if they all start failing.
-
       // Track some meta info so we can display a nice UI around what's happening
       const numTotalMessagesInRoom = await mongooseUtils.getEstimatedCountForId(
         persistence.ChatMessage,
@@ -104,6 +120,7 @@ async function exec() {
       const laneStatusInfo = concurrentQueue.getLaneStatus(laneIndex);
       concurrentQueue.updateLaneStatus(laneIndex, {
         ...laneStatusInfo,
+        startTs: Date.now(),
         gitterRoom: {
           id: gitterRoomId,
           uri: gitterRoom.uri,

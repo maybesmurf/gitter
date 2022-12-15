@@ -15,6 +15,16 @@ async function getGitterRoomIdByMatrixRoomId(matrixRoomId) {
   }
 }
 
+async function getGitterRoomIdByHistoricalMatrixRoomId(matrixRoomId) {
+  const bridgedRoomEntry = await persistence.MatrixBridgedHistoricalRoom.findOne({
+    matrixRoomId
+  });
+
+  if (bridgedRoomEntry) {
+    return bridgedRoomEntry.troupeId;
+  }
+}
+
 async function getMatrixRoomIdByGitterRoomId(gitterRoomId) {
   const bridgedRoomEntry = await persistence.MatrixBridgedRoom.findOne({
     troupeId: gitterRoomId
@@ -153,6 +163,7 @@ module.exports = {
   storeBridgedRoom,
   // Historical Rooms (where we import all our back catalog of messages)
   getHistoricalMatrixRoomIdByGitterRoomId,
+  getGitterRoomIdByHistoricalMatrixRoomId,
   storeBridgedHistoricalRoom,
 
   // Users

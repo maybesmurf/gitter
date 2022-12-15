@@ -544,68 +544,89 @@ class MatrixUtils {
     }
   }
 
-  async shutdownMatrixRoom(matrixRoomId) {
-    // TODO: If ONE_TO_ONE, leave from both sides
-    const gitterRoomId = await this.store.getGitterRoomIdByMatrixRoomId(matrixRoomId);
-    const gitterRoom = await troupeService.findByIdLean(gitterRoomId);
-    if (gitterRoom.oneToOne) {
-      debug(
-        `shutdownMatrixRoom(${matrixRoomId}): Making both parties leave the room since this is a ONE_TO_ONE room`
+  // eslint-disable-next-line max-statements
+  async shutdownMatrixRoom(matrixRoomId, { forceRemoveIfNoGitterRoom = false } = {}) {
+    assert(matrixRoomId, `matrixRoomId required to shutdownMatrixRoom`);
+
+    let gitterRoomId = await store.getGitterRoomIdByMatrixRoomId(matrixRoomId);
+    // If we can't find it from the normal one, try to find it in the historical rooms
+    if (!gitterRoomId) {
+      gitterRoomId = await store.getGitterRoomIdByHistoricalMatrixRoomId(matrixRoomId);
+    }
+
+    // If we can find the Gitter room, no problem. Otherwise, only skip this if
+    // `forceRemoveIfNoGitterRoom=true`. This block will clean up ONE_TO_ONE rooms properly
+    if (gitterRoomId || !forceRemoveIfNoGitterRoom) {
+      assert(
+        gitterRoomId,
+        `Unable to find gitterRoomId=${gitterRoomId} for matrixRoomId=${matrixRoomId}`
       );
-      const gitterUserCreatorMxid = await this.getOrCreateMatrixUserByGitterUserId(
-        gitterRoom.oneToOneUsers[0].userId
-      );
-      const gitterUserOtherMxid = await this.getOrCreateMatrixUserByGitterUserId(
-        gitterRoom.oneToOneUsers[1].userId
-      );
+      const gitterRoom = await troupeService.findByIdLean(gitterRoomId);
+      assert(gitterRoom);
+      if (gitterRoom.oneToOne) {
+        debug(
+          `shutdownMatrixRoom(${matrixRoomId}): Making both parties leave the room since this is a ONE_TO_ONE room`
+        );
+        const gitterUserCreatorMxid = await this.getOrCreateMatrixUserByGitterUserId(
+          gitterRoom.oneToOneUsers[0].userId
+        );
+        const gitterUserOtherMxid = await this.getOrCreateMatrixUserByGitterUserId(
+          gitterRoom.oneToOneUsers[1].userId
+        );
 
-      const userCreatorIntent = this.matrixBridge.getIntent(gitterUserCreatorMxid);
-      const userOtherIntent = this.matrixBridge.getIntent(gitterUserOtherMxid);
+        const userCreatorIntent = this.matrixBridge.getIntent(gitterUserCreatorMxid);
+        const userOtherIntent = this.matrixBridge.getIntent(gitterUserOtherMxid);
 
-      await userCreatorIntent.leave(matrixRoomId);
-      await userOtherIntent.leave(matrixRoomId);
-    } else {
-      // Delete aliases
-      debug(`shutdownMatrixRoom(${matrixRoomId}): Deleting room aliases`);
-      await this.deleteRoomAliasesForMatrixRoomId(matrixRoomId);
+        await userCreatorIntent.leave(matrixRoomId);
+        await userOtherIntent.leave(matrixRoomId);
 
-      // Change history visiblity so future people can't read the room
-      debug(
-        `shutdownMatrixRoom(${matrixRoomId}): Changing history visibility so the history isn't visible if anyone is able to join again`
-      );
-      await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
-        history_visibility: 'joined'
-      });
+        return;
+      }
+    }
 
-      const bridgeIntent = this.matrixBridge.getIntent();
+    // For normal public/private rooms where the bridge user is an admin
+    // ==================================================================
 
-      // Remove it from the room directory
-      debug(`shutdownMatrixRoom(${matrixRoomId}): Removing room from directory`);
-      await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
+    // Delete aliases
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Deleting room aliases`);
+    await this.deleteRoomAliasesForMatrixRoomId(matrixRoomId);
 
-      // Make it so people can't join back in
-      debug(
-        `shutdownMatrixRoom(${matrixRoomId}): Changing the join_rules to invite-only so people can't join back`
-      );
-      await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
-        join_rule: 'invite'
-      });
+    // Change history visiblity so future people can't read the room
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Changing history visibility so the history isn't visible if anyone is able to join again`
+    );
+    await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
+      history_visibility: 'joined'
+    });
 
-      // Kick everyone out
-      debug(`shutdownMatrixRoom(${matrixRoomId}): Kicking everyone out of the room`);
-      const roomMembers = await bridgeIntent.matrixClient.getRoomMembers(matrixRoomId, null, [
-        'join'
-      ]);
-      debug(
-        `shutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMembers && roomMembers.length} people`
-      );
-      if (roomMembers) {
-        for (let roomMember of roomMembers) {
-          // Kick everyone except the main bridge user
-          if (roomMember.membershipFor !== this.getMxidForMatrixBridgeUser()) {
-            debug(`\tshutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMember.membershipFor}`);
-            await bridgeIntent.kick(matrixRoomId, roomMember.membershipFor);
-          }
+    const bridgeIntent = this.matrixBridge.getIntent();
+
+    // Remove it from the room directory
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Removing room from directory`);
+    await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
+
+    // Make it so people can't join back in
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Changing the join_rules to invite-only so people can't join back`
+    );
+    await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
+      join_rule: 'invite'
+    });
+
+    // Kick everyone out
+    debug(`shutdownMatrixRoom(${matrixRoomId}): Kicking everyone out of the room`);
+    const roomMembers = await bridgeIntent.matrixClient.getRoomMembers(matrixRoomId, null, [
+      'join'
+    ]);
+    debug(
+      `shutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMembers && roomMembers.length} people`
+    );
+    if (roomMembers) {
+      for (let roomMember of roomMembers) {
+        // Kick everyone except the main bridge user
+        if (roomMember.membershipFor !== this.getMxidForMatrixBridgeUser()) {
+          debug(`\tshutdownMatrixRoom(${matrixRoomId}): Kicking ${roomMember.membershipFor}`);
+          await bridgeIntent.kick(matrixRoomId, roomMember.membershipFor);
         }
       }
     }

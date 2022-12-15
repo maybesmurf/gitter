@@ -237,6 +237,7 @@ async function importFromChatMessageStreamIterable({
     runningEventImportCount++;
     // Only report back every 1/4 of a second
     if (Date.now() - lastImportMetricReportTs >= QUARTER_SECOND_IN_MS) {
+      console.log('emitting eventImported');
       matrixHistoricalImportEvents.emit('eventImported', {
         gitterRoomId,
         count: runningEventImportCount
