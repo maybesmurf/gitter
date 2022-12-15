@@ -22,7 +22,7 @@ const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge
 
 // The number of chat messages we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_MESSAGES = 100;
-const METRIC_SAMPLE_RATIO = 1 / 50;
+const METRIC_SAMPLE_RATIO = 1 / 15;
 
 const QUARTER_SECOND_IN_MS = 250;
 
