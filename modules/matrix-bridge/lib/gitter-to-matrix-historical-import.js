@@ -44,13 +44,6 @@ function sampledPerformance(frequency) {
 // Find the earliest-in-time message that we have already bridged,
 // ie. where we need to stop backfilling from to resume (resumability)
 async function findEarliestBridgedMessageInRoom(matrixRoomId) {
-  // XXX: This check is currently flawed as we didn't have `matrixRoomId` in the
-  // beginning of the Gitter bridge (introduced in
-  // https://gitlab.com/gitterHQ/webapp/-/merge_requests/2069). This means that we could
-  // have bridged a few messages in the room before we started tracking this.
-  //
-  // TODO: Should we add a background update to fill in this field for all of the entries missing it?
-  // `db.matricesbridgedchatmessage.find({ matrixRoomId: { $exists: false } }).count()` is only 44 in production
   const firstBridgedMessageEntryInRoomResult = await persistence.MatrixBridgedChatMessage.where(
     'matrixRoomId',
     matrixRoomId
