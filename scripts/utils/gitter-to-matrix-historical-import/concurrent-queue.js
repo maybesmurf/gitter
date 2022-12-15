@@ -34,7 +34,7 @@ class ConcurrentQueue {
     this._failedItemIds = [];
   }
 
-  async processFromGenerator(itemGenerator, asyncProcesssorTask) {
+  async processFromGenerator(itemGenerator, filterItemFunc, asyncProcesssorTask) {
     assert(itemGenerator);
     assert(asyncProcesssorTask);
 
@@ -65,19 +65,26 @@ class ConcurrentQueue {
             )})`
           );
 
-          // Add an easy way to make a lookup from item ID to laneIndex
           const itemId = this.itemIdGetterFromItem(itemValue);
-          this.itemKeyToLaneIndexCache.set(itemId, laneIndex);
+          // Filter out items first
+          if (filterItemFunc(itemValue)) {
+            // Add an easy way to make a lookup from item ID to laneIndex
+            this.itemKeyToLaneIndexCache.set(itemId, laneIndex);
 
-          // Do the processing
-          try {
-            await asyncProcesssorTask({ value: itemValue, laneIndex });
-          } catch (err) {
-            // Log that we failed to process something
-            logger.error(`concurrentQueue: Failed to process itemId=${itemId}`, {
-              exception: err
-            });
-            this._failedItemIds.push(itemId);
+            // Do the processing
+            try {
+              await asyncProcesssorTask({ value: itemValue, laneIndex });
+            } catch (err) {
+              // Log that we failed to process something
+              logger.error(`concurrentQueue: Failed to process itemId=${itemId}`, {
+                exception: err
+              });
+              this._failedItemIds.push(itemId);
+            }
+          } else {
+            debugConcurrentQueue(
+              `concurrentQueue: laneIndex=${laneIndex} filtered out itemId=${itemId}`
+            );
           }
         }
 

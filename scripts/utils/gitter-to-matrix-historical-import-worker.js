@@ -14,6 +14,8 @@ const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-pref
 const mongooseUtils = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const installBridge = require('gitter-web-matrix-bridge');
+const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
+const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const {
   gitterToMatrixHistoricalImport,
   matrixHistoricalImportEvents
@@ -25,17 +27,26 @@ require('./gitter-to-matrix-historical-import/performance-observer-stats');
 // The number of rooms we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_ROOMS = 10;
 
+const matrixUtils = new MatrixUtils(matrixBridge);
+
 const opts = require('yargs')
   .option('concurrency', {
     type: 'number',
     required: true,
     description: 'Number of rooms to process at once'
   })
+  .option('uri-deny-pattern', {
+    type: 'string',
+    required: false,
+    description: 'The regex filter to match against the room lcUri'
+  })
   // TODO: Add worker index option to only process rooms which evenly divide against
   // that index (partition) (make sure to update the `laneStatusFilePath` to be unique from other
   // workers)
   .help('help')
   .alias('help', 'h').argv;
+
+const roomUriDenyFilterRegex = opts.uriDenyPattern ? new RegExp(opts.uriDenyPattern, 'i') : null;
 
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
@@ -107,6 +118,14 @@ async function exec() {
 
   await concurrentQueue.processFromGenerator(
     gitterRoomStreamIterable,
+    gitterRoom => {
+      if (roomUriDenyFilterRegex) {
+        const didMatchDenyRegex =
+          gitterRoom.lcUri && gitterRoom.lcUri.match(roomUriDenyFilterRegex);
+        return !didMatchDenyRegex;
+      }
+      return true;
+    },
     async ({ value: gitterRoom, laneIndex }) => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
@@ -115,6 +134,24 @@ async function exec() {
         persistence.ChatMessage,
         'toTroupeId',
         gitterRoomId,
+        { read: true }
+      );
+      // Find our current live Matrix room
+      let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+      // Find the historical Matrix room we should import the history into
+      let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+        gitterRoomId
+      );
+      const numMessagesImportedAlreadyInLiveRoom = await mongooseUtils.getEstimatedCountForId(
+        persistence.MatrixBridgedChatMessage,
+        'matrixRoomId',
+        matrixRoomId,
+        { read: true }
+      );
+      const numMessagesImportedAlreadyInHistoricalRoom = await mongooseUtils.getEstimatedCountForId(
+        persistence.MatrixBridgedChatMessage,
+        'matrixRoomId',
+        matrixHistoricalRoomId,
         { read: true }
       );
       const laneStatusInfo = concurrentQueue.getLaneStatus(laneIndex);
@@ -126,7 +163,8 @@ async function exec() {
           uri: gitterRoom.uri,
           lcUri: gitterRoom.lcUri
         },
-        numMessagesImported: 0,
+        numMessagesImported:
+          numMessagesImportedAlreadyInLiveRoom + numMessagesImportedAlreadyInHistoricalRoom,
         numTotalMessagesInRoom
       });
 

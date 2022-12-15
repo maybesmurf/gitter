@@ -13,7 +13,7 @@ const laneStatusFilePath = path.resolve(
   './gitter-to-matrix-historical-import/_lane-worker-status-data.json'
 );
 
-let isLaneStatusInfoState = false;
+let isLaneStatusInfoStale = false;
 let laneStatusInfo = {};
 
 function getLaneStatusMessage() {
@@ -41,7 +41,10 @@ function getLaneStatusMessage() {
 
   const currentTimeString = `Current time: ${new Date().toISOString()}`;
   const laneWriteTimeString = `Lane status write time: ${laneStatusInfo.writeTime &&
-    new Date(laneStatusInfo.writeTime).toISOString()} (Stale read? ${isLaneStatusInfoState})`;
+    new Date(laneStatusInfo.writeTime).toISOString()} (${laneStatusInfo.writeTime &&
+    formatDurationInMsToPrettyString(
+      Date.now() - laneStatusInfo.writeTime
+    )} old) (last read was error? ${isLaneStatusInfoStale})`;
 
   return `${currentTimeString}\n${laneWriteTimeString}\n${laneStrings.join('\n')}`;
 }
@@ -64,11 +67,11 @@ async function exec() {
     try {
       const fileContents = await fs.readFile(laneStatusFilePath);
       laneStatusInfo = JSON.parse(fileContents);
-      isLaneStatusInfoState = false;
+      isLaneStatusInfoStale = false;
     } catch (err) {
       // Failed to read file or parse but we'll just try again in the next loop.
       // We'll just mark the data as stale for now
-      isLaneStatusInfoState = true;
+      isLaneStatusInfoStale = true;
     }
 
     throttledUpdateCli();

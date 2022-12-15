@@ -9,6 +9,7 @@ const debug = require('debug')('gitter:app:matrix-bridge:gitter-to-matrix-histor
 
 const env = require('gitter-web-env');
 const logger = env.logger;
+const stats = env.stats;
 const persistence = require('gitter-web-persistence');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
@@ -21,6 +22,7 @@ const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge
 
 // The number of chat messages we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_MESSAGES = 100;
+const METRIC_SAMPLE_RATIO = 1 / 50;
 
 const QUARTER_SECOND_IN_MS = 250;
 
@@ -183,7 +185,7 @@ async function importFromChatMessageStreamIterable({
   for await (let message of chatMessageStreamIterable) {
     // To avoid spamming our stats server, only send stats 1/50 of the time
     const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
-      1 / 50
+      METRIC_SAMPLE_RATIO
     );
 
     performanceMark(`importMessageStart`);
@@ -215,8 +217,10 @@ async function importFromChatMessageStreamIterable({
 
     // Assign this so we safely finish the send we're working on before shutting down
     finalPromiseToAwaitBeforeShutdown = messageSendAndStorePromise;
-    // Then actually wait for the work to be doen
+    // Then actually wait for the work to be done
     await messageSendAndStorePromise;
+
+    stats.eventHF('matrix-bridge.import.event', 1, METRIC_SAMPLE_RATIO);
 
     performanceMeasure(
       'matrix-bridge.event_send_request.time',
@@ -237,7 +241,6 @@ async function importFromChatMessageStreamIterable({
     runningEventImportCount++;
     // Only report back every 1/4 of a second
     if (Date.now() - lastImportMetricReportTs >= QUARTER_SECOND_IN_MS) {
-      console.log('emitting eventImported');
       matrixHistoricalImportEvents.emit('eventImported', {
         gitterRoomId,
         count: runningEventImportCount

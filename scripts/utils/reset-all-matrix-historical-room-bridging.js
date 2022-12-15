@@ -93,6 +93,10 @@ async function exec() {
 
   await concurrentQueue.processFromGenerator(
     bridgedHistoricalMatrixRoomStreamIterable,
+    () => {
+      // Don't filter anything out
+      return true;
+    },
     async ({ value: bridgedHistoricalRoomEntry, laneIndex }) => {
       await resetBridgingingForMatrixHistoricalRoomId(bridgedHistoricalRoomEntry);
     }
