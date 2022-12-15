@@ -2,7 +2,7 @@
 'use strict';
 
 const shutdown = require('shutdown');
-const debug = require('debug')('gitter:scripts:backfill-existing-history-to-matrix');
+const debug = require('debug')('gitter:scripts:reset-matrix-room-bridging');
 const readline = require('readline');
 const env = require('gitter-web-env');
 const logger = env.logger;

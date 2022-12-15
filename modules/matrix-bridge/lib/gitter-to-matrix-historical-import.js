@@ -377,6 +377,8 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
 async function gitterToMatrixHistoricalImport(gitterRoomId) {
   const gitterRoom = await troupeService.findByIdLean(gitterRoomId);
 
+  // TODO: Ignore Matrix DMs, rooms under the matrix/ group (matrixDmGroupUri)
+
   // Find our current live Matrix room
   let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
   // Find the historical Matrix room we should import the history into

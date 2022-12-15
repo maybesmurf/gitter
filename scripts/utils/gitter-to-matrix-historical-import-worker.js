@@ -3,11 +3,9 @@
 
 const assert = require('assert');
 const shutdown = require('shutdown');
-const fs = require('fs').promises;
 const path = require('path');
 const debug = require('debug')('gitter:scripts:matrix-historical-import-worker');
 
-const LRU = require('lru-cache');
 const env = require('gitter-web-env');
 const logger = env.logger;
 const persistence = require('gitter-web-persistence');
@@ -19,6 +17,7 @@ const {
   gitterToMatrixHistoricalImport,
   matrixHistoricalImportEvents
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
+const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 // Setup stat logging
 require('./gitter-to-matrix-historical-import/performance-observer-stats');
 
@@ -37,95 +36,40 @@ const opts = require('yargs')
   .help('help')
   .alias('help', 'h').argv;
 
-const debugConcurrentQueue = require('debug')('gitter:scripts-debug:concurrent-queue');
-async function concurrentQueue(itemGenerator, concurrency, asyncProcesssorTask) {
-  assert(itemGenerator);
-  assert(concurrency);
-  assert(asyncProcesssorTask);
-
-  // There will be N lanes to process things in
-  const lanes = Array.from(Array(concurrency));
-
-  const laneDonePromises = lanes.map(async (_, laneIndex) => {
-    let isGeneratorDone = false;
-    while (
-      !isGeneratorDone &&
-      // An escape hatch in case our generator is doing something unexpected. For example, we should
-      // never see null/undefined here. Maybe we forgot to await the next item;
-      typeof isGeneratorDone === 'boolean'
-    ) {
-      const nextItem = await itemGenerator.next();
-      const { value, done } = nextItem;
-      isGeneratorDone = done;
-      if (typeof isGeneratorDone !== 'boolean') {
-        debugConcurrentQueue(
-          `concurrentQueue: laneIndex=${laneIndex} encountered a bad item where done=${done}, nextItem=${nextItem}`
-        );
-      }
-
-      if (value) {
-        debugConcurrentQueue(
-          `concurrentQueue: laneIndex=${laneIndex} picking up value=${value} (${JSON.stringify(
-            value
-          )})`
-        );
-        await asyncProcesssorTask({ value, laneIndex });
-      }
-
-      if (done) {
-        debugConcurrentQueue(`concurrentQueue: laneIndex=${laneIndex} is done`);
-      }
-    }
-  });
-
-  // Wait for all of the lanes to finish
-  await Promise.all(laneDonePromises);
-}
-
-const laneStatusInfo = {};
-
-// Since this process is meant to be very long-running, prevent it from growing forever
-// as we only need to keep track of the rooms currently being processed. We double it
-// just to account for a tiny bit of overlap while things are transitioning.
-const gitterRoomIdToLaneIndexCache = LRU({
-  max: 2 * opts.concurrency
+const concurrentQueue = new ConcurrentQueue({
+  concurrency: opts.concurrency,
+  itemIdGetterFromItem: gitterRoom => {
+    const gitterRoomId = gitterRoom.id || gitterRoom._id;
+    return String(gitterRoomId);
+  }
 });
 
 const laneStatusFilePath = path.resolve(
   __dirname,
   './gitter-to-matrix-historical-import/_lane-worker-status-data.json'
 );
-let writingStatusInfoLock;
-async function writeStatusInfo() {
-  // Prevent multiple writes from building up. We only allow one write every 0.5 seconds
-  // until it finishes
-  if (writingStatusInfoLock) {
-    return;
-  }
-
-  writingStatusInfoLock = true;
-  await fs.writeFile(laneStatusFilePath, JSON.stringify(laneStatusInfo));
-  writingStatusInfoLock = false;
-}
-// Write every 0.5 seconds
-const writeStatusInfoIntervalId = setInterval(writeStatusInfo, 500);
+concurrentQueue.continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath);
 
 matrixHistoricalImportEvents.on('eventImported', ({ gitterRoomId, count }) => {
   assert(gitterRoomId);
   assert(Number.isSafeInteger(count));
 
-  const laneIndex = gitterRoomIdToLaneIndexCache.get(String(gitterRoomId));
+  const laneIndex = concurrentQueue.findLaneIndexFromItemId(String(gitterRoomId));
   // We don't know the lane for this room, just bail
   if (!laneIndex) {
     return;
   }
+  const laneStatusInfo = concurrentQueue.getLaneStatus(laneIndex);
 
   // The lane isn't working on this room anymore, bail
-  if (laneStatusInfo[laneIndex].gitterRoom.id !== gitterRoomId) {
+  if (laneStatusInfo.gitterRoom && laneStatusInfo.gitterRoom.id !== gitterRoomId) {
     return;
   }
 
-  laneStatusInfo[laneIndex].numMessagesImported += count;
+  concurrentQueue.updateLaneStatus(laneIndex, {
+    ...laneStatusInfo,
+    numMessagesImported: laneStatusInfo.numMessagesImported + count
+  });
 });
 
 // eslint-disable-next-line max-statements
@@ -142,9 +86,8 @@ async function exec() {
     .cursor();
   const gitterRoomStreamIterable = iterableFromMongooseCursor(gitterRoomCursor);
 
-  await concurrentQueue(
+  await concurrentQueue.processFromGenerator(
     gitterRoomStreamIterable,
-    opts.concurrency,
     async ({ value: gitterRoom, laneIndex }) => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
@@ -152,14 +95,15 @@ async function exec() {
       // moving on and log the failure. Maybe some safety if they all start failing.
 
       // Track some meta info so we can display a nice UI around what's happening
-      gitterRoomIdToLaneIndexCache.set(String(gitterRoomId), laneIndex);
       const numTotalMessagesInRoom = await mongooseUtils.getEstimatedCountForId(
         persistence.ChatMessage,
         'toTroupeId',
         gitterRoomId,
         { read: true }
       );
-      laneStatusInfo[laneIndex] = {
+      const laneStatusInfo = concurrentQueue.getLaneStatus(laneIndex);
+      concurrentQueue.updateLaneStatus(laneIndex, {
+        ...laneStatusInfo,
         gitterRoom: {
           id: gitterRoomId,
           uri: gitterRoom.uri,
@@ -167,7 +111,7 @@ async function exec() {
         },
         numMessagesImported: 0,
         numTotalMessagesInRoom
-      };
+      });
 
       await gitterToMatrixHistoricalImport(gitterRoomId);
 
@@ -179,19 +123,29 @@ async function exec() {
     }
   );
 
-  logger.info(`Successfully imported all historical messages for all rooms`);
+  const failedItemIds = concurrentQueue.getFailedItemIds();
+  if (failedItemIds.length === 0) {
+    logger.info(`Successfully imported all historical messages for all rooms`);
+  } else {
+    logger.info(
+      `Done importing all historical messages for all rooms but failed to process ${failedItemIds.length} rooms`
+    );
+    logger.info(`failedItemIds`, failedItemIds);
+  }
 }
 
 exec()
   .then(() => {
-    // And continue shutting down gracefully
-    shutdown.shutdownGracefully();
+    logger.info(
+      `Script finished without an error (check for individual item process failures above).`
+    );
   })
   .catch(err => {
     logger.error(`Error occurred while backfilling events:`, err.stack);
-    shutdown.shutdownGracefully();
   })
   .then(() => {
-    // Stop writing the status file so we can also cleanly exit
-    clearInterval(writeStatusInfoIntervalId);
+    // Stop writing the status file so we can cleanly exit
+    concurrentQueue.stopPersistLaneStatusInfoToDisk();
+    // And continue shutting down gracefully
+    shutdown.shutdownGracefully();
   });

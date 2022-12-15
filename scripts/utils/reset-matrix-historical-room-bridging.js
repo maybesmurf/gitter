@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 'use strict';
 
-const assert = require('assert');
 const shutdown = require('shutdown');
-const debug = require('debug')('gitter:scripts:backfill-existing-history-to-matrix');
+const debug = require('debug')('gitter:scripts:reset-matrix-historical-room-bridging');
 const readline = require('readline');
 const env = require('gitter-web-env');
 const logger = env.logger;
-const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const persistence = require('gitter-web-persistence');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const installBridge = require('gitter-web-matrix-bridge');
@@ -16,6 +14,7 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
+const { assert } = require('console');
 
 const opts = require('yargs')
   .option('uri', {
@@ -37,6 +36,33 @@ const opts = require('yargs')
 //   );
 // }
 
+async function resetBridgingingForMatrixHistoricalRoomId(matrixHistoricalRoomId) {
+  assert(matrixHistoricalRoomId);
+  // Delete bridged chat message entries since the given date in the live room. This is
+  // useful when you're testing locally, setup a test room with a bunch of messages, and
+  // want to reset to try importing.
+  // if (matrixRoomId) {
+  //   await persistence.MatrixBridgedChatMessage.remove({
+  //     matrixRoomId,
+  //     gitterMessageId: { $lt: mongoUtils.createIdForTimestampString(sinceTimestamp) }
+  //   }).exec();
+  // }
+  // Delete all bridged chat message entries in the historical room
+  await persistence.MatrixBridgedChatMessage.remove({
+    matrixRoomId: matrixHistoricalRoomId
+  }).exec();
+
+  // TODO: If ONE_TO_ONE, leave from both sides
+
+  // Shutdown the room so people don't get confused about it
+  await matrixUtils.shutdownMatrixRoom(matrixHistoricalRoomId);
+
+  // Delete the historical bridged room entry
+  await persistence.MatrixBridgedHistoricalRoom.remove({
+    matrixRoomId: matrixHistoricalRoomId
+  }).exec();
+}
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
@@ -55,13 +81,13 @@ async function exec() {
     gitterRoomId
   );
   debug(
-    `Found matrixRoomId=${matrixRoomId} matrixHistoricalRoomId=${matrixHistoricalRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
+    `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} (matrixRoomId=${matrixRoomId}) for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
   );
 
   // Ask for confirmation since this does some descructive actions
   await new Promise(function(resolve, reject) {
     rl.question(
-      `Are you sure you want to reset Matrix bridging data between ${gitterRoom.uri} (${gitterRoomId}) and matrixRoomId=${matrixRoomId} matrixHistoricalRoomId=${matrixHistoricalRoomId}?`,
+      `Are you sure you want to reset Matrix historical bridging data between ${gitterRoom.uri} (${gitterRoomId}) and matrixHistoricalRoomId=${matrixHistoricalRoomId}?`,
       function(answer) {
         rl.close();
         console.log(answer);
@@ -75,29 +101,7 @@ async function exec() {
     );
   });
 
-  // Delete bridged chat message entries since the given date in the live room. This is
-  // useful when you're testing locally, setup a test room with a bunch of messages, and
-  // want to reset to try importing.
-  // if (matrixRoomId) {
-  //   await persistence.MatrixBridgedChatMessage.remove({
-  //     matrixRoomId,
-  //     gitterMessageId: { $lt: mongoUtils.createIdForTimestampString(sinceTimestamp) }
-  //   }).exec();
-  // }
-  // Delete all bridged chat message entries in the historical room
-  if (matrixHistoricalRoomId) {
-    await persistence.MatrixBridgedChatMessage.remove({
-      matrixRoomId: matrixHistoricalRoomId
-    }).exec();
-  }
-
-  // Shutdown the room so people don't get confused about it
-  await matrixUtils.shutdownMatrixRoom(matrixHistoricalRoomId);
-
-  // Delete the historical bridged room entry
-  await persistence.MatrixBridgedHistoricalRoom.remove({
-    matrixRoomId: matrixHistoricalRoomId
-  }).exec();
+  await resetBridgingingForMatrixHistoricalRoomId(matrixHistoricalRoomId);
 }
 
 exec()
