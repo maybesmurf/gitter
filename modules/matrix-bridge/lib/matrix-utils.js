@@ -348,6 +348,11 @@ class MatrixUtils {
       `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
     );
 
+    assert(
+      gitterGroup,
+      `groupId=${gitterRoom.groupId} unexpectedly does not exist for gitterRoomId=${gitterRoomId}`
+    );
+
     // Protect from accidentally running this on a Matrix DM room.
     const isMatrixDmRoom = !!discoverMatrixDmUri(gitterRoom.lcUri);
     assert.strictEqual(
