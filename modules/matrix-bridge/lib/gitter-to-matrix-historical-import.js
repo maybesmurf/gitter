@@ -136,7 +136,7 @@ async function importThreadReplies({
   //assert(stopAtMessageId);
 
   const threadReplyMessageCursor = persistence.ChatMessage.find({
-    id: (() => {
+    _id: (() => {
       const idQuery = {
         $gt: resumeFromMessageId
       };
