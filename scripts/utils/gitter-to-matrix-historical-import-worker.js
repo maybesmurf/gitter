@@ -21,6 +21,7 @@ const {
   matrixHistoricalImportEvents
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
+const troupeService = require('gitter-web-rooms/lib/troupe-service');
 // Setup stat logging
 require('./gitter-to-matrix-historical-import/performance-observer-stats');
 
@@ -182,18 +183,31 @@ async function exec() {
     }
   );
 
-  const failedItemIds = concurrentQueue.getFailedItemIds();
-  if (failedItemIds.length === 0) {
+  const failedRoomIds = concurrentQueue.getFailedItemIds();
+  if (failedRoomIds.length === 0) {
     logger.info(
       `Successfully imported all historical messages for all rooms (aprox. ${eventsImportedRunningTotal} messages)`
     );
   } else {
     logger.info(
-      `Done importing all historical messages for all rooms (aprox. ${eventsImportedRunningTotal} messages) but failed to process ${failedItemIds.length} rooms`
+      `Done importing all historical messages for all rooms (aprox. ${eventsImportedRunningTotal} messages) but failed to process ${failedRoomIds.length} rooms`
     );
-    // TODO: Loop through all of these failed rooms and log out the room URI so we can
-    // more easily look at the list and see if any of them are relevant.
-    logger.info(`failedItemIds`, failedItemIds);
+    const failedRoomInfos = await troupeService.findByIdsLean(failedRoomIds, { uri: 1 });
+    logger.info(
+      `failedRoomIds`,
+      // A poor-mans `JSON.stringify` that compacts the output of each item to a single
+      // line
+      `{\n`,
+      failedRoomInfos
+        .map((failedRoomInfo, index) => {
+          return `  "${index}": ${JSON.stringify({
+            id: failedRoomInfo.id || failedRoomInfo._id,
+            uri: failedRoomInfo.uri
+          })}`;
+        })
+        .join('\n'),
+      `\n}`
+    );
   }
 }
 
