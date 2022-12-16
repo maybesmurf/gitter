@@ -413,7 +413,8 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
 //   automatically show up in Element. I'm not sure why Element isn't using the bundled
 //   aggregations to show the thread preview. The threads do appear in the timeline once
 //   you open the thread list view. This seems like it could be fixed but it's yet
-//   another thing to do.
+//   another thing to do. Update: This is now tracked by
+//   https://github.com/vector-im/element-web/issues/24036
 // - Also since Hydrogen doesn't support threads yet, the threads won't be visible in
 //   the Matrix Public Archive or if they are, it will just be a big chunk where all the
 //   thread reply fallbacks will be. It will be better if we can import messages one by
