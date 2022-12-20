@@ -13,7 +13,6 @@ const fixtureUtils = require('gitter-web-test-utils/lib/fixture-utils');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const ensureMatrixFixtures = require('./utils/ensure-matrix-fixtures');
 const registerTestSynapseUser = require('./utils/register-test-synapse-user');
-const { joinMatrixRoom } = require('./utils/matrix-raw-test-utils');
 const util = require('util');
 const requestLib = util.promisify(require('request'));
 const urlJoin = require('url-join');
@@ -24,8 +23,24 @@ const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const app = require('../../server/web');
 
 const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
-const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
+const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
 
+async function joinMatrixRoom(matrixRoomId, matrixAccessToken) {
+  assert(matrixRoomId);
+  assert(matrixAccessToken);
+  const joinRes = await requestLib({
+    method: 'POST',
+    uri: urlJoin(homeserverUrl, `/_matrix/client/r0/rooms/${matrixRoomId}/join`),
+    json: true,
+    headers: {
+      Authorization: `Bearer ${matrixAccessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: {}
+  });
+
+  return joinRes;
+}
 
 describe('Gitter <-> Matrix bridging e2e', () => {
   const fixture = fixtureLoader.setupEach({

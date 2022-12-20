@@ -555,7 +555,8 @@ class MatrixUtils {
     }
 
     // If we can find the Gitter room, no problem. Otherwise, only skip this if
-    // `forceRemoveIfNoGitterRoom=true`. This block will clean up ONE_TO_ONE rooms properly
+    // `forceRemoveIfNoGitterRoom=true`. This block of code will clean up ONE_TO_ONE
+    // rooms properly.
     if (gitterRoomId || !forceRemoveIfNoGitterRoom) {
       assert(
         gitterRoomId,

@@ -10,7 +10,7 @@ const matrixBridge = require('./lib/matrix-bridge');
 const GitterBridge = require('./lib/gitter-bridge');
 const MatrixUtils = require('./lib/matrix-utils');
 
-const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
+const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
 const hsToken = config.get('matrix:bridge:hsToken');
 const asToken = config.get('matrix:bridge:asToken');
 // This will only apply in dev scenarios

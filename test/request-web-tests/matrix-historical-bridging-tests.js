@@ -6,20 +6,13 @@ process.env.DISABLE_API_WEB_LISTEN = '1';
 
 const debug = require('debug')('gitter:tests:matrix-historical-bridging-tests');
 const assert = require('assert');
-const fixtureUtils = require('gitter-web-test-utils/lib/fixture-utils');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const ensureMatrixFixtures = require('./utils/ensure-matrix-fixtures');
-const registerTestSynapseUser = require('./utils/register-test-synapse-user');
-const util = require('util');
-const requestLib = util.promisify(require('request'));
-const urlJoin = require('url-join');
 
 const env = require('gitter-web-env');
 const config = env.config;
-const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
-const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
+const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
 
-const persistence = require('gitter-web-persistence');
 const chatService = require('gitter-web-chats');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
@@ -68,12 +61,12 @@ async function importHistoryFromRooms(roomsToImport) {
   await concurrentQueue.processFromGenerator(
     asyncRoomIterable(),
     // Room filter
-    gitterRoom => {
-      const gitterRoomId = gitterRoom.id || gitterRoom._id;
+    (/*gitterRoom*/) => {
+      //const gitterRoomId = gitterRoom.id || gitterRoom._id;
       return true;
     },
     // Process function
-    async ({ value: gitterRoom, laneIndex }) => {
+    async ({ value: gitterRoom /*, laneIndex*/ }) => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
       await gitterToMatrixHistoricalImport(gitterRoomId);
     }
