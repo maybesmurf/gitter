@@ -164,6 +164,9 @@ test:
   rules:
     - when: always
   retry: 1
+  # TODO: Remove
+  script:
+    - npm run mocha -- test/request-web-tests/matrix-historical-bridging-tests.js --timeout 12000
 
 test_e2e:
   extends: .test_job
