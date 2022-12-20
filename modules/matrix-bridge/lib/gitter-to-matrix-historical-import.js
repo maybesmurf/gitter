@@ -351,7 +351,7 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   // Grab a cursor stream of all of the main messages in the room (no thread replies).
   // Resume from where we left off importing last time and stop when we reach the point
   // where the live room will continue seamlessly.
-  const messageCursor = persistence.ChatMessage.find({
+  const chatMessageQuery = {
     // Start the stream of messages where we left off, earliest message, going forwards
     _id: (() => {
       const idQuery = {};
@@ -378,7 +378,8 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     // batch of messages we try to backfill, let's just be careful and not try
     // to re-bridge any previously bridged Matrix messages by accident.
     virtualUser: { $exists: false }
-  })
+  };
+  const messageCursor = persistence.ChatMessage.find(chatMessageQuery)
     // Go from oldest to most recent so everything appears in the order it was sent in
     // the first place
     .sort({ _id: 'asc' })
