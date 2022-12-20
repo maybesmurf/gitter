@@ -383,10 +383,26 @@ class GitterBridge {
   }
 
   async handleRoomRemoveEvent(gitterRoomId /*, model*/) {
-    const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
-
+    const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     if (matrixRoomId) {
-      await this.matrixUtils.shutdownMatrixRoom(matrixRoomId);
+      await this.matrixUtils.shutdownMatrixRoom(matrixRoomId, {
+        // The Gitter room has been removed by this point so we can't reference it. We
+        // can force-remove safely because we never have to deal with ONE_TO_ONE rooms
+        // which this option is protecting against
+        forceRemoveIfNoGitterRoom: true
+      });
+    }
+
+    const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
+      gitterRoomId
+    );
+    if (matrixHistoricalRoomId) {
+      await this.matrixUtils.shutdownMatrixRoom(matrixHistoricalRoomId, {
+        // The Gitter room has been removed by this point so we can't reference it. We
+        // can force-remove safely because we never have to deal with ONE_TO_ONE rooms
+        // which this option is protecting against
+        forceRemoveIfNoGitterRoom: true
+      });
     }
   }
 

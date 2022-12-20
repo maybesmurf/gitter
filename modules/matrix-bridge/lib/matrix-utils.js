@@ -557,13 +557,13 @@ class MatrixUtils {
     // If we can find the Gitter room, no problem. Otherwise, only skip this if
     // `forceRemoveIfNoGitterRoom=true`. This block of code will clean up ONE_TO_ONE
     // rooms properly.
-    if (gitterRoomId || !forceRemoveIfNoGitterRoom) {
+    const gitterRoom = gitterRoomId && (await troupeService.findByIdLean(gitterRoomId));
+    if (gitterRoom || !forceRemoveIfNoGitterRoom) {
       assert(
-        gitterRoomId,
-        `Unable to find gitterRoomId=${gitterRoomId} for matrixRoomId=${matrixRoomId}`
+        gitterRoom,
+        `Unable to find gitterRoomId=${gitterRoomId} for matrixRoomId=${matrixRoomId} and forceRemoveIfNoGitterRoom=${forceRemoveIfNoGitterRoom} so we can't skip this check`
       );
-      const gitterRoom = await troupeService.findByIdLean(gitterRoomId);
-      assert(gitterRoom);
+
       if (gitterRoom.oneToOne) {
         debug(
           `shutdownMatrixRoom(${matrixRoomId}): Making both parties leave the room since this is a ONE_TO_ONE room`

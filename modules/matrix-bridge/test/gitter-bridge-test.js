@@ -2,6 +2,7 @@
 
 const assert = require('assert');
 const sinon = require('sinon');
+const ObjectID = require('mongodb').ObjectID;
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const chatService = require('gitter-web-chats');
 const restSerializer = require('../../../server/serializers/rest-serializer');
@@ -996,19 +997,56 @@ describe('gitter-bridge', () => {
         troupe1: {
           group: 'group1',
           topic: 'foo'
-        },
-        troupePrivate1: {
-          group: 'group1',
-          users: ['user1'],
-          securityDescriptor: {
-            members: 'INVITE',
-            admins: 'MANUAL',
-            public: false
-          }
         }
       });
 
-      it('deleted Gitter room shuts down the room on the Matrix side', async () => {
+      it(`deleted Gitter room shuts down the room on the Matrix side (when the Gitter room doesn't exist, normal)`, async () => {
+        // Given that we're listening for Gitter room remove events, the Gitter room
+        // shouldn't exist and we won't be able to reference it while deleting Matrix
+        // side of things. This is expected and normal.
+
+        const nonExistentGitterRoomId = new ObjectID(0);
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(nonExistentGitterRoomId, matrixRoomId);
+
+        await gitterBridge.onDataChange({
+          type: 'room',
+          url: `/rooms/${nonExistentGitterRoomId}`,
+          operation: 'remove',
+          model: { id: nonExistentGitterRoomId }
+        });
+
+        // Find the spy call where the join rules are changed so no one else can join
+        const joinRuleCall = matrixBridge
+          .getIntent()
+          .sendStateEvent.getCalls()
+          .find(call => {
+            const [mid, eventType] = call.args;
+            if (mid === matrixRoomId && eventType === 'm.room.join_rules') {
+              return true;
+            }
+          });
+        assert(joinRuleCall);
+        assert.deepEqual(joinRuleCall.args, [
+          matrixRoomId,
+          'm.room.join_rules',
+          '',
+          {
+            join_rule: 'invite'
+          }
+        ]);
+      });
+
+      it('deleted Gitter room shuts down the room on the Matrix side (when the Gitter room still exists, abnormal)', async () => {
+        // Given that we're listening for Gitter room remove events, the Gitter room
+        // shouldn't exist and we won't be able to reference it while deleting Matrix
+        // side of things.
+        //
+        // This test case specifically tests when the Gitter room still exists. We don't
+        // do anything different in terms of clean-up but we have some logic in
+        // `shutdownMatrixRoom` that would do something different so let's just make
+        // sure it works.
+
         const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
         await store.storeBridgedRoom(fixture.troupe1.id, matrixRoomId);
 
