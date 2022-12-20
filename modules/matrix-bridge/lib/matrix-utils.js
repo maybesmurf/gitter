@@ -942,7 +942,7 @@ class MatrixUtils {
       res = await _getMessagesWrapper();
     }
 
-    return res;
+    return res.body;
   }
 }
 

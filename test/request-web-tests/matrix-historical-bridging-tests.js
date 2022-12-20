@@ -10,7 +10,6 @@ const fixtureUtils = require('gitter-web-test-utils/lib/fixture-utils');
 const fixtureLoader = require('gitter-web-test-utils/lib/test-fixtures');
 const ensureMatrixFixtures = require('./utils/ensure-matrix-fixtures');
 const registerTestSynapseUser = require('./utils/register-test-synapse-user');
-const { joinMatrixRoom, getMessagesFromMatrixRoom } = require('./utils/matrix-raw-test-utils');
 const util = require('util');
 const requestLib = util.promisify(require('request'));
 const urlJoin = require('url-join');
@@ -23,11 +22,15 @@ const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
 const persistence = require('gitter-web-persistence');
 const chatService = require('gitter-web-chats');
 const installBridge = require('gitter-web-matrix-bridge');
+const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
+const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const {
   gitterToMatrixHistoricalImport
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('../../scripts/utils/gitter-to-matrix-historical-import/concurrent-queue');
+
+const matrixUtils = new MatrixUtils(matrixBridge);
 
 async function assertNotBridgedBefore(gitterRoomId) {
   const matrixRoomIdBefore = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterRoomId);
@@ -82,49 +85,60 @@ async function importHistoryFromRooms(roomsToImport) {
 async function assertCanJoinMatrixRoom({
   matrixRoomId,
   matrixHistoricalRoomId,
-  matrixAccessToken,
-  expectedStatusCode,
+  mxid,
+  expectToJoin,
   descriptionSecurityType, // ['public'|'private],
   descriptionPerspective // "a random user"
 }) {
-  const joinRes = await joinMatrixRoom(matrixRoomId, matrixAccessToken);
-  assert.strictEqual(
-    joinRes.statusCode,
-    expectedStatusCode,
-    `Expected to be able to join Matrix room (${matrixRoomId} which should be ${descriptionSecurityType}) from the perspective of ${descriptionPerspective} for bridged Gitter room, joinRes.body=${JSON.stringify(
-      joinRes.body
-    )}`
-  );
-  const joinHistoricalRes = await joinMatrixRoom(matrixHistoricalRoomId, matrixAccessToken);
-  assert.strictEqual(
-    joinHistoricalRes.statusCode,
-    expectedStatusCode,
-    `Expected to be able to join historical Matrix room (${matrixHistoricalRoomId} which should be ${descriptionSecurityType}) from the perspective of ${descriptionPerspective} for bridged Gitter room, joinHistoricalRes.body=${JSON.stringify(
-      joinHistoricalRes.body
-    )}`
-  );
+  assert(matrixRoomId);
+  assert(matrixHistoricalRoomId);
+  assert(mxid);
+  assert(expectToJoin === true || expectToJoin === false);
+  assert(descriptionSecurityType);
+  assert(descriptionPerspective);
+
+  const _canJoinWrapper = async function(matrixRoomId) {
+    const intent = matrixBridge.getIntent(mxid);
+    try {
+      await intent.join(matrixRoomId);
+      if (!expectToJoin) {
+        throw new Error(
+          `We weren't supposed to be able to join (${matrixRoomId} which should be ${descriptionSecurityType}) from the perspective of ${descriptionPerspective} for bridged Gitter room`
+        );
+      }
+    } catch (err) {
+      if (expectToJoin) {
+        throw new Error(
+          `Expected to be able to join Matrix room (${matrixRoomId} which should be ${descriptionSecurityType}) from the perspective of ${descriptionPerspective} for bridged Gitter room, ${err.stack}`
+        );
+      }
+    }
+  };
+
+  await _canJoinWrapper(matrixRoomId);
+  await _canJoinWrapper(matrixHistoricalRoomId);
 }
 
 async function setupMessagesInRoom(gitterRoom, user) {
   const message1 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '1 *one*'
   });
-  await chatService.newChatMessageToTroupe(gitterRoom, user, {
+  const message2 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '2 **two**',
     parentId: message1.id
   });
-  await chatService.newChatMessageToTroupe(gitterRoom, user, {
+  const message3 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '3 three'
   });
 
   const message4 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '4 *four*'
   });
-  await chatService.newChatMessageToTroupe(gitterRoom, user, {
+  const message5 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '5 **five**',
     parentId: message4.id
   });
-  await chatService.newChatMessageToTroupe(gitterRoom, user, {
+  const message6 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '6 six'
   });
   debug('setupMessagesInRoom: Created Gitter messages in room');
@@ -133,24 +147,23 @@ async function setupMessagesInRoom(gitterRoom, user) {
   // Gitter event-listeners won't be listening and these message sends won't make their
   // way to Matrix via the bridge. We also don't have the bridge running until after we
   // create the Gitter messages.
+
+  return [message1, message2, message3, message4, message5, message6];
 }
 
-async function assertHistoryInMatrixRoom({ matrixRoomId, matrixAccessToken, expectedMessages }) {
-  const messagesRes = await getMessagesFromMatrixRoom({
+async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages }) {
+  assert(matrixRoomId);
+  assert(mxid);
+  assert(expectedMessages);
+
+  const messagesRes = await matrixUtils.getMessages({
     matrixRoomId,
-    matrixAccessToken,
+    mxid,
     dir: 'b',
     limit: 100
   });
-  assert.strictEqual(
-    messagesRes.statusCode,
-    200,
-    `Expected to be able to see \`/messages\` Matrix room (${matrixRoomId}, messagesRes.body=${JSON.stringify(
-      messagesRes.body
-    )}`
-  );
 
-  const relevantMessageEvents = messagesRes.body.chunk.filter(event => {
+  const relevantMessageEvents = messagesRes.chunk.filter(event => {
     return event.type === 'm.room.message';
   });
 
@@ -205,6 +218,9 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, matrixAccessToken, expe
 
 describe('Gitter -> Matrix historical import e2e', () => {
   const fixture = fixtureLoader.setupEach({
+    userRandom: {
+      accessToken: 'web-internal'
+    },
     user1: {
       accessToken: 'web-internal'
     },
@@ -230,30 +246,31 @@ describe('Gitter -> Matrix historical import e2e', () => {
     }
   });
 
-  let someMatrixUserAccessToken;
-  let stopBridge;
-  before(async () => {
-    await ensureMatrixFixtures();
-    debug('Ensured that we have the Matrix fixtures in place');
-
-    const localPart = fixtureUtils.generateUsername().slice(1);
-    //someMatrixUserId = `@${localPart}:${serverName}`;
-    const res = await registerTestSynapseUser(localPart);
-    someMatrixUserAccessToken = res.access_token;
-    assert(someMatrixUserAccessToken);
-    debug('Created random Matrix user to test access with');
-  });
-
+  const gitterRoomToFixtureMessagesMap = new WeakMap();
   beforeEach(async () => {
     await assertNotBridgedBefore(fixture.troupe1.id);
     await assertNotBridgedBefore(fixture.troupePrivate1.id);
     await assertNotBridgedBefore(fixture.troupeOneToOne.id);
     debug('Asserted that these rooms have not been bridged before');
 
-    await setupMessagesInRoom(fixture.troupe1, fixture.user1);
-    await setupMessagesInRoom(fixture.troupePrivate1, fixture.user1);
-    await setupMessagesInRoom(fixture.troupeOneToOne, fixture.user1);
+    gitterRoomToFixtureMessagesMap.set(
+      fixture.troupe1,
+      await setupMessagesInRoom(fixture.troupe1, fixture.user1)
+    );
+    gitterRoomToFixtureMessagesMap.set(
+      fixture.troupePrivate1,
+      await setupMessagesInRoom(fixture.troupePrivate1, fixture.user1)
+    );
+    gitterRoomToFixtureMessagesMap.set(
+      fixture.troupeOneToOne,
+      await setupMessagesInRoom(fixture.troupeOneToOne, fixture.user1)
+    );
     debug('Setup messages in rooms');
+  });
+
+  let stopBridge;
+  before(async () => {
+    await ensureMatrixFixtures();
 
     // It's important that this comes after we setup all of the messages in the room
     stopBridge = await installBridge(bridgePortFromConfig + 1);
@@ -276,11 +293,14 @@ describe('Gitter -> Matrix historical import e2e', () => {
 
     // Try to join the room from some random Matrix user's perspective. We should be
     // able to get in to a public room!
+    const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+      fixture.userRandom.id
+    );
     await assertCanJoinMatrixRoom({
       matrixRoomId,
       matrixHistoricalRoomId,
-      matrixAccessToken: someMatrixUserAccessToken,
-      expectedStatusCode: 200,
+      mxid: userRandomMxid,
+      expectToJoin: true,
       descriptionSecurityType: 'public',
       descriptionPerspective: 'a random user'
     });
@@ -288,48 +308,121 @@ describe('Gitter -> Matrix historical import e2e', () => {
     // Assert the history
     await assertHistoryInMatrixRoom({
       matrixRoomId: matrixHistoricalRoomId,
-      matrixAccessToken: someMatrixUserAccessToken,
+      mxid: userRandomMxid,
       expectedMessages: [1, 2, 3, 4, 5, 6]
     });
   });
 
-  it('imports history to Matrix for private Gitter room', async () => {
-    // The function under test
-    await importHistoryFromRooms([fixture.troupePrivate1]);
-
-    const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(fixture.troupePrivate1.id);
-    const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
-      fixture.troupePrivate1.id
+  it('historical room stops and continues seamlessly to the live room (no message duplication/overlap)', async () => {
+    // Pretend that we already bridged messages 4-6
+    const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(fixture.troupe1.id);
+    const fixtureMessages = gitterRoomToFixtureMessagesMap.get(fixture.troupe1);
+    await matrixStore.storeBridgedMessage(
+      fixtureMessages[3],
+      matrixRoomId,
+      `$${fixtureLoader.generateGithubId()}`
+    );
+    await matrixStore.storeBridgedMessage(
+      fixtureMessages[4],
+      matrixRoomId,
+      `$${fixtureLoader.generateGithubId()}`
+    );
+    await matrixStore.storeBridgedMessage(
+      fixtureMessages[5],
+      matrixRoomId,
+      `$${fixtureLoader.generateGithubId()}`
     );
 
-    // Try to join the room from some Matrix user's perspective. We shouldn't be able to get in!
-    await assertCanJoinMatrixRoom({
-      matrixRoomId,
-      matrixHistoricalRoomId,
-      matrixAccessToken: someMatrixUserAccessToken,
-      expectedStatusCode: 403,
-      descriptionSecurityType: 'private',
-      descriptionPerspective: 'a random user'
-    });
+    // The function under test.
+    //
+    // We should only see messages 1-3 imported in the historical room since the live
+    // room already had some history.
+    await importHistoryFromRooms([fixture.troupe1]);
 
-    // Try to join the room from the perpectivate of a user in the private Matrix room.
-    // We *should* be able to get in!
+    const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
+      fixture.troupe1.id
+    );
+
+    // Try to join the room from some random Matrix user's perspective. We should be
+    // able to get in to a public room!
+    const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+      fixture.userRandom.id
+    );
     await assertCanJoinMatrixRoom({
       matrixRoomId,
       matrixHistoricalRoomId,
-      matrixAccessToken: TODO,
-      expectedStatusCode: 200,
-      descriptionSecurityType: 'private',
-      descriptionPerspective: 'a user in the private room'
+      mxid: userRandomMxid,
+      expectToJoin: true,
+      descriptionSecurityType: 'public',
+      descriptionPerspective: 'a random user'
     });
 
     // Assert the history
     await assertHistoryInMatrixRoom({
       matrixRoomId: matrixHistoricalRoomId,
-      matrixAccessToken: TODO,
-      expectedMessages: [1, 2, 3, 4, 5, 6]
+      mxid: userRandomMxid,
+      // We should only see messages 1-3 imported in the historical room since the live
+      // room already had some history (4-6).
+      expectedMessages: [1, 2, 3]
     });
   });
 
-  it('historical room stops and continues in live room');
+  [
+    {
+      label: 'private Gitter room',
+      gitterRoomFixtureKey: 'troupePrivate1'
+    },
+    {
+      label: 'ONE_TO_ONE Gitter room',
+      gitterRoomFixtureKey: 'troupeOneToOne'
+    }
+  ].forEach(testMeta => {
+    assert(testMeta.label);
+    assert(testMeta.gitterRoomFixtureKey);
+
+    it(`imports history to Matrix for ${testMeta.label}`, async () => {
+      const gitterRoom = fixture[testMeta.gitterRoomFixtureKey];
+      assert(gitterRoom);
+
+      // The function under test
+      await importHistoryFromRooms([gitterRoom]);
+
+      const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterRoom.id);
+      const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
+        gitterRoom.id
+      );
+
+      // Try to join the room from some Matrix user's perspective. We shouldn't be able to get in!
+      const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+        fixture.userRandom.id
+      );
+      await assertCanJoinMatrixRoom({
+        matrixRoomId,
+        matrixHistoricalRoomId,
+        mxid: userRandomMxid,
+        expectToJoin: false,
+        descriptionSecurityType: 'private',
+        descriptionPerspective: 'a random user'
+      });
+
+      // Try to join the room from the perspective of a user in the private Matrix room.
+      // We *should* be able to get in!
+      const user1Mxid = await matrixStore.getMatrixUserIdByGitterUserId(fixture.user1.id);
+      await assertCanJoinMatrixRoom({
+        matrixRoomId,
+        matrixHistoricalRoomId,
+        mxid: user1Mxid,
+        expectToJoin: true,
+        descriptionSecurityType: 'private',
+        descriptionPerspective: 'a user in the private room'
+      });
+
+      // Assert the history
+      await assertHistoryInMatrixRoom({
+        matrixRoomId: matrixHistoricalRoomId,
+        mxid: user1Mxid,
+        expectedMessages: [1, 2, 3, 4, 5, 6]
+      });
+    });
+  });
 });
