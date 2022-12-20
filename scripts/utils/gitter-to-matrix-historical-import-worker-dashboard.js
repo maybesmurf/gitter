@@ -1,6 +1,5 @@
 'use strict';
 
-const assert = require('assert');
 const path = require('path');
 const fs = require('fs').promises;
 const readline = require('readline');
@@ -117,6 +116,7 @@ const throttledUpdateCli = _.throttle(updateCli, 500);
 
 let sampleCount = 0;
 async function exec() {
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const fileContents = await fs.readFile(laneStatusFilePath);

@@ -2,7 +2,7 @@
 'use strict';
 
 const shutdown = require('shutdown');
-const debug = require('debug')('gitter:scripts:reset-all-matrix-historical-room-bridging');
+//const debug = require('debug')('gitter:scripts:reset-all-matrix-historical-room-bridging');
 const readline = require('readline');
 const env = require('gitter-web-env');
 const logger = env.logger;
@@ -97,7 +97,7 @@ async function exec() {
       // Don't filter anything out
       return true;
     },
-    async ({ value: bridgedHistoricalRoomEntry, laneIndex }) => {
+    async ({ value: bridgedHistoricalRoomEntry /*, laneIndex*/ }) => {
       await resetBridgingingForMatrixHistoricalRoomId(bridgedHistoricalRoomEntry);
     }
   );

@@ -1,6 +1,5 @@
 'use strict';
 
-const assert = require('assert');
 const debug = require('debug')('gitter:scripts:matrix-historical-import:stats');
 const { PerformanceObserver } = require('perf_hooks');
 

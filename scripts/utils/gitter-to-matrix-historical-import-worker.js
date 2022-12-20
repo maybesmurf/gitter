@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 
-const assert = require('assert');
 const shutdown = require('shutdown');
 const path = require('path');
-const debug = require('debug')('gitter:scripts:matrix-historical-import-worker');
+//const debug = require('debug')('gitter:scripts:matrix-historical-import-worker');
 
 const env = require('gitter-web-env');
 const logger = env.logger;
