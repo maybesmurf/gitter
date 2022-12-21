@@ -32,7 +32,7 @@ const matrixUtils = new MatrixUtils(matrixBridge);
 
 const matrixHistoricalImportEventEmitter = new EventEmitter();
 
-let finalPromiseToAwaitBeforeShutdown = Promise.resolve();
+let roomIdTofinalPromiseToAwaitBeforeShutdownMap = new Map();
 shutdown.addHandler('matrix-bridge-batch-import', 20, async callback => {
   // This is to try to best avoid us resuming and duplicating the last message we were
   // sending in each room. Say we sent off the request, canceled the script before we
@@ -41,7 +41,7 @@ shutdown.addHandler('matrix-bridge-batch-import', 20, async callback => {
     'Waiting for this ongoing message send request to finish and bridged information stored...'
   );
   try {
-    await finalPromiseToAwaitBeforeShutdown;
+    await Promise.all(roomIdTofinalPromiseToAwaitBeforeShutdownMap.values());
   } catch (err) {
     // We don't care about the error, we only care that the promise finished.
   }
@@ -182,98 +182,107 @@ async function importFromChatMessageStreamIterable({
   chatMessageStreamIterable,
   stopAtMessageId
 }) {
-  let runningEventImportCount = 0;
-  let lastImportMetricReportTs = Date.now();
-  for await (let message of chatMessageStreamIterable) {
-    // To avoid spamming our stats server, only send stats 1/N of the time
-    const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
-      METRIC_SAMPLE_RATIO
-    );
+  try {
+    let runningEventImportCount = 0;
+    let lastImportMetricReportTs = Date.now();
+    for await (let message of chatMessageStreamIterable) {
+      // To avoid spamming our stats server, only send stats 1/N of the time
+      const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
+        METRIC_SAMPLE_RATIO
+      );
 
-    performanceMark(`importMessageStart`);
-    const messageId = message.id || message._id;
-    const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
-    const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
+      performanceMark(`importMessageStart`);
+      const gitterMessageId = message.id || message._id;
+      const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
+      const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
 
-    // Will send message and join the room if necessary
-    const messageSendAndStorePromise = new Promise(async (resolve, reject) => {
-      try {
-        performanceMark(`request.sendEventRequestStart`);
-        const eventId = await matrixUtils.sendEventAtTimestmap({
-          type: 'm.room.message',
-          matrixRoomId: matrixHistoricalRoomId,
-          mxid: matrixId,
-          matrixContent,
-          timestamp: new Date(message.sent).getTime()
+      // Will send message and join the room if necessary
+      const messageSendAndStorePromise = new Promise(async (resolve, reject) => {
+        try {
+          performanceMark(`request.sendEventRequestStart`);
+          const eventId = await matrixUtils.sendEventAtTimestmap({
+            type: 'm.room.message',
+            matrixRoomId: matrixHistoricalRoomId,
+            mxid: matrixId,
+            matrixContent,
+            timestamp: new Date(message.sent).getTime()
+          });
+
+          performanceMark(`request.sendEventRequestEnd`);
+          await matrixStore.storeBridgedMessage(message, matrixHistoricalRoomId, eventId);
+          performanceMark(`importMessageEnd`);
+
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      // Assign this so we safely finish the send we're working on before shutting down
+      roomIdTofinalPromiseToAwaitBeforeShutdownMap.set(
+        String(gitterRoomId),
+        messageSendAndStorePromise
+      );
+      // Then actually wait for the work to be done
+      await messageSendAndStorePromise;
+
+      stats.eventHF('matrix-bridge.import.event', 1, METRIC_SAMPLE_RATIO);
+
+      performanceMeasure(
+        'matrix-bridge.event_send_request.time',
+        'request.sendEventRequestStart',
+        'request.sendEventRequestEnd'
+      );
+      performanceMeasure(
+        'matrix-bridge.import_message.time',
+        'importMessageStart',
+        'importMessageEnd'
+      );
+
+      performanceClearMarks(`request.sendEventRequestStart`);
+      performanceClearMarks(`request.sendEventRequestEnd`);
+      performanceClearMarks(`importMessageStart`);
+      performanceClearMarks(`importMessageEnd`);
+
+      runningEventImportCount++;
+      // Only report back every 1/4 of a second
+      if (Date.now() - lastImportMetricReportTs >= QUARTER_SECOND_IN_MS) {
+        matrixHistoricalImportEventEmitter.emit('eventImported', {
+          gitterRoomId,
+          count: runningEventImportCount
         });
 
-        performanceMark(`request.sendEventRequestEnd`);
-        await matrixStore.storeBridgedMessage(message, matrixHistoricalRoomId, eventId);
-        performanceMark(`importMessageEnd`);
-
-        resolve();
-      } catch (err) {
-        reject(err);
+        // Reset the running count after we report it
+        runningEventImportCount = 0;
+        lastImportMetricReportTs = Date.now();
       }
-    });
 
-    // Assign this so we safely finish the send we're working on before shutting down
-    finalPromiseToAwaitBeforeShutdown = messageSendAndStorePromise;
-    // Then actually wait for the work to be done
-    await messageSendAndStorePromise;
+      // Import all thread replies after the thread parent
+      if (message.threadMessageCount) {
+        await importThreadReplies({
+          gitterRoomId,
+          matrixRoomId: matrixHistoricalRoomId,
+          matrixHistoricalRoomId,
+          threadParentId: gitterMessageId,
+          // Any message with an ID greater than the thread parent is good (this means
+          // every thread reply)
+          resumeFromMessageId: gitterMessageId,
+          stopAtMessageId
+        });
+      }
+    }
 
-    stats.eventHF('matrix-bridge.import.event', 1, METRIC_SAMPLE_RATIO);
-
-    performanceMeasure(
-      'matrix-bridge.event_send_request.time',
-      'request.sendEventRequestStart',
-      'request.sendEventRequestEnd'
-    );
-    performanceMeasure(
-      'matrix-bridge.import_message.time',
-      'importMessageStart',
-      'importMessageEnd'
-    );
-
-    performanceClearMarks(`request.sendEventRequestStart`);
-    performanceClearMarks(`request.sendEventRequestEnd`);
-    performanceClearMarks(`importMessageStart`);
-    performanceClearMarks(`importMessageEnd`);
-
-    runningEventImportCount++;
-    // Only report back every 1/4 of a second
-    if (Date.now() - lastImportMetricReportTs >= QUARTER_SECOND_IN_MS) {
+    // Send the final amount of messages that were left over when we were done
+    if (runningEventImportCount > 0) {
       matrixHistoricalImportEventEmitter.emit('eventImported', {
         gitterRoomId,
         count: runningEventImportCount
       });
-
-      // Reset the running count after we report it
-      runningEventImportCount = 0;
-      lastImportMetricReportTs = Date.now();
     }
-
-    // Import all thread replies after the thread parent
-    if (message.threadMessageCount) {
-      await importThreadReplies({
-        gitterRoomId,
-        matrixRoomId: matrixHistoricalRoomId,
-        matrixHistoricalRoomId,
-        threadParentId: messageId,
-        // Any message with an ID greater than the thread parent is good (this means
-        // every thread reply)
-        resumeFromMessageId: messageId,
-        stopAtMessageId
-      });
-    }
-  }
-
-  // Send the final amount of messages that were left over when we were done
-  if (runningEventImportCount > 0) {
-    matrixHistoricalImportEventEmitter.emit('eventImported', {
-      gitterRoomId,
-      count: runningEventImportCount
-    });
+  } finally {
+    // We are done importing so we no longer need to worry about this anymore (clean-up
+    // so the map doesn't grow forever)
+    roomIdTofinalPromiseToAwaitBeforeShutdownMap.delete(String(gitterRoomId));
   }
 }
 

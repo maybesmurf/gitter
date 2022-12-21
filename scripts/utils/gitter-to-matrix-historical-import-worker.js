@@ -151,7 +151,7 @@ matrixHistoricalImportEventEmitter.on('eventImported', ({ gitterRoomId, count })
   // We don't know the lane for this room, just bail
   if (!laneIndex) {
     debugEventsImported(
-      `Unable to associate events imported to lane: unknown laneIndex=${laneIndex}`
+      `Unable to associate events imported to lane: unknown laneIndex=${laneIndex} gitterRoomId=${gitterRoomId}`
     );
     return;
   }
