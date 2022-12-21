@@ -17,7 +17,7 @@ const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const {
   gitterToMatrixHistoricalImport,
-  matrixHistoricalImportEvents
+  matrixHistoricalImportEventEmitter
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
@@ -127,7 +127,7 @@ concurrentQueue.continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath);
 
 let eventsImportedRunningTotal = 0;
 const debugEventsImported = require('debug')('gitter:scripts-debug:events-imported');
-matrixHistoricalImportEvents.on('eventImported', ({ gitterRoomId, count }) => {
+matrixHistoricalImportEventEmitter.on('eventImported', ({ gitterRoomId, count }) => {
   if (!gitterRoomId) {
     debugEventsImported(
       `Unable to associate events imported to lane: gitterRoomId=${gitterRoomId} not defined`

@@ -30,7 +30,7 @@ const QUARTER_SECOND_IN_MS = 250;
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
-const matrixHistoricalImportEvents = new EventEmitter();
+const matrixHistoricalImportEventEmitter = new EventEmitter();
 
 let finalPromiseToAwaitBeforeShutdown = Promise.resolve();
 shutdown.addHandler('matrix-bridge-batch-import', 20, async callback => {
@@ -243,7 +243,7 @@ async function importFromChatMessageStreamIterable({
     runningEventImportCount++;
     // Only report back every 1/4 of a second
     if (Date.now() - lastImportMetricReportTs >= QUARTER_SECOND_IN_MS) {
-      matrixHistoricalImportEvents.emit('eventImported', {
+      matrixHistoricalImportEventEmitter.emit('eventImported', {
         gitterRoomId,
         count: runningEventImportCount
       });
@@ -270,7 +270,7 @@ async function importFromChatMessageStreamIterable({
 
   // Send the final amount of messages that were left over when we were done
   if (runningEventImportCount > 0) {
-    matrixHistoricalImportEvents.emit('eventImported', {
+    matrixHistoricalImportEventEmitter.emit('eventImported', {
       gitterRoomId,
       count: runningEventImportCount
     });
@@ -463,5 +463,5 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
 
 module.exports = {
   gitterToMatrixHistoricalImport,
-  matrixHistoricalImportEvents
+  matrixHistoricalImportEventEmitter
 };
