@@ -16,7 +16,7 @@ const errorReporter = env.errorReporter;
 
 const store = require('./store');
 const MatrixUtils = require('./matrix-utils');
-const transformGitterTextIntoMatrixMessage = require('./transform-gitter-text-into-matrix-message');
+const generateMatrixContentFromGitterMessage = require('./generate-matrix-content-from-gitter-message');
 const checkIfDatesSame = require('./check-if-dates-same');
 const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-bridge');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
@@ -219,30 +219,7 @@ class GitterBridge {
       await this.inviteMatrixUserToDmRoomIfNeeded(gitterRoomId, matrixRoomId);
     }
 
-    // Handle threaded conversations
-    let parentMatrixEventId;
-    let lastMatrixEventIdInThread;
-    if (model.parentId) {
-      parentMatrixEventId = await store.getMatrixEventIdByGitterMessageId(model.parentId);
-
-      // Try to reference the last message in thread
-      // Otherwise, will just reference the thread parent
-      const lastMessagesInThread = await chatService.findThreadChatMessages(
-        gitterRoomId,
-        model.parentId,
-        {
-          beforeId: model.id,
-          limit: 1
-        }
-      );
-
-      let lastMessageId = model.parentId;
-      if (lastMessagesInThread.length > 0) {
-        lastMessageId = lastMessagesInThread[0].id;
-      }
-
-      lastMatrixEventIdInThread = await store.getMatrixEventIdByGitterMessageId(lastMessageId);
-    }
+    const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, model);
 
     // Send the message to the Matrix room
     const matrixId = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(model.fromUser.id);
@@ -256,40 +233,6 @@ class GitterBridge {
       matrixRoomId,
       mxid: matrixId
     });
-
-    const matrixCompatibleText = transformGitterTextIntoMatrixMessage(model.text, model);
-    const matrixCompatibleHtml = transformGitterTextIntoMatrixMessage(model.html, model);
-
-    let msgtype = 'm.text';
-    // Check whether it's a `/me` status message
-    if (model.status) {
-      msgtype = 'm.emote';
-    }
-
-    const matrixContent = {
-      body: matrixCompatibleText,
-      format: 'org.matrix.custom.html',
-      formatted_body: matrixCompatibleHtml,
-      msgtype
-    };
-
-    // Handle threaded conversations
-    if (parentMatrixEventId) {
-      matrixContent['m.relates_to'] = {
-        rel_type: 'm.thread',
-        // Always reference thread root for the thread
-        event_id: parentMatrixEventId,
-        // Handle the reply fallback
-        is_falling_back: true,
-        'm.in_reply_to': {
-          // But the reply fallback should reference the last message in the thread.
-          // This could be the same as the thread root if there are no other thread
-          // replies yet.
-          event_id: lastMatrixEventIdInThread
-        }
-      };
-    }
-
     const { event_id } = await intent.sendMessage(matrixRoomId, matrixContent);
 
     // Store the message so we can reference it in edits and threads/replies
@@ -440,10 +383,26 @@ class GitterBridge {
   }
 
   async handleRoomRemoveEvent(gitterRoomId /*, model*/) {
-    const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
-
+    const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     if (matrixRoomId) {
-      await this.matrixUtils.shutdownMatrixRoom(matrixRoomId);
+      await this.matrixUtils.shutdownMatrixRoom(matrixRoomId, {
+        // The Gitter room has been removed by this point so we can't reference it. We
+        // can force-remove safely because we never have to deal with ONE_TO_ONE rooms
+        // which this option is protecting against
+        forceRemoveIfNoGitterRoom: true
+      });
+    }
+
+    const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
+      gitterRoomId
+    );
+    if (matrixHistoricalRoomId) {
+      await this.matrixUtils.shutdownMatrixRoom(matrixHistoricalRoomId, {
+        // The Gitter room has been removed by this point so we can't reference it. We
+        // can force-remove safely because we never have to deal with ONE_TO_ONE rooms
+        // which this option is protecting against
+        forceRemoveIfNoGitterRoom: true
+      });
     }
   }
 
