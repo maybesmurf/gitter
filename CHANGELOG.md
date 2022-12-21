@@ -1,3 +1,10 @@
+# 21.57.0 - 2022-12-21
+
+Developer facing:
+
+ - Add script to test backfilling history to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2313
+
+
 # 21.56.0 - 2022-12-06
 
  - Add support for sending native Matrix threads, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2309
@@ -7,6 +14,7 @@ Developer facing:
 
  - Update Synapse and Element Docker dev resources, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2307
  - Adjust homeserver config so it launches with latest Synapse, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2308
+
 
 # 21.55.0 - 2022-12-02
 
