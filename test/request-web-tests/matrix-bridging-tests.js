@@ -73,8 +73,6 @@ describe('Gitter <-> Matrix bridging e2e', () => {
   let someMatrixUserAccessToken;
   let stopBridge;
   before(async () => {
-    // TODO: Remove
-    console.log('AAAAAAAAAAAAAAAAAAAAAAAAAAAAA before');
     await ensureMatrixFixtures();
 
     stopBridge = await installBridge(bridgePortFromConfig + 1);
@@ -87,8 +85,6 @@ describe('Gitter <-> Matrix bridging e2e', () => {
   });
 
   after(async () => {
-    // TODO: Remove
-    console.log('AAAAAAAAAAAAAAAAAAAAAAAAAAAAA after');
     if (stopBridge) {
       await stopBridge();
     }

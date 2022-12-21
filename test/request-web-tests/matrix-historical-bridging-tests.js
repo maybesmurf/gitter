@@ -265,7 +265,10 @@ describe('Gitter -> Matrix historical import e2e', () => {
     );
     debug('Setup messages in rooms');
 
-    // It's important that this comes after we setup all of the messages in the room
+    // It's important that this comes after we setup all of the messages in the room so
+    // that we don't prematurely bridge all of the messages we sent via
+    // `setupMessagesInRoom`. Our tests assume these messages have not been bridged
+    // before.
     stopBridge = await installBridge(bridgePortFromConfig + 1);
   });
 
