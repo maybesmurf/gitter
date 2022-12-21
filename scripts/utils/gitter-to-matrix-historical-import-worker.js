@@ -305,9 +305,12 @@ exec()
   .catch(err => {
     logger.error(`Error occurred while backfilling events:`, err.stack);
   })
-  .then(() => {
+  .then(async () => {
     // Stop writing the status file so we can cleanly exit
     concurrentQueue.stopPersistLaneStatusInfoToDisk();
+    // Write one last time so the "finished" status can be reflected on the dasboard
+    await concurrentQueue.persistLaneStatusInfoToDisk(laneStatusFilePath);
+
     // And continue shutting down gracefully
     shutdown.shutdownGracefully();
   });

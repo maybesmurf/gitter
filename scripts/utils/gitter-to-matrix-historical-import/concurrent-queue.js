@@ -143,6 +143,11 @@ class ConcurrentQueue {
     };
   }
 
+  async persistLaneStatusInfoToDisk(laneStatusFilePath) {
+    this._laneStatusInfo.writeTs = Date.now();
+    await fs.writeFile(laneStatusFilePath, JSON.stringify(this._laneStatusInfo));
+  }
+
   continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath) {
     assert(laneStatusFilePath);
 
@@ -156,8 +161,7 @@ class ConcurrentQueue {
 
       writingStatusInfoLock = true;
       try {
-        this._laneStatusInfo.writeTs = Date.now();
-        await fs.writeFile(laneStatusFilePath, JSON.stringify(this._laneStatusInfo));
+        await this.persistLaneStatusInfoToDisk(laneStatusFilePath);
       } catch (err) {
         logger.error(`Problem persisting lane status to disk`, { exception: err });
       } finally {
