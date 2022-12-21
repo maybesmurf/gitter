@@ -56,8 +56,6 @@ function getTxnId() {
 class MatrixUtils {
   constructor(matrixBridge) {
     this.matrixBridge = matrixBridge;
-
-    this._ongoingUserCreationTaskMap = new Map();
   }
 
   async createMatrixRoomByGitterRoomId(
@@ -777,7 +775,7 @@ class MatrixUtils {
     }
   }
 
-  async _getOrCreateMatrixUserByGitterUserId(gitterUserId) {
+  async getOrCreateMatrixUserByGitterUserId(gitterUserId) {
     const existingMatrixUserId = await store.getMatrixUserIdByGitterUserId(gitterUserId);
     if (existingMatrixUserId) {
       return existingMatrixUserId;
@@ -807,39 +805,6 @@ class MatrixUtils {
     }
 
     return mxid;
-  }
-
-  async getOrCreateMatrixUserByGitterUserId(gitterUserId) {
-    // It's possible that this function gets called many times in a row before it
-    // completes so let's wait until the first one completes and share the result to the
-    // rest of the callers (de-duplicate the work). For example, this happens when a
-    // bunch of messages are sent at the *same* time (like in the tests). This not only
-    // de-duplicates the work but we also avoid the `E11000 duplicate key error
-    // collection` errors if the user is being created for the first time.
-    const ongoingUserCreationTaskPromise = this._ongoingUserCreationTaskMap.get(
-      String(gitterUserId)
-    );
-    if (ongoingUserCreationTaskPromise) {
-      return await ongoingUserCreationTaskPromise;
-    }
-
-    let newMxid;
-    try {
-      const createUserTaskPromise = this._getOrCreateMatrixUserByGitterUserId(gitterUserId);
-      this._ongoingUserCreationTaskMap.set(String(gitterUserId), createUserTaskPromise);
-      newMxid = await createUserTaskPromise;
-    } finally {
-      // Clean-up and keep the map from growing forever
-      this._ongoingUserCreationTaskMap.delete(String(gitterUserId));
-    }
-
-    if (!newMxid) {
-      throw new Error(
-        `getOrCreateMatrixUserByGitterUserId unexpectedly tried to get/create a new Matrix user but didn't end up with a MXID at the end. This is probably a logic bug in the Gitter bridge itself.`
-      );
-    }
-
-    return newMxid;
   }
 
   getMxidForMatrixBridgeUser() {
