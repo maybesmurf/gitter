@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 const fs = require('fs').promises;
-const debugConcurrentQueue = require('debug')('gitter:scripts-debug:concurrent-queue');
+const debug = require('debug')('gitter:scripts-debug:concurrent-queue');
 const LRU = require('lru-cache');
 
 const env = require('gitter-web-env');
@@ -65,14 +65,14 @@ class ConcurrentQueue {
         const { value: itemValue, done } = nextItem;
         isGeneratorDone = done;
         if (typeof isGeneratorDone !== 'boolean') {
-          debugConcurrentQueue(
+          debug(
             `concurrentQueue: laneIndex=${laneIndex} encountered a bad item where done=${done}, nextItem=${nextItem}.\n` +
               `If you're seeing this error, this probably means that we're not returning a promise from the generator (check that it's an async generator)`
           );
         }
 
         if (itemValue) {
-          debugConcurrentQueue(
+          debug(
             `concurrentQueue: laneIndex=${laneIndex} picking up itemValue=${itemValue} (${JSON.stringify(
               itemValue
             )})`
@@ -95,14 +95,12 @@ class ConcurrentQueue {
               this._failedItemIds.push(itemId);
             }
           } else {
-            debugConcurrentQueue(
-              `concurrentQueue: laneIndex=${laneIndex} filtered out itemId=${itemId}`
-            );
+            debug(`concurrentQueue: laneIndex=${laneIndex} filtered out itemId=${itemId}`);
           }
         }
 
         if (done) {
-          debugConcurrentQueue(`concurrentQueue: laneIndex=${laneIndex} is done`);
+          debug(`concurrentQueue: laneIndex=${laneIndex} is done`);
         }
       }
     });
