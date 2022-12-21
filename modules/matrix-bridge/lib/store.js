@@ -128,6 +128,11 @@ async function storeBridgedHistoricalRoom(gitterRoomId, matrixRoomId) {
 }
 
 async function storeBridgedUser(gitterUserId, matrixId) {
+  // TODO: Remove
+  console.log(
+    `storeBridgedUser gitterUserId=${gitterUserId} matrixId=${matrixId}`,
+    new Error().stack
+  );
   return persistence.MatrixBridgedUser.create({
     userId: gitterUserId,
     matrixId
@@ -138,6 +143,11 @@ async function storeBridgedMessage(gitterMessage, matrixRoomId, matrixEventId) {
   assert(gitterMessage);
   assert(matrixRoomId);
   assert(matrixEventId);
+  // TODO: Remove
+  console.log(
+    `storeBridgedMessage gitterMessage=${gitterMessage.id} matrixEventId=${matrixEventId}`,
+    new Error().stack
+  );
   return persistence.MatrixBridgedChatMessage.create({
     gitterMessageId: gitterMessage.id || gitterMessage._id,
     matrixRoomId,

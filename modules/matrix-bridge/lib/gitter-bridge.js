@@ -193,6 +193,8 @@ class GitterBridge {
 
   // eslint-disable-next-line max-statements
   async handleChatMessageCreateEvent(gitterRoomId, model) {
+    // TODO: remove
+    console.log('handleChatMessageCreateEvent', String(model.id));
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
     if (!allowedToBridge) {
       return null;

@@ -38,7 +38,7 @@ async function install(bridgePort = bridgePortFromConfig) {
     logger.error(
       `No (bridgePort=${bridgePort}, hsToken=${obfuscateToken(hsToken)}, asToken=${obfuscateToken(
         asToken
-      )}) specified for Matrix bridge so we won't start it up`
+      )}) specified for Matrix bridge so we won't start it up ❌`
     );
     return;
   }
