@@ -7,12 +7,21 @@ const _ = require('lodash');
 
 const formatDurationInMsToPrettyString = require('./gitter-to-matrix-historical-import/format-duration-in-ms-to-pretty-string');
 
-const laneStatusFilePath = path.resolve(
-  __dirname,
-  './gitter-to-matrix-historical-import/_lane-worker-status-data.json'
-);
-
 const ROLLING_AVERAGE_SAMPLE_WINDOW = 6;
+
+const opts = require('yargs')
+  .option('worker-index', {
+    type: 'number',
+    description:
+      '1-based index of the worker. We use this to grab the right file for lane status data'
+  })
+  .help('help')
+  .alias('help', 'h').argv;
+
+let laneStatusFilePath = path.resolve(
+  __dirname,
+  `./gitter-to-matrix-historical-import/_lane-worker-status-data${opts.workerIndex || ''}.json`
+);
 
 let isLaneStatusInfoStale = false;
 let previousLaneStatusInfo = {};

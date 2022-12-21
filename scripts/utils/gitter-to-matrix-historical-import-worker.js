@@ -35,8 +35,8 @@ const opts = require('yargs')
     required: true,
     description: 'Number of rooms to process at once'
   })
-  // Worker index option to only process rooms which evenly divide against
-  // that index (partition) (make sure to update the `laneStatusFilePath` to be unique from other
+  // Worker index option to only process rooms which evenly divide against that index
+  // (partition) (make sure to update the `laneStatusFilePath` to be unique from other
   // workers)
   .option('worker-index', {
     type: 'number',
@@ -121,7 +121,7 @@ const concurrentQueue = new ConcurrentQueue({
 
 const laneStatusFilePath = path.resolve(
   __dirname,
-  './gitter-to-matrix-historical-import/_lane-worker-status-data.json'
+  `./gitter-to-matrix-historical-import/_lane-worker-status-data${opts.workerIndex || ''}.json`
 );
 concurrentQueue.continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath);
 
@@ -191,7 +191,7 @@ async function exec() {
     gitterRoom => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
-      // We should not process any room that matches this room URI deny filter,
+      // We should *not* process any room that matches this room URI deny filter,
       if (roomUriDenyFilterRegex) {
         // A ONE_TO_ONE room won't have a `lcUri` so we need to protect against that.
         const didMatchDenyRegex =
