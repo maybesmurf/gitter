@@ -66,7 +66,8 @@ class ConcurrentQueue {
         isGeneratorDone = done;
         if (typeof isGeneratorDone !== 'boolean') {
           debugConcurrentQueue(
-            `concurrentQueue: laneIndex=${laneIndex} encountered a bad item where done=${done}, nextItem=${nextItem}`
+            `concurrentQueue: laneIndex=${laneIndex} encountered a bad item where done=${done}, nextItem=${nextItem}.\n` +
+              `If you're seeing this error, this probably means that we're not returning a promise from the generator (check that it's an async generator)`
           );
         }
 
