@@ -8,6 +8,7 @@ const StatusError = require('statuserror');
 
 const Promise = require('bluebird');
 const request = Promise.promisify(require('request'));
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const groupService = require('gitter-web-groups');
 const userService = require('gitter-web-users');
@@ -791,8 +792,19 @@ class MatrixUtils {
     const mxid = getMxidForGitterUser(gitterUser);
     await this.ensureCorrectMxidProfile(mxid, gitterUserId);
 
-    logger.info(`Storing bridged user (Gitter user id=${gitterUser.id} -> Matrix mxid=${mxid})`);
-    await store.storeBridgedUser(gitterUser.id, mxid);
+    try {
+      logger.info(`Storing bridged user (Gitter user id=${gitterUser.id} -> Matrix mxid=${mxid})`);
+      await store.storeBridgedUser(gitterUser.id, mxid);
+    } catch (err) {
+      // If we see a `E11000 duplicate key error`, then we know we raced someone else to
+      // create and store user. Since the user is all created now, we can just safely
+      // return the MXID we were trying to create and store in the first place.
+      if (mongoUtils.mongoErrorWithCode(11000)(err)) {
+        return mxid;
+      }
+
+      throw err;
+    }
 
     return mxid;
   }
@@ -804,9 +816,11 @@ class MatrixUtils {
     // bunch of messages are sent at the *same* time (like in the tests). This not only
     // de-duplicates the work but we also avoid the `E11000 duplicate key error
     // collection` errors if the user is being created for the first time.
-    const ongoingUserCreationTask = this._ongoingUserCreationTaskMap.get(String(gitterUserId));
-    if (ongoingUserCreationTask) {
-      return await ongoingUserCreationTask;
+    const ongoingUserCreationTaskPromise = this._ongoingUserCreationTaskMap.get(
+      String(gitterUserId)
+    );
+    if (ongoingUserCreationTaskPromise) {
+      return await ongoingUserCreationTaskPromise;
     }
 
     let newMxid;
