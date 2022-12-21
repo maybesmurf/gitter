@@ -803,7 +803,7 @@ class MatrixUtils {
     // rest of the callers (de-duplicate the work). For example, this happens when a
     // bunch of messages are sent at the *same* time (like in the tests). This not only
     // de-duplicates the work but we also avoid the `E11000 duplicate key error
-    // collection` errors.
+    // collection` errors if the user is being created for the first time.
     const ongoingUserCreationTask = this._ongoingUserCreationTaskMap.get(String(gitterUserId));
     if (ongoingUserCreationTask) {
       return await ongoingUserCreationTask;
@@ -815,6 +815,7 @@ class MatrixUtils {
       this._ongoingUserCreationTaskMap.set(String(gitterUserId), createUserTaskPromise);
       newMxid = await createUserTaskPromise;
     } finally {
+      // Clean-up and keep the map from growing forever
       this._ongoingUserCreationTaskMap.delete(String(gitterUserId));
     }
 
