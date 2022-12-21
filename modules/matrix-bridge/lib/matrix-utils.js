@@ -543,7 +543,7 @@ class MatrixUtils {
     }
 
     if (gitterRoom.sd.type === 'ONE_TO_ONE') {
-      // Since the bridge suer isn't in ONE_TO_ONE rooms, let's use the one of the
+      // Since the bridge user isn't in ONE_TO_ONE rooms, let's use the one of the
       // people in the ONE_TO_ONE room. The room creator can be the first person in the
       // list of users (doesn't matter).
       const gitterUserCreatorMxid = await this.getOrCreateMatrixUserByGitterUserId(
