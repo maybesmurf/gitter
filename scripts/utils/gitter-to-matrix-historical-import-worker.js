@@ -267,6 +267,10 @@ async function exec() {
     }
   );
 
+  logger.info(
+    `Finished looping over all rooms (aprox. ${eventsImportedRunningTotal} messages imported). Please wait a second while we figure out the items that failed (just need to make a big database lookup).`
+  );
+
   const failedRoomIds = concurrentQueue.getFailedItemIds();
   if (failedRoomIds.length === 0) {
     logger.info(
