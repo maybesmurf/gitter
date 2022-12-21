@@ -239,6 +239,11 @@ describe('Gitter -> Matrix historical import e2e', () => {
     }
   });
 
+  before(async () => {
+    await ensureMatrixFixtures();
+  });
+
+  let stopBridge;
   const gitterRoomToFixtureMessagesMap = new WeakMap();
   beforeEach(async () => {
     await assertNotBridgedBefore(fixture.troupe1.id);
@@ -259,33 +264,24 @@ describe('Gitter -> Matrix historical import e2e', () => {
       await setupMessagesInRoom(fixture.troupeOneToOne, fixture.user1)
     );
     debug('Setup messages in rooms');
-  });
-
-  let stopBridge;
-  before(async () => {
-    await ensureMatrixFixtures();
 
     // It's important that this comes after we setup all of the messages in the room
     stopBridge = await installBridge(bridgePortFromConfig + 1);
   });
 
-  after(async () => {
+  afterEach(async () => {
     if (stopBridge) {
       await stopBridge();
     }
   });
 
   it('imports history to Matrix for public Gitter room', async () => {
-    console.log(`testasdf: (TODO: remove) working against ${fixture.troupe1.id}`);
     // The function under test
     await importHistoryFromRooms([fixture.troupe1]);
 
     const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(fixture.troupe1.id);
     const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
       fixture.troupe1.id
-    );
-    console.log(
-      `testasdf: (TODO: remove) matrixRoomId=${matrixRoomId} matrixHistoricalRoomId=${matrixHistoricalRoomId}`
     );
 
     // Try to join the room from some random Matrix user's perspective. We should be
