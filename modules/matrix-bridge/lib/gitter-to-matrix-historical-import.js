@@ -447,10 +447,6 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
   debug(
     `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
   );
-  // TODO: Remove
-  console.log(
-    `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
-  );
 
   await importMessagesFromGitterRoomToHistoricalMatrixRoom({
     gitterRoom,
