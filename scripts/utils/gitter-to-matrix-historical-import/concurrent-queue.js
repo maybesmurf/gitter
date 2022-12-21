@@ -65,11 +65,13 @@ class ConcurrentQueue {
       ) {
         const nextItem = Promise.race([
           itemGenerator.next(),
-          // If the generator can't generate a new item in 45 seconds, something is wrong
+          // If the generator can't generate a new item in 65 seconds, something is
+          // wrong. We chose 65 seconds because 60 seconds is the default cursor timeout
+          // plus 5s for any network latency.
           new Promise(resolve =>
             setTimeout(() => {
               resolve(TIMEOUT_SYMBOL);
-            }, 45 * 1000)
+            }, 65 * 1000)
           )
         ]);
 

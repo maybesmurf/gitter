@@ -27,7 +27,7 @@ const troupeService = require('gitter-web-rooms/lib/troupe-service');
 require('./gitter-to-matrix-historical-import/performance-observer-stats');
 
 // The number of rooms we pull out at once to reduce database roundtrips
-const DB_BATCH_SIZE_FOR_ROOMS = 10;
+const DB_BATCH_SIZE_FOR_ROOMS = 64;
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
@@ -266,12 +266,6 @@ async function exec() {
       });
 
       await gitterToMatrixHistoricalImport(gitterRoomId);
-
-      // Dummy load for lanes
-      //
-      // await new Promise(resolve => {
-      //   setTimeout(resolve, Math.random() * 5000);
-      // });
     }
   );
 
