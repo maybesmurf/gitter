@@ -56,7 +56,7 @@ function getLaneStatusMessage() {
     }
 
     if (laneStatus.laneTimedOut) {
-      return `${laneString}: The itemGenerator timed out getting next item 💀`;
+      return `${laneString}: 💀 The itemGenerator timed out getting next item (restart the script) 💀`;
     }
 
     const gitterRoom = laneStatus.gitterRoom;

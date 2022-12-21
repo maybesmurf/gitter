@@ -187,9 +187,7 @@ async function exec() {
     .lean()
     .read(mongoReadPrefs.secondaryPreferred)
     .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
-    .cursor()
-    // Try to stop `MongoError: connection XX to mongo-replica-xx timed out`
-    .addCursorFlag('noCursorTimeout', true);
+    .cursor();
   const gitterRoomStreamIterable = iterableFromMongooseCursor(gitterRoomCursor);
 
   await concurrentQueue.processFromGenerator(

@@ -67,7 +67,8 @@ class ConcurrentQueue {
           itemGenerator.next(),
           // If the generator can't generate a new item in 65 seconds, something is
           // wrong. We chose 65 seconds because 60 seconds is the default cursor timeout
-          // plus 5s for any network latency.
+          // plus 5s for any network latency. If we're iterating over a MongoDB cursor,
+          // we probably ran into `connection XX to mongo-replica-XX timed out`.
           new Promise(resolve =>
             setTimeout(() => {
               resolve(TIMEOUT_SYMBOL);
