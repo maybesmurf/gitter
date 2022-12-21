@@ -21,7 +21,7 @@ const getMxidForGitterUser = require('gitter-web-matrix-bridge/lib/get-mxid-for-
 const app = require('../../server/web');
 
 const serverName = config.get('matrix:bridge:serverName');
-const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
+const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
 
 // Finds the regex in the text and creates an excerpt so the test failure message can more easily be understood
 function findInText(text, regex, excerptBufferLength = 16) {

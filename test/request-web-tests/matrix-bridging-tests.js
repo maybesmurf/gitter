@@ -23,7 +23,24 @@ const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const app = require('../../server/web');
 
 const homeserverUrl = config.get('matrix:bridge:homeserverUrl');
-const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
+const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
+
+async function joinMatrixRoom(matrixRoomId, matrixAccessToken) {
+  assert(matrixRoomId);
+  assert(matrixAccessToken);
+  const joinRes = await requestLib({
+    method: 'POST',
+    uri: urlJoin(homeserverUrl, `/_matrix/client/r0/rooms/${matrixRoomId}/join`),
+    json: true,
+    headers: {
+      Authorization: `Bearer ${matrixAccessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: {}
+  });
+
+  return joinRes;
+}
 
 describe('Gitter <-> Matrix bridging e2e', () => {
   const fixture = fixtureLoader.setupEach({
@@ -100,16 +117,7 @@ describe('Gitter <-> Matrix bridging e2e', () => {
     } while (!matrixEventId);
 
     // Try to join the room from some Matrix user's perspective. We should be able to get in!
-    const joinRes = await requestLib({
-      method: 'POST',
-      uri: urlJoin(homeserverUrl, `/_matrix/client/r0/rooms/${matrixRoomId}/join`),
-      json: true,
-      headers: {
-        Authorization: `Bearer ${someMatrixUserAccessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: {}
-    });
+    const joinRes = await joinMatrixRoom(matrixRoomId, someMatrixUserAccessToken);
     assert.strictEqual(
       joinRes.statusCode,
       200,
@@ -171,16 +179,7 @@ describe('Gitter <-> Matrix bridging e2e', () => {
     } while (!matrixEventId);
 
     // Try to join the room from some Matrix user's perspective. We shouldn't be able to get in!
-    const joinRes = await requestLib({
-      method: 'POST',
-      uri: urlJoin(homeserverUrl, `/_matrix/client/r0/rooms/${matrixRoomId}/join`),
-      json: true,
-      headers: {
-        Authorization: `Bearer ${someMatrixUserAccessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: {}
-    });
+    const joinRes = await joinMatrixRoom(matrixRoomId, someMatrixUserAccessToken);
     assert.strictEqual(
       joinRes.statusCode,
       403,
@@ -217,16 +216,7 @@ describe('Gitter <-> Matrix bridging e2e', () => {
     } while (!matrixEventId);
 
     // Try to join the room from some Matrix user's perspective. We shouldn't be able to get in!
-    const joinRes = await requestLib({
-      method: 'POST',
-      uri: urlJoin(homeserverUrl, `/_matrix/client/r0/rooms/${matrixRoomId}/join`),
-      json: true,
-      headers: {
-        Authorization: `Bearer ${someMatrixUserAccessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: {}
-    });
+    const joinRes = await joinMatrixRoom(matrixRoomId, someMatrixUserAccessToken);
     assert.strictEqual(
       joinRes.statusCode,
       403,

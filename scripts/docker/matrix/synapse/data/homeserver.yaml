@@ -2375,3 +2375,6 @@ redis:
   #
   #password: <secret_password>
 # vim:ft=yaml
+
+experimental_features:
+  msc2716_enabled: true

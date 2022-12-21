@@ -10,9 +10,13 @@ const matrixBridge = require('./lib/matrix-bridge');
 const GitterBridge = require('./lib/gitter-bridge');
 const MatrixUtils = require('./lib/matrix-utils');
 
-const bridgePortFromConfig = config.get('matrix:bridge:applicationServicePort');
+const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
 const hsToken = config.get('matrix:bridge:hsToken');
 const asToken = config.get('matrix:bridge:asToken');
+// This will only apply in dev scenarios
+const skipMatrixBridgeUserProfileSetupConfig = config.get(
+  'matrix:bridge:skipMatrixBridgeUserProfileSetup'
+);
 
 // Ensures the bridge bot user is registered and updates its profile info.
 async function ensureCorrectMatrixBridgeUserProfile() {
@@ -34,7 +38,7 @@ async function install(bridgePort = bridgePortFromConfig) {
     logger.error(
       `No (bridgePort=${bridgePort}, hsToken=${obfuscateToken(hsToken)}, asToken=${obfuscateToken(
         asToken
-      )}) specified for Matrix bridge so we won't start it up`
+      )}) specified for Matrix bridge so we won't start it up ❌`
     );
     return;
   }
@@ -44,8 +48,19 @@ async function install(bridgePort = bridgePortFromConfig) {
 
   await gitterBridge.start();
 
-  // Fire and forget this (no need to hold up the process by awaiting it)
-  ensureCorrectMatrixBridgeUserProfile();
+  // Only allow skipping over this in development. The reason you would want to skip is
+  // to avoid the repetitive avatar upload that creates a lot of log noise every time
+  // the app starts up. `matrix__bridge__skipMatrixBridgeUserProfileSetup=1`
+  const skipMatrixBridgeUserProfileSetup =
+    process.env.NODE_ENV === 'dev' && skipMatrixBridgeUserProfileSetupConfig;
+  if (skipMatrixBridgeUserProfileSetup) {
+    logger.warn(
+      'Skipping matrix bridge user profile setup (this config option only applies in a dev environment)'
+    );
+  } else {
+    // Fire and forget this (no need to hold up the process by awaiting it)
+    ensureCorrectMatrixBridgeUserProfile();
+  }
 
   return async function stop() {
     await matrixBridge.close();

@@ -62,7 +62,9 @@ async function run() {
       const matrixRoomId = await getMatrixRoomIdFromArgs();
 
       console.log(`Deleting matrixRoomId=${matrixRoomId}`);
-      await matrixUtils.shutdownMatrixRoom(matrixRoomId);
+      await matrixUtils.shutdownMatrixRoom(matrixRoomId, {
+        forceRemoveIfNoGitterRoom: true
+      });
       console.log(`Matrix room deleted!`);
     } catch (err) {
       console.error(`Failed to delete Matrix room: ${err.message}`);

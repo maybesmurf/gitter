@@ -94,6 +94,7 @@ var schemas = {
 
   // Matrix bridge schemas
   MatrixBridgedRoom: require('./schemas/matrix-bridged-room-schema'),
+  MatrixBridgedHistoricalRoom: require('./schemas/matrix-bridged-historical-room-schema'),
   MatrixBridgedUser: require('./schemas/matrix-bridged-user-schema'),
   MatrixBridgedChatMessage: require('./schemas/matrix-bridged-chat-message-schema')
 };

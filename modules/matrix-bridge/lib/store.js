@@ -15,8 +15,27 @@ async function getGitterRoomIdByMatrixRoomId(matrixRoomId) {
   }
 }
 
+async function getGitterRoomIdByHistoricalMatrixRoomId(matrixRoomId) {
+  const bridgedRoomEntry = await persistence.MatrixBridgedHistoricalRoom.findOne({
+    matrixRoomId
+  });
+
+  if (bridgedRoomEntry) {
+    return bridgedRoomEntry.troupeId;
+  }
+}
+
 async function getMatrixRoomIdByGitterRoomId(gitterRoomId) {
   const bridgedRoomEntry = await persistence.MatrixBridgedRoom.findOne({
+    troupeId: gitterRoomId
+  }).exec();
+
+  if (bridgedRoomEntry) {
+    return bridgedRoomEntry.matrixRoomId;
+  }
+}
+async function getHistoricalMatrixRoomIdByGitterRoomId(gitterRoomId) {
+  const bridgedRoomEntry = await persistence.MatrixBridgedHistoricalRoom.findOne({
     troupeId: gitterRoomId
   }).exec();
 
@@ -58,9 +77,35 @@ async function getGitterMessageIdByMatrixEventId(matrixRoomId, matrixEventId) {
   }
 }
 
-// Stores a bridge room entry and overwrites any existing entry with the same gitterRoomId or matrixRoomId
+// Stores a bridge room entry and overwrites any existing entry with the same
+// gitterRoomId or matrixRoomId
 async function storeBridgedRoom(gitterRoomId, matrixRoomId) {
   return persistence.MatrixBridgedRoom.update(
+    {
+      $or: [
+        {
+          troupeId: gitterRoomId
+        },
+        {
+          matrixRoomId
+        }
+      ]
+    },
+    {
+      troupeId: gitterRoomId,
+      matrixRoomId
+    },
+    {
+      upsert: true,
+      new: true
+    }
+  );
+}
+
+// Stores a bridge historical room entry and overwrites any existing entry with the same
+// gitterRoomId or matrixRoomId
+async function storeBridgedHistoricalRoom(gitterRoomId, matrixRoomId) {
+  return persistence.MatrixBridgedHistoricalRoom.update(
     {
       $or: [
         {
@@ -116,6 +161,10 @@ module.exports = {
   getGitterRoomIdByMatrixRoomId,
   getMatrixRoomIdByGitterRoomId,
   storeBridgedRoom,
+  // Historical Rooms (where we import all our back catalog of messages)
+  getHistoricalMatrixRoomIdByGitterRoomId,
+  getGitterRoomIdByHistoricalMatrixRoomId,
+  storeBridgedHistoricalRoom,
 
   // Users
   getMatrixUserIdByGitterUserId,

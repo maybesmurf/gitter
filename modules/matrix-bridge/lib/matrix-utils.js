@@ -5,6 +5,10 @@ const assert = require('assert');
 const path = require('path');
 const urlJoin = require('url-join');
 const StatusError = require('statuserror');
+
+const Promise = require('bluebird');
+const request = Promise.promisify(require('request'));
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const groupService = require('gitter-web-groups');
 const userService = require('gitter-web-users');
@@ -43,12 +47,27 @@ const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLev
   return accumulatedPowerLevelUsers;
 }, {});
 
+let txnCount = 0;
+function getTxnId() {
+  txnCount++;
+  return `${new Date().getTime()}--${txnCount}`;
+}
+
 class MatrixUtils {
   constructor(matrixBridge) {
     this.matrixBridge = matrixBridge;
   }
 
-  async createMatrixRoomByGitterRoomId(gitterRoomId) {
+  async createMatrixRoomByGitterRoomId(
+    gitterRoomId,
+    {
+      // This option is used when we want to create a room where we can import all history
+      // into. We want to leave the current room in place and have a separate room where
+      // the history (because we're bound to mess up the import and not be happy later on)
+      // will live that we can point to.
+      shouldUpdateRoomDirectory = true
+    } = {}
+  ) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
     assert(
       gitterRoom,
@@ -71,17 +90,21 @@ class MatrixUtils {
       return this._createMatrixRoomForOneToOne(gitterRoom);
     }
 
-    const roomAlias = getCanonicalAliasLocalpartForGitterRoomUri(gitterRoom.uri);
-
     const bridgeIntent = this.matrixBridge.getIntent();
 
     const matrixRoomCreateOptions = {
-      name: gitterRoom.uri,
+      name: gitterRoom.uri
+    };
+
+    if (shouldUpdateRoomDirectory) {
       // We use this as a locking mechanism.
+      //
       // The bridge will return an error: `M_ROOM_IN_USE: Room alias already taken`
       // if another process is already in the working on creating the room
-      room_alias_name: roomAlias
-    };
+      const roomAliasLocalPart = getCanonicalAliasLocalpartForGitterRoomUri(gitterRoom.uri);
+      matrixRoomCreateOptions.room_alias_name = roomAliasLocalPart;
+    }
+
     if (isGitterRoomPublic) {
       matrixRoomCreateOptions.visibility = 'public';
       matrixRoomCreateOptions.preset = 'public_chat';
@@ -94,15 +117,6 @@ class MatrixUtils {
       createAsClient: true,
       options: matrixRoomCreateOptions
     });
-    // Store the bridged room right away!
-    // If we created a bridged room, we want to make sure we store it 100% of the time
-    logger.info(
-      `Storing bridged room (Gitter room id=${gitterRoomId} -> Matrix room_id=${newRoom.room_id})`
-    );
-    await store.storeBridgedRoom(gitterRoomId, newRoom.room_id);
-
-    // Propagate all of the room details over to Matrix like the room topic and avatar
-    await this.ensureCorrectRoomState(newRoom.room_id, gitterRoomId);
 
     return newRoom.room_id;
   }
@@ -146,13 +160,6 @@ class MatrixUtils {
         invite: [gitterUserOtherMxid]
       }
     });
-
-    // Store the bridged room right away!
-    // If we created a bridged room, we want to make sure we store it 100% of the time
-    logger.info(
-      `Storing bridged ONE_TO_ONE room (Gitter room id=${gitterRoomId} -> Matrix room_id=${newRoom.room_id})`
-    );
-    await store.storeBridgedRoom(gitterRoomId, newRoom.room_id);
 
     return newRoom.room_id;
   }
@@ -253,19 +260,16 @@ class MatrixUtils {
   }
 
   async uploadAvatarUrlToMatrix(avatarUrl) {
+    // No avatarURL, no problem, just bail early
+    if (!avatarUrl) {
+      return undefined;
+    }
+
     const bridgeIntent = this.matrixBridge.getIntent();
 
-    let mxcUrl;
+    let data;
     try {
-      if (avatarUrl) {
-        const data = await downloadFileToBuffer(avatarUrl);
-        mxcUrl = await bridgeIntent.uploadContent(data.buffer, {
-          onlyContentUri: true,
-          rawResponse: false,
-          name: path.basename(avatarUrl),
-          type: data.mimeType
-        });
-      }
+      data = await downloadFileToBuffer(avatarUrl);
     } catch (err) {
       // Just log an error and noop if the user avatar fails to download.
       // It's more important that we just send their message without the avatar.
@@ -275,6 +279,29 @@ class MatrixUtils {
           exception: err
         }
       );
+      return undefined;
+    }
+
+    let mxcUrl;
+    if (data) {
+      try {
+        mxcUrl = await bridgeIntent.uploadContent(data.buffer, {
+          onlyContentUri: true,
+          rawResponse: false,
+          name: path.basename(avatarUrl),
+          type: data.mimeType
+        });
+      } catch (err) {
+        // Just log an error and noop if the user avatar fails to upload.
+        // It's more important that we just send their message without the avatar.
+        logger.error(
+          `Failed to upload avatar (avatarUrl=${avatarUrl}) which we were going to use for bridging something in Matrix`,
+          {
+            exception: err
+          }
+        );
+        return undefined;
+      }
     }
 
     return mxcUrl;
@@ -302,7 +329,14 @@ class MatrixUtils {
       // We have some snowflake Matrix room permissions setup for some particular
       // communities to be able to self-manage and moderate. Avoid regressing them back
       // to defaults.
-      keepExistingUserPowerLevels = true
+      keepExistingUserPowerLevels = true,
+      // This option is used when we want to create a room where we can import all history
+      // into. We want to leave the current room in place and have a separate room where
+      // the history (because we're bound to mess up the import and not be happy later on)
+      // will live that we can point to.
+      shouldUpdateRoomDirectory = true,
+      // People should be able to chat in rooms by default. We only use this for historical Matrix rooms
+      readOnly = false
     } = {}
   ) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
@@ -315,6 +349,11 @@ class MatrixUtils {
       `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
     );
 
+    assert(
+      gitterGroup,
+      `groupId=${gitterRoom.groupId} unexpectedly does not exist for gitterRoomId=${gitterRoomId}`
+    );
+
     // Protect from accidentally running this on a Matrix DM room.
     const isMatrixDmRoom = !!discoverMatrixDmUri(gitterRoom.lcUri);
     assert.strictEqual(
@@ -325,9 +364,12 @@ class MatrixUtils {
 
     const bridgeIntent = this.matrixBridge.getIntent();
 
-    // Set the aliases first because we can always change our own aliases
-    // But not be able to control the room itself to update the name/topic, etc
-    await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
+    if (shouldUpdateRoomDirectory) {
+      // Set the aliases first because we can always change our own `#*:gitter.im`
+      // namespaced aliases but we will not always be able to control the room itself to
+      // update the name/topic, etc
+      await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
+    }
 
     await this.ensureStateEvent(matrixRoomId, 'm.room.name', {
       name: gitterRoom.uri
@@ -335,6 +377,16 @@ class MatrixUtils {
     await this.ensureStateEvent(matrixRoomId, 'm.room.topic', {
       topic: gitterRoom.topic
     });
+    // We don't have to gate this off behind `shouldUpdateRoomDirectory` because this
+    // won't change the room directory at all. This is just used as a hint for how
+    // clients will display this room after it is tombstoned.
+    //
+    // This currently doesn't work because of `Error: M_BAD_ALIAS: Room alias
+    // #xxx:server does not point to the room`. TODO: Update Synapse not to be so strict
+    // as multiple rooms have `m.room.canonical_alias` all the time with room upgrades
+    // const roomAlias = getCanonicalAliasForGitterRoomUri(gitterRoom.uri); await
+    // this.ensureStateEvent(matrixRoomId, 'm.room.canonical_alias', { alias: roomAlias
+    // });
 
     const isGitterRoomPublic = securityDescriptorUtils.isPublic(gitterRoom);
 
@@ -342,7 +394,7 @@ class MatrixUtils {
       matrixRoomId
     );
     if (isGitterRoomPublic) {
-      if (roomDirectoryVisibility !== 'public') {
+      if (shouldUpdateRoomDirectory && roomDirectoryVisibility !== 'public') {
         await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'public');
       }
       await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
@@ -354,7 +406,7 @@ class MatrixUtils {
     }
     // Private
     else {
-      if (roomDirectoryVisibility !== 'private') {
+      if (shouldUpdateRoomDirectory && roomDirectoryVisibility !== 'private') {
         await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
       }
       await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
@@ -401,13 +453,16 @@ class MatrixUtils {
         'm.room.server_acl': 100,
         'm.room.tombstone': 100
       },
-      events_default: 0,
+      events_default: readOnly ? 50 : 0,
       state_default: 50,
       ban: 50,
       kick: 50,
       redact: 50,
       invite: 0
     });
+
+    // TODO: Ensure historical predecessor set correctly. This function is also used for
+    // historical rooms so be mindful
 
     // Set the room avatar
     const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
@@ -436,6 +491,48 @@ class MatrixUtils {
     });
   }
 
+  // Will make the historical Matrix room read-only and tombstone the room to point at
+  // the current one.
+  //
+  // The reason we don't run this when the room is created is because we need
+  // power-levels for the bridge to import and be able to send messages as all of the
+  // `gitter.im` homeserver users. And we only want to send the tombstone event at the
+  // end after all of the history for maximum semantics (history continues after this
+  // point at the end).
+  async ensureCorrectHistoricalMatrixRoomStateAfterImport({
+    // The current live room
+    matrixRoomId,
+    // The historical room to ensure correct state in
+    matrixHistoricalRoomId,
+    gitterRoomId
+  }) {
+    assert(matrixRoomId);
+    assert(matrixHistoricalRoomId);
+    assert(gitterRoomId);
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `ensureCorrectHistoricalMatrixRoomStateAfterImport: gitterRoomId=${gitterRoomId} does not exist`
+    );
+
+    // One to one rooms are setup correctly from the beginning and never need updates
+    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      // Propagate all of the room details over to Matrix like the room topic and avatar
+      await this.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
+        // We don't want this historical room to show up in the room directory. It will
+        // only be pointed back to by the current room in its predecessor.
+        shouldUpdateRoomDirectory: false,
+        // Make the room read-only so no one can mess up the history
+        readOnly: true
+      });
+    }
+
+    // Ensure tombstone event pointing to the main live room
+    await this.ensureStateEvent(matrixHistoricalRoomId, 'm.room.tombstone', {
+      replacement_room: matrixRoomId
+    });
+  }
+
   async deleteRoomAliasesForMatrixRoomId(matrixRoomId) {
     const bridgeIntent = this.matrixBridge.getIntent();
 
@@ -448,7 +545,50 @@ class MatrixUtils {
     }
   }
 
-  async shutdownMatrixRoom(matrixRoomId) {
+  // eslint-disable-next-line max-statements
+  async shutdownMatrixRoom(matrixRoomId, { forceRemoveIfNoGitterRoom = false } = {}) {
+    assert(matrixRoomId, `matrixRoomId required to shutdownMatrixRoom`);
+
+    let gitterRoomId = await store.getGitterRoomIdByMatrixRoomId(matrixRoomId);
+    // If we can't find it from the normal one, try to find it in the historical rooms
+    if (!gitterRoomId) {
+      gitterRoomId = await store.getGitterRoomIdByHistoricalMatrixRoomId(matrixRoomId);
+    }
+
+    // If we can find the Gitter room, no problem. Otherwise, only skip this if
+    // `forceRemoveIfNoGitterRoom=true`. This block of code will clean up ONE_TO_ONE
+    // rooms properly.
+    const gitterRoom = gitterRoomId && (await troupeService.findByIdLean(gitterRoomId));
+    if (gitterRoom || !forceRemoveIfNoGitterRoom) {
+      assert(
+        gitterRoom,
+        `Unable to find gitterRoomId=${gitterRoomId} for matrixRoomId=${matrixRoomId} and forceRemoveIfNoGitterRoom=${forceRemoveIfNoGitterRoom} so we can't skip this check`
+      );
+
+      if (gitterRoom.oneToOne) {
+        debug(
+          `shutdownMatrixRoom(${matrixRoomId}): Making both parties leave the room since this is a ONE_TO_ONE room`
+        );
+        const gitterUserCreatorMxid = await this.getOrCreateMatrixUserByGitterUserId(
+          gitterRoom.oneToOneUsers[0].userId
+        );
+        const gitterUserOtherMxid = await this.getOrCreateMatrixUserByGitterUserId(
+          gitterRoom.oneToOneUsers[1].userId
+        );
+
+        const userCreatorIntent = this.matrixBridge.getIntent(gitterUserCreatorMxid);
+        const userOtherIntent = this.matrixBridge.getIntent(gitterUserOtherMxid);
+
+        await userCreatorIntent.leave(matrixRoomId);
+        await userOtherIntent.leave(matrixRoomId);
+
+        return;
+      }
+    }
+
+    // For normal public/private rooms where the bridge user is an admin
+    // ==================================================================
+
     // Delete aliases
     debug(`shutdownMatrixRoom(${matrixRoomId}): Deleting room aliases`);
     await this.deleteRoomAliasesForMatrixRoomId(matrixRoomId);
@@ -501,12 +641,84 @@ class MatrixUtils {
       return existingMatrixRoomId;
     }
 
-    // Create the Matrix room if it doesn't already exist
+    // Create the Matrix room since one doesn't already exist
     logger.info(
       `Existing Matrix room not found, creating new Matrix room for roomId=${gitterRoomId}`
     );
 
     const matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId);
+    // Store the bridged room right away!
+    // If we created a bridged room, we want to make sure we store it 100% of the time
+    logger.info(
+      `Storing bridged room (Gitter room id=${gitterRoomId} -> Matrix room_id=${matrixRoomId})`
+    );
+    await store.storeBridgedRoom(gitterRoomId, matrixRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `gitterRoomId=${gitterRoomId} unexpectedly does not exist after we just created a Matrix room for it. We are unable to determine whether we need to ensureCorrectRoomState for it.`
+    );
+    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      // Propagate all of the room details over to Matrix like the room topic and avatar
+      await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId);
+    }
+
+    return matrixRoomId;
+  }
+
+  async getOrCreateHistoricalMatrixRoomByGitterRoomId(gitterRoomId) {
+    // Find the cached existing bridged room
+    const existingMatrixRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(gitterRoomId);
+    if (existingMatrixRoomId) {
+      return existingMatrixRoomId;
+    }
+
+    // Create the Matrix room since one doesn't already exist
+    logger.info(
+      `Existing historical Matrix room not found, creating new historical Matrix room for roomId=${gitterRoomId}`
+    );
+
+    const matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId, {
+      // We don't want this historical room to show up in the room directory. It will
+      // only be pointed back to by the current room in its predecessor.
+      shouldUpdateRoomDirectory: false
+    });
+    // Store the bridged room right away!
+    // If we created a bridged room, we want to make sure we store it 100% of the time
+    logger.info(
+      `Storing bridged historical room (Gitter room id=${gitterRoomId} -> Matrix room_id=${matrixRoomId})`
+    );
+    await store.storeBridgedHistoricalRoom(gitterRoomId, matrixRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `ensureCorrectRoomStateForHistoricalMatrixRoom: gitterRoomId=${gitterRoomId} unexpectedly does not exist after we just created a Matrix room for it. We are unable to determine whether we need to ensureCorrectRoomState for it.`
+    );
+
+    // One to one rooms are setup correctly from the beginning and never need updates
+    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      // Propagate all of the room details over to Matrix like the room topic and avatar
+      await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
+        // We don't want this historical room to show up in the room directory. It will
+        // only be pointed back to by the current room in its predecessor.
+        shouldUpdateRoomDirectory: false,
+        // In the end, we want to make the room read-only so no one can mess up the
+        // history. But we leave it so people can send messages in the room for now so
+        // we can import everything first.
+        //
+        // XXX: It's important to call
+        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` after you're done
+        // importing! The reason we don't call
+        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` here when the room is
+        // created is because we need power-levels for the bridge to import and be able
+        // to send messages as all of the `gitter.im` homeserver users. And we only want
+        // to send the tombstone event at the end after all of the history for maximum
+        // semantics (history continues after this point at the end).
+        readOnly: false
+      });
+    }
 
     return matrixRoomId;
   }
@@ -578,8 +790,19 @@ class MatrixUtils {
     const mxid = getMxidForGitterUser(gitterUser);
     await this.ensureCorrectMxidProfile(mxid, gitterUserId);
 
-    logger.info(`Storing bridged user (Gitter user id=${gitterUser.id} -> Matrix mxid=${mxid})`);
-    await store.storeBridgedUser(gitterUser.id, mxid);
+    try {
+      logger.info(`Storing bridged user (Gitter user id=${gitterUser.id} -> Matrix mxid=${mxid})`);
+      await store.storeBridgedUser(gitterUser.id, mxid);
+    } catch (err) {
+      // If we see a `E11000 duplicate key error`, then we know we raced someone else to
+      // create and store user. Since the user is all created now, we can just safely
+      // return the MXID we were trying to create and store in the first place.
+      if (mongoUtils.mongoErrorWithCode(11000)(err)) {
+        return mxid;
+      }
+
+      throw err;
+    }
 
     return mxid;
   }
@@ -600,6 +823,139 @@ class MatrixUtils {
 
     const gitterUser = await userService.findByUsername(gitterBridgeProfileUsername);
     await this.ensureCorrectMxidProfile(mxid, gitterUser.id);
+  }
+
+  async sendEventAtTimestmap({ type, matrixRoomId, mxid, matrixContent, timestamp }) {
+    assert(type);
+    assert(matrixRoomId);
+    assert(mxid);
+    assert(matrixContent);
+    assert(timestamp);
+
+    const _sendEventWrapper = async () => {
+      const homeserverUrl = this.matrixBridge.opts.homeserverUrl;
+      assert(homeserverUrl);
+      const asToken = this.matrixBridge.registration.getAppServiceToken();
+      assert(asToken);
+
+      const sendEndpoint = `${homeserverUrl}/_matrix/client/r0/rooms/${matrixRoomId}/send/${type}/${getTxnId()}?user_id=${mxid}&ts=${timestamp}`;
+      const res = await request({
+        method: 'PUT',
+        uri: sendEndpoint,
+        json: true,
+        headers: {
+          Authorization: `Bearer ${asToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: matrixContent
+      });
+
+      if (res.statusCode !== 200) {
+        throw new StatusError(
+          res.statusCode,
+          `sendEventAtTimestmap({ matrixRoomId: ${matrixRoomId} }) failed ${
+            res.statusCode
+          }: ${JSON.stringify(res.body)}`
+        );
+      }
+
+      const eventId = res.body.event_id;
+      assert(
+        eventId,
+        `The request made in sendEventAtTimestmap (${sendEndpoint}) did not return \`event_id\` as expected. ` +
+          `This is probably a problem with that homeserver.`
+      );
+
+      return eventId;
+    };
+
+    let eventId;
+    try {
+      // Try the happy-path first and assume we're joined to the room
+      eventId = await _sendEventWrapper();
+    } catch (err) {
+      // If we get a 403 forbidden indicating we're not in the room yet, let's try to join
+      if (err.status === 403) {
+        const intent = this.matrixBridge.getIntent(mxid);
+        await intent._ensureJoined(matrixRoomId);
+      } else {
+        // We don't know how to recover from an arbitrary error that isn't about joining
+        throw err;
+      }
+
+      // Now that we're joined, try again
+      eventId = await _sendEventWrapper();
+    }
+
+    return eventId;
+  }
+
+  async getMessages({ matrixRoomId, mxid, from, to, dir, limit }) {
+    assert(matrixRoomId);
+    assert(mxid);
+    const _getMessagesWrapper = async () => {
+      const homeserverUrl = this.matrixBridge.opts.homeserverUrl;
+      assert(homeserverUrl);
+      const asToken = this.matrixBridge.registration.getAppServiceToken();
+      assert(asToken);
+
+      let qs = new URLSearchParams();
+      qs.append('user_id', mxid);
+      if (from) {
+        qs.append('from', from);
+      }
+      if (to) {
+        qs.append('to', to);
+      }
+      if (dir) {
+        qs.append('dir', dir);
+      }
+      if (limit) {
+        qs.append('limit', limit);
+      }
+
+      const messagesEndpoint = `${homeserverUrl}/_matrix/client/r0/rooms/${matrixRoomId}/messages?${qs.toString()}`;
+      const res = await request({
+        method: 'GET',
+        uri: messagesEndpoint,
+        json: true,
+        headers: {
+          Authorization: `Bearer ${asToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (res.statusCode !== 200) {
+        throw new StatusError(
+          res.statusCode,
+          `sendEventAtTimestmap({ matrixRoomId: ${matrixRoomId} }) failed ${
+            res.statusCode
+          }: ${JSON.stringify(res.body)}`
+        );
+      }
+
+      return res;
+    };
+
+    let res;
+    try {
+      // Try the happy-path first and assume we're joined to the room
+      res = await _getMessagesWrapper();
+    } catch (err) {
+      // If we get a 403 forbidden indicating we're not in the room yet, let's try to join
+      if (err.status === 403) {
+        const intent = this.matrixBridge.getIntent(mxid);
+        await intent._ensureJoined(matrixRoomId);
+      } else {
+        // We don't know how to recover from an arbitrary error that isn't about joining
+        throw err;
+      }
+
+      // Now that we're joined, try again
+      res = await _getMessagesWrapper();
+    }
+
+    return res.body;
   }
 }
 
