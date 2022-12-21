@@ -164,10 +164,6 @@ test:
   rules:
     - when: always
   retry: 1
-  # TODO: Remove
-  script:
-    # The problem only occurs when we run both of these tests together
-    - npm run mocha -- test/request-web-tests/matrix-bridging-tests.js test/request-web-tests/matrix-historical-bridging-tests.js --timeout 12000
 
 test_e2e:
   extends: .test_job
