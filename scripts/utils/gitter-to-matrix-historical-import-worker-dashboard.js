@@ -3,6 +3,7 @@
 
 const path = require('path');
 const fs = require('fs').promises;
+const os = require('os');
 const readline = require('readline');
 const _ = require('lodash');
 
@@ -19,10 +20,12 @@ const opts = require('yargs')
   .help('help')
   .alias('help', 'h').argv;
 
-let laneStatusFilePath = path.resolve(
-  __dirname,
-  `./gitter-to-matrix-historical-import/_lane-worker-status-data${opts.workerIndex || ''}.json`
+const tempDirectory = path.join(os.tmpdir(), 'gitter-to-matrix-historical-import');
+let laneStatusFilePath = path.join(
+  tempDirectory,
+  `./_lane-worker-status-data${opts.workerIndex || ''}.json`
 );
+console.log(`Reading from laneStatusFilePath=${laneStatusFilePath}`);
 
 let isLaneStatusInfoStale = false;
 let previousLaneStatusInfo = {};
