@@ -4,8 +4,11 @@ const assert = require('assert');
 const fs = require('fs').promises;
 const debug = require('debug')('gitter:scripts-debug:concurrent-queue');
 
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const env = require('gitter-web-env');
 const logger = env.logger;
+
+const TIMEOUT_SYMBOL = Symbol('concurrent-queue:item-generator-timeout');
 
 class ConcurrentQueue {
   constructor(opts = {}) {
@@ -30,7 +33,8 @@ class ConcurrentQueue {
     };
     for (let laneIndex = 0; laneIndex < this.concurrency; laneIndex++) {
       this._laneStatusInfo.lanes[laneIndex] = {
-        laneDone: false
+        laneDone: false,
+        laneTimedOut: false
       };
     }
 
@@ -59,54 +63,23 @@ class ConcurrentQueue {
         // never see null/undefined here. Maybe we forgot to await the next item;
         typeof isGeneratorDone === 'boolean'
       ) {
-        const nextItem = await itemGenerator.next();
-        const { value: itemValue, done } = nextItem;
-        isGeneratorDone = done;
-        if (typeof isGeneratorDone !== 'boolean') {
-          debug(
-            `concurrentQueue: laneIndex=${laneIndex} encountered a bad item where done=${done}, nextItem=${nextItem}.\n` +
-              `If you're seeing this error, this probably means that we're not returning a promise from the generator (check that it's an async generator)`
-          );
-        }
+        const nextItem = Promise.race([
+          itemGenerator.next(),
+          // If the generator can't generate a new item in 45 seconds, something is wrong
+          new Promise(resolve =>
+            setTimeout(() => {
+              resolve(TIMEOUT_SYMBOL);
+            }, 45 * 1000)
+          )
+        ]);
 
-        if (itemValue) {
-          debug(
-            `concurrentQueue: laneIndex=${laneIndex} picking up itemValue=${itemValue} (${JSON.stringify(
-              itemValue
-            )})`
-          );
-
-          const itemId = this.itemIdGetterFromItem(itemValue);
-          // Filter out items first
-          if (filterItemFunc(itemValue)) {
-            // Add an easy way to make a lookup from item ID to laneIndex
-            this.itemKeyToLaneIndexMap.set(itemId, laneIndex);
-
-            // Do the processing
-            try {
-              await asyncProcesssorTask({ value: itemValue, laneIndex });
-            } catch (err) {
-              // Log that we failed to process something
-              logger.error(`concurrentQueue: Failed to process itemId=${itemId}`, {
-                exception: err
-              });
-              this._failedItemIds.push(itemId);
-            } finally {
-              // Clean-up after this lane is done so the map doesn't grow forever
-              this.itemKeyToLaneIndexMap.delete(itemId);
-            }
-          } else {
-            debug(`concurrentQueue: laneIndex=${laneIndex} filtered out itemId=${itemId}`);
-          }
-        }
-
-        if (done) {
-          debug(`concurrentQueue: laneIndex=${laneIndex} is done`);
-
-          this.updateLaneStatus(laneIndex, {
-            laneDone: true
-          });
-        }
+        isGeneratorDone = await this._processItem({
+          nextItem,
+          laneIndex,
+          itemGenerator,
+          filterItemFunc,
+          asyncProcesssorTask
+        });
       }
     });
 
@@ -115,6 +88,72 @@ class ConcurrentQueue {
 
     // Mark when we finished
     this._laneStatusInfo.finishTs = Date.now();
+  }
+
+  async _processItem({ nextItem, laneIndex, itemGenerator, filterItemFunc, asyncProcesssorTask }) {
+    assert(nextItem);
+    assert(laneIndex);
+    assert(itemGenerator);
+    assert(filterItemFunc);
+    assert(asyncProcesssorTask);
+
+    if (nextItem === TIMEOUT_SYMBOL) {
+      this.updateLaneStatus(laneIndex, {
+        laneTimedOut: true
+      });
+
+      // Timed out and the lane is done
+      return true;
+    }
+
+    const { value: itemValue, done } = nextItem;
+    if (typeof isGeneratorDone !== 'boolean') {
+      debug(
+        `concurrentQueue: laneIndex=${laneIndex} encountered a bad item where done=${done}, nextItem=${nextItem}.\n` +
+          `If you're seeing this error, this probably means that we're not returning a promise from the generator (check that it's an async generator)`
+      );
+    }
+
+    if (itemValue) {
+      debug(
+        `concurrentQueue: laneIndex=${laneIndex} picking up itemValue=${itemValue} (${JSON.stringify(
+          itemValue
+        )})`
+      );
+
+      const itemId = this.itemIdGetterFromItem(itemValue);
+      // Filter out items first
+      if (filterItemFunc(itemValue)) {
+        // Add an easy way to make a lookup from item ID to laneIndex
+        this.itemKeyToLaneIndexMap.set(itemId, laneIndex);
+
+        // Do the processing
+        try {
+          await asyncProcesssorTask({ value: itemValue, laneIndex });
+        } catch (err) {
+          // Log that we failed to process something
+          logger.error(`concurrentQueue: Failed to process itemId=${itemId}`, {
+            exception: err
+          });
+          this._failedItemIds.push(itemId);
+        } finally {
+          // Clean-up after this lane is done so the map doesn't grow forever
+          this.itemKeyToLaneIndexMap.delete(itemId);
+        }
+      } else {
+        debug(`concurrentQueue: laneIndex=${laneIndex} filtered out itemId=${itemId}`);
+      }
+    }
+
+    if (done) {
+      debug(`concurrentQueue: laneIndex=${laneIndex} is done`);
+
+      this.updateLaneStatus(laneIndex, {
+        laneDone: true
+      });
+    }
+
+    return done;
   }
 
   findLaneIndexFromItemId(itemId) {

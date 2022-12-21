@@ -164,7 +164,9 @@ async function importThreadReplies({
     .lean()
     .read(mongoReadPrefs.secondaryPreferred)
     .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
-    .cursor();
+    .cursor()
+    // Try to stop `MongoError: connection XX to mongo-replica-xx timed out`
+    .addCursorFlag('noCursorTimeout', true);
   const threadReplyMessageStreamIterable = iterableFromMongooseCursor(threadReplyMessageCursor);
 
   // eslint-disable-next-line no-use-before-define
@@ -395,8 +397,9 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     .lean()
     .read(mongoReadPrefs.secondaryPreferred)
     .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
-    .cursor();
-
+    .cursor()
+    // Try to stop `MongoError: connection XX to mongo-replica-xx timed out`
+    .addCursorFlag('noCursorTimeout', true);
   const chatMessageStreamIterable = iterableFromMongooseCursor(messageCursor);
 
   await importFromChatMessageStreamIterable({
