@@ -149,7 +149,7 @@ matrixHistoricalImportEventEmitter.on('eventImported', ({ gitterRoomId, count })
 
   const laneIndex = concurrentQueue.findLaneIndexFromItemId(String(gitterRoomId));
   // We don't know the lane for this room, just bail
-  if (!laneIndex) {
+  if (laneIndex === null || laneIndex === undefined) {
     debugEventsImported(
       `Unable to associate events imported to lane: unknown laneIndex=${laneIndex} gitterRoomId=${gitterRoomId}`
     );

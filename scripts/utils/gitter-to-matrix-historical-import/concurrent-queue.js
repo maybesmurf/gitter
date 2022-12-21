@@ -3,7 +3,6 @@
 const assert = require('assert');
 const fs = require('fs').promises;
 const debug = require('debug')('gitter:scripts-debug:concurrent-queue');
-const LRU = require('lru-cache');
 
 const env = require('gitter-web-env');
 const logger = env.logger;
@@ -30,15 +29,14 @@ class ConcurrentQueue {
       }
     };
     for (let laneIndex = 0; laneIndex < this.concurrency; laneIndex++) {
-      this._laneStatusInfo.lanes[laneIndex] = {};
+      this._laneStatusInfo.lanes[laneIndex] = {
+        laneDone: false
+      };
     }
 
     // Since this process is meant to be very long-running, prevent it from growing forever
-    // as we only need to keep track of the rooms currently being processed. We double it
-    // just to account for a tiny bit of overlap while things are transitioning.
-    this.itemKeyToLaneIndexCache = LRU({
-      max: 2 * this.concurrency
-    });
+    // as we only need to keep track of the rooms currently being processed.
+    this.itemKeyToLaneIndexMap = new Map();
 
     this._failedItemIds = [];
   }
@@ -82,7 +80,7 @@ class ConcurrentQueue {
           // Filter out items first
           if (filterItemFunc(itemValue)) {
             // Add an easy way to make a lookup from item ID to laneIndex
-            this.itemKeyToLaneIndexCache.set(itemId, laneIndex);
+            this.itemKeyToLaneIndexMap.set(itemId, laneIndex);
 
             // Do the processing
             try {
@@ -93,6 +91,9 @@ class ConcurrentQueue {
                 exception: err
               });
               this._failedItemIds.push(itemId);
+            } finally {
+              // Clean-up after this lane is done so the map doesn't grow forever
+              this.itemKeyToLaneIndexMap.delete(itemId);
             }
           } else {
             debug(`concurrentQueue: laneIndex=${laneIndex} filtered out itemId=${itemId}`);
@@ -101,6 +102,10 @@ class ConcurrentQueue {
 
         if (done) {
           debug(`concurrentQueue: laneIndex=${laneIndex} is done`);
+
+          this.updateLaneStatus(laneIndex, {
+            laneDone: true
+          });
         }
       }
     });
@@ -113,7 +118,7 @@ class ConcurrentQueue {
   }
 
   findLaneIndexFromItemId(itemId) {
-    return this.itemKeyToLaneIndexCache.get(itemId);
+    return this.itemKeyToLaneIndexMap.get(itemId);
   }
 
   getLaneStatus(laneIndex) {

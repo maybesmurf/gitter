@@ -47,6 +47,10 @@ function getLaneStatusMessage() {
 
     const laneString = `${String(laneIndex).padStart(2)}`;
 
+    if (laneStatus.laneDone) {
+      return `${laneString}: No more rooms for this lane to pick-up ✅`;
+    }
+
     const gitterRoom = laneStatus.gitterRoom;
     const gitterRoomString = `${gitterRoom && gitterRoom.uri} (${gitterRoom && gitterRoom.id})`;
 
