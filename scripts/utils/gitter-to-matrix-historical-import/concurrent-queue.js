@@ -4,7 +4,6 @@ const assert = require('assert');
 const fs = require('fs').promises;
 const debug = require('debug')('gitter:scripts-debug:concurrent-queue');
 
-const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const env = require('gitter-web-env');
 const logger = env.logger;
 
