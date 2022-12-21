@@ -185,7 +185,7 @@ async function importFromChatMessageStreamIterable({
   let runningEventImportCount = 0;
   let lastImportMetricReportTs = Date.now();
   for await (let message of chatMessageStreamIterable) {
-    // To avoid spamming our stats server, only send stats 1/50 of the time
+    // To avoid spamming our stats server, only send stats 1/N of the time
     const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
       METRIC_SAMPLE_RATIO
     );

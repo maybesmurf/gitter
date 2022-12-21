@@ -104,7 +104,7 @@ const rl = readline.createInterface({
 let lastScreenClearTs = 0;
 function updateCli() {
   readline.cursorTo(rl, 0, 0);
-  // Only clear the screen every 2 seconds
+  // Only clear the screen every 2 seconds to have less blank popping
   if (Date.now() - lastScreenClearTs > 2 * 1000) {
     readline.clearScreenDown(rl);
     lastScreenClearTs = Date.now();
