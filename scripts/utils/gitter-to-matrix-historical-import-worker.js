@@ -3,6 +3,8 @@
 
 const shutdown = require('shutdown');
 const path = require('path');
+const os = require('os');
+const mkdirp = require('mkdirp');
 //const debug = require('debug')('gitter:scripts:matrix-historical-import-worker');
 
 const env = require('gitter-web-env');
@@ -119,10 +121,13 @@ const concurrentQueue = new ConcurrentQueue({
   }
 });
 
-const laneStatusFilePath = path.resolve(
-  __dirname,
-  `./gitter-to-matrix-historical-import/_lane-worker-status-data${opts.workerIndex || ''}.json`
+const tempDirectory = path.join(os.tmpdir(), 'gitter-to-matrix-historical-import');
+mkdirp.sync(tempDirectory);
+const laneStatusFilePath = path.join(
+  tempDirectory,
+  `./_lane-worker-status-data${opts.workerIndex || ''}.json`
 );
+logger.info(`Writing to laneStatusFilePath=${laneStatusFilePath}`);
 concurrentQueue.continuallyPersistLaneStatusInfoToDisk(laneStatusFilePath);
 
 let eventsImportedRunningTotal = 0;
