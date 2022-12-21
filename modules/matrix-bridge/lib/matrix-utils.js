@@ -206,12 +206,17 @@ class MatrixUtils {
     }
   }
 
-  async ensureStateEvent(matrixRoomId, eventType, newContent) {
-    const bridgeIntent = this.matrixBridge.getIntent();
+  async ensureStateEventAsMxid(mxid, matrixRoomId, eventType, newContent) {
+    // mxid can be `undefined` to indicate the bridge intent
+    assert(matrixRoomId);
+    assert(eventType);
+    assert(newContent);
+
+    const intent = this.matrixBridge.getIntent(mxid);
 
     let currentContent;
     try {
-      currentContent = await bridgeIntent.getStateEvent(matrixRoomId, eventType);
+      currentContent = await intent.getStateEvent(matrixRoomId, eventType);
     } catch (err) {
       // no-op
     }
@@ -231,8 +236,18 @@ class MatrixUtils {
       newContent
     );
     if (!isContentSame) {
-      await bridgeIntent.sendStateEvent(matrixRoomId, eventType, '', newContent);
+      await intent.sendStateEvent(matrixRoomId, eventType, '', newContent);
     }
+  }
+
+  async ensureStateEvent(matrixRoomId, eventType, newContent) {
+    return this.ensureStateEventAsMxid(
+      // undefined will give us the bridgeIntent
+      undefined,
+      matrixRoomId,
+      eventType,
+      newContent
+    );
   }
 
   async ensureRoomAlias(matrixRoomId, alias) {
@@ -527,10 +542,29 @@ class MatrixUtils {
       });
     }
 
-    // Ensure tombstone event pointing to the main live room
-    await this.ensureStateEvent(matrixHistoricalRoomId, 'm.room.tombstone', {
-      replacement_room: matrixRoomId
-    });
+    if (gitterRoom.sd.type === 'ONE_TO_ONE') {
+      // Since the bridge suer isn't in ONE_TO_ONE rooms, let's use the one of the
+      // people in the ONE_TO_ONE room. The room creator can be the first person in the
+      // list of users (doesn't matter).
+      const gitterUserCreatorMxid = await this.getOrCreateMatrixUserByGitterUserId(
+        gitterRoom.oneToOneUsers[0].userId
+      );
+
+      // Ensure tombstone event pointing to the main live room
+      await this.ensureStateEventAsMxid(
+        gitterUserCreatorMxid,
+        matrixHistoricalRoomId,
+        'm.room.tombstone',
+        {
+          replacement_room: matrixRoomId
+        }
+      );
+    } else {
+      // Ensure tombstone event pointing to the main live room
+      await this.ensureStateEvent(matrixHistoricalRoomId, 'm.room.tombstone', {
+        replacement_room: matrixRoomId
+      });
+    }
   }
 
   async deleteRoomAliasesForMatrixRoomId(matrixRoomId) {
