@@ -7,7 +7,7 @@ const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
 
-const formatDurationInMsToPrettyString = require('./format-duration-in-ms-to-pretty-string');
+const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
 
 // Will log out any `performance.measure(...)` calls in subsequent code
 const observer = new PerformanceObserver(list =>

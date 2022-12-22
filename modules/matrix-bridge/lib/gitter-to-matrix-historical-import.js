@@ -6,6 +6,7 @@ const { performance } = require('perf_hooks');
 const { EventEmitter } = require('events');
 const shutdown = require('shutdown');
 const debug = require('debug')('gitter:app:matrix-bridge:gitter-to-matrix-historical-import');
+const debugStats = require('debug')('gitter:scripts:matrix-historical-import:stats');
 
 const env = require('gitter-web-env');
 const logger = env.logger;
@@ -21,12 +22,16 @@ const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge/lib/generate-matrix-content-from-gitter-message');
+const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
 
 // The number of chat messages we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_MESSAGES = 256;
 const METRIC_SAMPLE_RATIO = 1 / 15;
 
 const QUARTER_SECOND_IN_MS = 250;
+
+const NEXT_MESSAGE_FROM_DB_ITERABLE_METRIC_NAME =
+  'matrix-bridge.next_message_from_db_iterable.time';
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
@@ -184,9 +189,37 @@ async function importFromChatMessageStreamIterable({
   stopAtMessageId
 }) {
   try {
-    let runningEventImportCount = 0;
+    let runningImportedMessageCount = 0;
     let lastImportMetricReportTs = Date.now();
+
+    let beforeNextMessageTs = Date.now();
+    let runningMessageCountForNextMessageTiming = 0;
+    let runningTimeMsToGetNextMessage = 0;
     for await (let message of chatMessageStreamIterable) {
+      const durationMsToGetNextMessage = Date.now() - beforeNextMessageTs;
+      runningTimeMsToGetNextMessage += durationMsToGetNextMessage;
+      // Only report after we have see a batch worth of messages to average the one time
+      // batch fetch cost over all of the messages
+      if (runningMessageCountForNextMessageTiming >= DB_BATCH_SIZE_FOR_MESSAGES) {
+        // Record how long it took us just to iterate over the database cursor and pull
+        // all the messages out. This is an average over the whole batch to give the
+        // time to get a message from the database. This would also theoretically
+        // translate to the maximum rate of messages we could import if importing took
+        // zero time.
+        const averageTimeToGetOneMessage =
+          runningTimeMsToGetNextMessage / runningMessageCountForNextMessageTiming;
+        stats.responseTime(NEXT_MESSAGE_FROM_DB_ITERABLE_METRIC_NAME, averageTimeToGetOneMessage);
+        debugStats(
+          `${NEXT_MESSAGE_FROM_DB_ITERABLE_METRIC_NAME} took ${formatDurationInMsToPrettyString(
+            averageTimeToGetOneMessage
+          )} on average to get a single message`
+        );
+
+        // Reset after reporting
+        runningTimeMsToGetNextMessage = 0;
+        runningMessageCountForNextMessageTiming = 0;
+      }
+
       // To avoid spamming our stats server, only send stats 1/N of the time
       const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
         METRIC_SAMPLE_RATIO
@@ -254,16 +287,16 @@ async function importFromChatMessageStreamIterable({
 
       stats.eventHF('matrix-bridge.import.event', 1, METRIC_SAMPLE_RATIO);
 
-      runningEventImportCount++;
+      runningImportedMessageCount++;
       // Only report back every 1/4 of a second
       if (Date.now() - lastImportMetricReportTs >= QUARTER_SECOND_IN_MS) {
         matrixHistoricalImportEventEmitter.emit('eventImported', {
           gitterRoomId,
-          count: runningEventImportCount
+          count: runningImportedMessageCount
         });
 
         // Reset the running count after we report it
-        runningEventImportCount = 0;
+        runningImportedMessageCount = 0;
         lastImportMetricReportTs = Date.now();
       }
 
@@ -280,14 +313,25 @@ async function importFromChatMessageStreamIterable({
           stopAtMessageId
         });
       }
+
+      beforeNextMessageTs = Date.now();
+      runningMessageCountForNextMessageTiming++;
     }
 
     // Send the final amount of messages that were left over when we were done
-    if (runningEventImportCount > 0) {
+    if (runningImportedMessageCount > 0) {
       matrixHistoricalImportEventEmitter.emit('eventImported', {
         gitterRoomId,
-        count: runningEventImportCount
+        count: runningImportedMessageCount
       });
+    }
+
+    // Send the final timing to get the last of the messages from the cursor
+    if (runningMessageCountForNextMessageTiming > 0) {
+      stats.responseTime(
+        NEXT_MESSAGE_FROM_DB_ITERABLE_METRIC_NAME,
+        runningTimeMsToGetNextMessage / runningMessageCountForNextMessageTiming
+      );
     }
   } finally {
     // We are done importing so we no longer need to worry about this anymore (clean-up

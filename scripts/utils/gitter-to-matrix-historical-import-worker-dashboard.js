@@ -7,7 +7,7 @@ const os = require('os');
 const readline = require('readline');
 const _ = require('lodash');
 
-const formatDurationInMsToPrettyString = require('./gitter-to-matrix-historical-import/format-duration-in-ms-to-pretty-string');
+const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
 
 const ROLLING_AVERAGE_SAMPLE_WINDOW = 6;
 
