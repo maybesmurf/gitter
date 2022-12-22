@@ -62,7 +62,7 @@ class ConcurrentQueue {
         // never see null/undefined here. Maybe we forgot to await the next item;
         typeof isGeneratorDone === 'boolean'
       ) {
-        const nextItem = Promise.race([
+        const nextItem = await Promise.race([
           itemGenerator.next(),
           // If the generator can't generate a new item in 65 seconds, something is
           // wrong. We chose 65 seconds because 60 seconds is the default cursor timeout
@@ -94,7 +94,7 @@ class ConcurrentQueue {
 
   async _processItem({ nextItem, laneIndex, itemGenerator, filterItemFunc, asyncProcesssorTask }) {
     assert(nextItem);
-    assert(laneIndex);
+    assert(laneIndex !== undefined);
     assert(itemGenerator);
     assert(filterItemFunc);
     assert(asyncProcesssorTask);
