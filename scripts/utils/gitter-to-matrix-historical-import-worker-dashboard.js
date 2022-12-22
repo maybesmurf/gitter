@@ -55,6 +55,10 @@ function getLaneStatusMessage() {
       return `${laneString}: No more rooms for this lane to pick-up ✅`;
     }
 
+    if (laneStatus.laneTimedOut) {
+      return `${laneString}: 💀 The itemGenerator timed out getting next item (restart the script) 💀`;
+    }
+
     const gitterRoom = laneStatus.gitterRoom;
     const gitterRoomString = `${gitterRoom && gitterRoom.uri} (${gitterRoom && gitterRoom.id})`;
 
