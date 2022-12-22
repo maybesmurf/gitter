@@ -212,6 +212,26 @@ async function importFromChatMessageStreamIterable({
           await matrixStore.storeBridgedMessage(message, matrixHistoricalRoomId, eventId);
           performanceMark(`importMessageEnd`);
 
+          // Measure these within the try-catch because we can gurantee they have been
+          // set within the try but if we crashed out in the middle and measured after,
+          // the mark won't be set.
+          performanceMeasure(
+            'matrix-bridge.event_send_request.time',
+            'request.sendEventRequestStart',
+            'request.sendEventRequestEnd'
+          );
+
+          performanceMeasure(
+            'matrix-bridge.import_message.time',
+            'importMessageStart',
+            'importMessageEnd'
+          );
+
+          performanceClearMarks(`request.sendEventRequestStart`);
+          performanceClearMarks(`request.sendEventRequestEnd`);
+          performanceClearMarks(`importMessageStart`);
+          performanceClearMarks(`importMessageEnd`);
+
           resolve();
         } catch (err) {
           reject(err);
@@ -227,22 +247,6 @@ async function importFromChatMessageStreamIterable({
       await messageSendAndStorePromise;
 
       stats.eventHF('matrix-bridge.import.event', 1, METRIC_SAMPLE_RATIO);
-
-      performanceMeasure(
-        'matrix-bridge.event_send_request.time',
-        'request.sendEventRequestStart',
-        'request.sendEventRequestEnd'
-      );
-      performanceMeasure(
-        'matrix-bridge.import_message.time',
-        'importMessageStart',
-        'importMessageEnd'
-      );
-
-      performanceClearMarks(`request.sendEventRequestStart`);
-      performanceClearMarks(`request.sendEventRequestEnd`);
-      performanceClearMarks(`importMessageStart`);
-      performanceClearMarks(`importMessageEnd`);
 
       runningEventImportCount++;
       // Only report back every 1/4 of a second
