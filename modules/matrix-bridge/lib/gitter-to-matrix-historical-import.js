@@ -176,6 +176,7 @@ async function importThreadReplies({
   });
 }
 
+// eslint-disable-next-line max-statements
 async function importFromChatMessageStreamIterable({
   gitterRoomId,
   matrixHistoricalRoomId,
@@ -193,6 +194,11 @@ async function importFromChatMessageStreamIterable({
 
       performanceMark(`importMessageStart`);
       const gitterMessageId = message.id || message._id;
+      if (!message.fromUserId) {
+        throw new Error(
+          `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}`
+        );
+      }
       const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
       const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
 
