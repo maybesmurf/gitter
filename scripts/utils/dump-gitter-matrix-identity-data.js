@@ -72,7 +72,17 @@ async function exec() {
   stopBridge = await installBridge();
 
   const gitterUserCursor = persistence.User.find({
-    // TODO: Resume position to make incremental dump
+    _id: (() => {
+      const idQuery = {};
+      // Resume position to make incremental dump
+      if (opts.resumeFromGitterUserId) {
+        idQuery['$gt'] = opts.resumeFromGitterUserId;
+      } else {
+        idQuery['$exists'] = true;
+      }
+
+      return idQuery;
+    })()
   })
     // Go from oldest to most recent for a consistent incremental dump
     .sort({ _id: 'asc' })
