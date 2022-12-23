@@ -3,6 +3,7 @@
 Developer facing:
 
  - Add script to test backfilling history to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2313
+ - Add script to be able to dump user with backing identity information, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2318
 
 
 # 21.56.0 - 2022-12-06
