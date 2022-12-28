@@ -41,11 +41,12 @@ const dataDumpFilePath = path.join(
 logger.info(`Writing to data dump to dataDumpFilePath=${dataDumpFilePath}`);
 
 async function appendToDataDumpFile(dataList) {
-  const ndJsonString = dataList
-    .map(data => {
-      return JSON.stringify(data);
-    })
-    .join('\n') + '\n';
+  const ndJsonString =
+    dataList
+      .map(data => {
+        return JSON.stringify(data);
+      })
+      .join('\n') + '\n';
 
   return appendFile(dataDumpFilePath, ndJsonString);
 }
