@@ -45,7 +45,7 @@ async function appendToDataDumpFile(dataList) {
     .map(data => {
       return JSON.stringify(data);
     })
-    .join('\n');
+    .join('\n') + '\n';
 
   return appendFile(dataDumpFilePath, ndJsonString);
 }
