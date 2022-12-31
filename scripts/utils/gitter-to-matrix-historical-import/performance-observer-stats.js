@@ -14,16 +14,16 @@ const observer = new PerformanceObserver(list =>
   list.getEntries().forEach(entry => {
     if (entry.startTime === 0) {
       logger.warn(
-        'Performance measurement entry had `startTime` of `0` which seems a bit fishy. ' +
-          " Your measurement probably didn't start exactly when the app started up at time `0` so" +
+        `Performance measurement entry (${entry.name}) had \`startTime\` of \`0\` which seems a bit fishy. ` +
+          "Your measurement probably didn't start exactly when the app started up at time `0` so " +
           'this is probably more indicative a typo in the start/end marker string'
       );
     }
 
     if (entry.duration === 0) {
       logger.warn(
-        'Performance measurement entry had `duration` of `0` which seems a bit fishy. ' +
-          " Your measurement probably didn't last `0` seconds so" +
+        `Performance measurement entry (${entry.name}) had \`duration\` of \`0\` which seems a bit fishy. ` +
+          "Your measurement probably didn't last `0` seconds so " +
           'this is probably more indicative a typo in the start/end marker string'
       );
     }
