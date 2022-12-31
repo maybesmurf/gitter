@@ -224,10 +224,15 @@ async function importFromChatMessageStreamIterable({
         runningMessageCountForNextMessageTiming = 0;
       }
 
+      const gitterMessageId = message.id || message._id;
+
       // Although we probably won't find any Matrix bridged messages in the old
       // batch of messages we try to backfill, let's just be careful and not try
       // to re-bridge any previously bridged Matrix messages by accident.
       if (message.virtualUser) {
+        debug(
+          `Skipping gitterMessageId=${gitterMessageId} from Matrix virtualUser that we shouldn't rebridge (${gitterRoomId} --> matrixHistoricalRoomId=${matrixHistoricalRoomId})`
+        );
         // Skip to the next message
         continue;
       }
@@ -238,7 +243,6 @@ async function importFromChatMessageStreamIterable({
       );
 
       performanceMark(`importMessageStart`);
-      const gitterMessageId = message.id || message._id;
       if (!message.fromUserId) {
         throw new Error(
           `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}`
