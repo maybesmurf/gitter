@@ -176,11 +176,7 @@ matrixHistoricalImportEventEmitter.on('eventImported', ({ gitterRoomId, count })
   });
 });
 
-// eslint-disable-next-line max-statements
-async function exec() {
-  logger.info('Setting up Matrix bridge');
-  await installBridge();
-
+async function importMessages() {
   const gitterRoomCursor = persistence.Troupe.find({})
     // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
     .sort({ _id: 'asc' })
@@ -296,6 +292,29 @@ async function exec() {
         .join('\n'),
       `\n}`
     );
+  }
+
+  return true;
+}
+
+// eslint-disable-next-line max-statements
+async function exec() {
+  logger.info('Setting up Matrix bridge');
+  await installBridge();
+
+  let finishedImporting = false;
+  while (!finishedImporting) {
+    // Keep trying whenever we fail. For example, this could be a `MongoError: Cursor
+    // not found, cursor id: 000` where all lanes were busy importing messages and by
+    // the time we come back and try to paginate the cursor to find the  next room, the
+    // cursor is gone.
+    try {
+      finishedImporting = await importMessages();
+    } catch (err) {
+      logger.error('Import process failed', {
+        exception: err
+      });
+    }
   }
 }
 
