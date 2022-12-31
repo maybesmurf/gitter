@@ -1,11 +1,12 @@
 # 21.57.0 - 2022-12-21
 
+
 Developer facing:
 
  - Add script to test backfilling history to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2313
     - Follow-ups: https://gitlab.com/gitterHQ/webapp/-/merge_requests/2315, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2316, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2317
  - Add script to be able to dump user with backing identity information, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2318, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2319
-
+ - Update `mongodb` sub-dependency in `mongoose` for hopefully stable connection (no timeout errors, timed out), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2321
 
 # 21.56.0 - 2022-12-06
 
