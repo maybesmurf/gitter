@@ -158,8 +158,12 @@ async function importThreadReplies({
     toTroupeId: gitterRoomId,
     // No threaded messages in our main iterable.
     parentId: threadParentId
-    // We can't filter out things here because there is no index for `virtualUser` which
-    // makes this too slow in some cases.
+    // We can't filter out things here because there is no compound index for
+    // `virtualUser` and `parentId` together which makes this too slow in some cases.
+    // For example, if there is a single message already sent and bridged in the live
+    // room, it tries to find something less than that message ID we should stop at in
+    // the live room but has to manually paginate through all messages below in order to
+    // find something (I don't actually know, this just seems plausible).
     //
     //virtualUser: { $exists: false }
   })
@@ -445,8 +449,12 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     toTroupeId: gitterRoomId,
     // No threaded messages in our main iterable.
     parentId: { $exists: false }
-    // We can't filter out things here because there is no index for `virtualUser` which
-    // makes this too slow in some cases.
+    // We can't filter out things here because there is no compound index for
+    // `virtualUser` and `parentId` together which makes this too slow in some cases.
+    // For example, if there is a single message already sent and bridged in the live
+    // room, it tries to find something less than that message ID we should stop at in
+    // the live room but has to manually paginate through all messages below in order to
+    // find something (I don't actually know, this just seems plausible).
     //
     //virtualUser: { $exists: false }
   };
