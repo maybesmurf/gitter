@@ -69,6 +69,38 @@ function sampledPerformance(frequency) {
   };
 }
 
+// Take in another generator and filter it down to only the main messages (no threaded
+// replies). Returns another generator
+function* filteredMainChatMessageStreamIterable(chatMessageStreamIterable) {
+  for (const chatMessage of chatMessageStreamIterable) {
+    if (
+      // No threaded messages in our main iterable.
+      !chatMessage.parentId &&
+      // Although we probably won't find any Matrix bridged messages in the old
+      // batch of messages we try to backfill, let's just be careful and not try
+      // to re-bridge any previously bridged Matrix messages by accident.
+      !chatMessage.virtualUser
+    ) {
+      yield chatMessage;
+    }
+  }
+}
+
+// Take in another generator and filter it down to only the threaded replies we care
+// about. Returns another generator
+function* filteredThreadedReplyMessageStreamIterable(chatMessageStreamIterable) {
+  for (const chatMessage of chatMessageStreamIterable) {
+    if (
+      // Although we probably won't find any Matrix bridged messages in the old
+      // batch of messages we try to backfill, let's just be careful and not try
+      // to re-bridge any previously bridged Matrix messages by accident.
+      !chatMessage.virtualUser
+    ) {
+      yield chatMessage;
+    }
+  }
+}
+
 // Find the earliest-in-time message that we have already bridged,
 // ie. where we need to stop backfilling from to resume (resumability)
 async function findEarliestBridgedMessageInRoom(matrixRoomId) {
@@ -155,17 +187,11 @@ async function importThreadReplies({
 
       return idQuery;
     })(),
-    toTroupeId: gitterRoomId,
-    // No threaded messages in our main iterable.
+    // Only get threaded replies in this thread
     parentId: threadParentId
-    // We can't filter out things here because there is no compound index for
-    // `virtualUser` and `parentId` together which makes this too slow in some cases.
-    // For example, if there is a single message already sent and bridged in the live
-    // room, it tries to find something less than that message ID we should stop at in
-    // the live room but has to manually paginate through all messages below in order to
-    // find something (I don't actually know, this just seems plausible).
+    // We don't need to filter by `toTroupeId` since we already filter by thread parent ID
     //
-    //virtualUser: { $exists: false }
+    //toTroupeId: gitterRoomId,
   })
     // Go from oldest to most recent so everything appears in the order it was sent in
     // the first place
@@ -174,7 +200,9 @@ async function importThreadReplies({
     .read(mongoReadPrefs.secondaryPreferred)
     .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
     .cursor();
-  const threadReplyMessageStreamIterable = iterableFromMongooseCursor(threadReplyMessageCursor);
+  const threadReplyMessageStreamIterable = filteredThreadedReplyMessageStreamIterable(
+    iterableFromMongooseCursor(threadReplyMessageCursor)
+  );
 
   // eslint-disable-next-line no-use-before-define
   await importFromChatMessageStreamIterable({
@@ -450,17 +478,7 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
 
       return idQuery;
     })(),
-    toTroupeId: gitterRoomId,
-    // No threaded messages in our main iterable.
-    parentId: { $exists: false }
-    // We can't filter out things here because there is no compound index for
-    // `virtualUser` and `parentId` together which makes this too slow in some cases.
-    // For example, if there is a single message already sent and bridged in the live
-    // room, it tries to find something less than that message ID we should stop at in
-    // the live room but has to manually paginate through all messages below in order to
-    // find something (I don't actually know, this just seems plausible).
-    //
-    //virtualUser: { $exists: false }
+    toTroupeId: gitterRoomId
   };
   const messageCursor = persistence.ChatMessage.find(chatMessageQuery)
     // Go from oldest to most recent so everything appears in the order it was sent in
@@ -470,7 +488,9 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     .read(mongoReadPrefs.secondaryPreferred)
     .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
     .cursor();
-  const chatMessageStreamIterable = iterableFromMongooseCursor(messageCursor);
+  const chatMessageStreamIterable = filteredMainChatMessageStreamIterable(
+    iterableFromMongooseCursor(messageCursor)
+  );
 
   await importFromChatMessageStreamIterable({
     gitterRoomId,

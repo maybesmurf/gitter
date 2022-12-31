@@ -46,6 +46,35 @@ var ChatMessageSchema = new Schema({
 ChatMessageSchema.index({ toTroupeId: 1, sent: -1 });
 ChatMessageSchema.index({ parentId: 1, sent: -1 }, { background: true });
 ChatMessageSchema.index({ fromUserId: 1 }, { background: true });
+// This is used for the Gitter -> Matrix import scripts
+ChatMessageSchema.index(
+  {
+    // Following the ESR (Equality, Sort, Range) rule to create an efficient index.
+    // Nice answer with example: https://stackoverflow.com/a/48759005/796832
+    //
+    // Equality
+    toTroupeId: 1,
+    // Sort
+    // ...
+    // Range
+    _id: 1
+  },
+  { background: true }
+);
+ChatMessageSchema.index(
+  {
+    // Following the ESR (Equality, Sort, Range) rule to create an efficient index.
+    // Nice answer with example: https://stackoverflow.com/a/48759005/796832
+    //
+    // Equality
+    parentId: 1,
+    // Sort
+    // ...
+    // Range
+    _id: 1
+  },
+  { background: true }
+);
 ChatMessageSchema.schemaTypeName = 'ChatMessageSchema';
 
 installVersionIncMiddleware(ChatMessageSchema);
