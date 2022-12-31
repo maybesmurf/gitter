@@ -141,7 +141,7 @@
     "moment": "^2.10.3",
     "mongodb": "^2.2.35",
     "mongodb-unique-ids": "^0.2.0",
-    "mongoose": "npm:@gitterhq/mongoose@^4.6.8-updated-mongodb",
+    "mongoose": "npm:@gitterhq/mongoose@^4.6.8-updated-mongodb.2",
     "mongoose-number": "^0.1.1",
     "mutantjs": "^0.2.0",
     "node-gcm": "^1.0.2",
