@@ -157,11 +157,11 @@ async function importThreadReplies({
     })(),
     toTroupeId: gitterRoomId,
     // No threaded messages in our main iterable.
-    parentId: threadParentId,
-    // Although we probably won't find any Matrix bridged messages in the old
-    // batch of messages we try to backfill, let's just be careful and not try
-    // to re-bridge any previously bridged Matrix messages by accident.
-    virtualUser: { $exists: false }
+    parentId: threadParentId
+    // We can't filter out things here because there is no index for `virtualUser` which
+    // makes this too slow in some cases.
+    //
+    //virtualUser: { $exists: false }
   })
     // Go from oldest to most recent so everything appears in the order it was sent in
     // the first place
@@ -218,6 +218,14 @@ async function importFromChatMessageStreamIterable({
         // Reset after reporting
         runningTimeMsToGetNextMessage = 0;
         runningMessageCountForNextMessageTiming = 0;
+      }
+
+      // Although we probably won't find any Matrix bridged messages in the old
+      // batch of messages we try to backfill, let's just be careful and not try
+      // to re-bridge any previously bridged Matrix messages by accident.
+      if (message.virtualUser) {
+        // Skip to the next message
+        continue;
       }
 
       // To avoid spamming our stats server, only send stats 1/N of the time
@@ -436,11 +444,11 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     })(),
     toTroupeId: gitterRoomId,
     // No threaded messages in our main iterable.
-    parentId: { $exists: false },
-    // Although we probably won't find any Matrix bridged messages in the old
-    // batch of messages we try to backfill, let's just be careful and not try
-    // to re-bridge any previously bridged Matrix messages by accident.
-    virtualUser: { $exists: false }
+    parentId: { $exists: false }
+    // We can't filter out things here because there is no index for `virtualUser` which
+    // makes this too slow in some cases.
+    //
+    //virtualUser: { $exists: false }
   };
   const messageCursor = persistence.ChatMessage.find(chatMessageQuery)
     // Go from oldest to most recent so everything appears in the order it was sent in
