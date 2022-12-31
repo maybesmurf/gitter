@@ -157,11 +157,15 @@ async function importThreadReplies({
     })(),
     toTroupeId: gitterRoomId,
     // No threaded messages in our main iterable.
-    parentId: threadParentId,
-    // Although we probably won't find any Matrix bridged messages in the old
-    // batch of messages we try to backfill, let's just be careful and not try
-    // to re-bridge any previously bridged Matrix messages by accident.
-    virtualUser: { $exists: false }
+    parentId: threadParentId
+    // We can't filter out things here because there is no compound index for
+    // `virtualUser` and `parentId` together which makes this too slow in some cases.
+    // For example, if there is a single message already sent and bridged in the live
+    // room, it tries to find something less than that message ID we should stop at in
+    // the live room but has to manually paginate through all messages below in order to
+    // find something (I don't actually know, this just seems plausible).
+    //
+    //virtualUser: { $exists: false }
   })
     // Go from oldest to most recent so everything appears in the order it was sent in
     // the first place
@@ -220,13 +224,25 @@ async function importFromChatMessageStreamIterable({
         runningMessageCountForNextMessageTiming = 0;
       }
 
+      const gitterMessageId = message.id || message._id;
+
+      // Although we probably won't find any Matrix bridged messages in the old
+      // batch of messages we try to backfill, let's just be careful and not try
+      // to re-bridge any previously bridged Matrix messages by accident.
+      if (message.virtualUser) {
+        debug(
+          `Skipping gitterMessageId=${gitterMessageId} from Matrix virtualUser that we shouldn't rebridge (${gitterRoomId} --> matrixHistoricalRoomId=${matrixHistoricalRoomId})`
+        );
+        // Skip to the next message
+        continue;
+      }
+
       // To avoid spamming our stats server, only send stats 1/N of the time
       const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
         METRIC_SAMPLE_RATIO
       );
 
       performanceMark(`importMessageStart`);
-      const gitterMessageId = message.id || message._id;
       if (!message.fromUserId) {
         throw new Error(
           `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}`
@@ -436,11 +452,15 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     })(),
     toTroupeId: gitterRoomId,
     // No threaded messages in our main iterable.
-    parentId: { $exists: false },
-    // Although we probably won't find any Matrix bridged messages in the old
-    // batch of messages we try to backfill, let's just be careful and not try
-    // to re-bridge any previously bridged Matrix messages by accident.
-    virtualUser: { $exists: false }
+    parentId: { $exists: false }
+    // We can't filter out things here because there is no compound index for
+    // `virtualUser` and `parentId` together which makes this too slow in some cases.
+    // For example, if there is a single message already sent and bridged in the live
+    // room, it tries to find something less than that message ID we should stop at in
+    // the live room but has to manually paginate through all messages below in order to
+    // find something (I don't actually know, this just seems plausible).
+    //
+    //virtualUser: { $exists: false }
   };
   const messageCursor = persistence.ChatMessage.find(chatMessageQuery)
     // Go from oldest to most recent so everything appears in the order it was sent in
