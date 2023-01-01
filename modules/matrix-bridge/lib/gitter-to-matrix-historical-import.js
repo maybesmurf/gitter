@@ -71,8 +71,8 @@ function sampledPerformance(frequency) {
 
 // Take in another generator and filter it down to only the main messages (no threaded
 // replies). Returns another generator
-function* filteredMainChatMessageStreamIterable(chatMessageStreamIterable) {
-  for (const chatMessage of chatMessageStreamIterable) {
+async function* filteredMainChatMessageStreamIterable(chatMessageStreamIterable) {
+  for await (const chatMessage of chatMessageStreamIterable) {
     if (
       // No threaded messages in our main iterable.
       !chatMessage.parentId &&
@@ -88,8 +88,8 @@ function* filteredMainChatMessageStreamIterable(chatMessageStreamIterable) {
 
 // Take in another generator and filter it down to only the threaded replies we care
 // about. Returns another generator
-function* filteredThreadedReplyMessageStreamIterable(chatMessageStreamIterable) {
-  for (const chatMessage of chatMessageStreamIterable) {
+async function* filteredThreadedReplyMessageStreamIterable(chatMessageStreamIterable) {
+  for await (const chatMessage of chatMessageStreamIterable) {
     if (
       // Although we probably won't find any Matrix bridged messages in the old
       // batch of messages we try to backfill, let's just be careful and not try
