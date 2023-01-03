@@ -70,11 +70,14 @@ function sampledPerformance(frequency) {
 }
 
 // Take in another generator and filter it down to only the main messages (no threaded
-// replies). Returns another generator
+// replies). We do the filtering here so we can use a simple database lookup against an
+// index.
+//
+//Returns another generator
 async function* filteredMainChatMessageStreamIterable(chatMessageStreamIterable) {
   for await (const chatMessage of chatMessageStreamIterable) {
     if (
-      // No threaded messages in our main iterable.
+      // No threaded messages in our main messages iterable.
       !chatMessage.parentId &&
       // Although we probably won't find any Matrix bridged messages in the old
       // batch of messages we try to backfill, let's just be careful and not try
@@ -87,7 +90,10 @@ async function* filteredMainChatMessageStreamIterable(chatMessageStreamIterable)
 }
 
 // Take in another generator and filter it down to only the threaded replies we care
-// about. Returns another generator
+// about. We do the filtering here so we can use a simple database lookup against an
+// index.
+//
+//Returns another generator
 async function* filteredThreadedReplyMessageStreamIterable(chatMessageStreamIterable) {
   for await (const chatMessage of chatMessageStreamIterable) {
     if (
@@ -189,7 +195,8 @@ async function importThreadReplies({
     })(),
     // Only get threaded replies in this thread
     parentId: threadParentId
-    // We don't need to filter by `toTroupeId` since we already filter by thread parent ID
+    // We don't need to filter by `toTroupeId` since we already filter by thread parent
+    // ID which is good enough.
     //
     //toTroupeId: gitterRoomId,
   })
@@ -479,6 +486,12 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
       return idQuery;
     })(),
     toTroupeId: gitterRoomId
+    // We filter out the threaded replies via
+    // `filteredMainChatMessageStreamIterable(...)`. We assume there isn't that many
+    // threaded replies compared to the amount of main messages so filtering client-side
+    // is good enough.
+    //
+    //parentId: { $exists: false }
   };
   const messageCursor = persistence.ChatMessage.find(chatMessageQuery)
     // Go from oldest to most recent so everything appears in the order it was sent in
