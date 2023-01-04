@@ -7,7 +7,6 @@ var mongoose = require('gitter-web-mongoose-bluebird');
 var mongoUtils = require('./mongo-utils');
 var uniqueIds = require('mongodb-unique-ids');
 var mongoReadPrefs = require('./mongo-read-prefs');
-const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
 
 var Schema = mongoose.Schema;
 
@@ -332,7 +331,7 @@ async function* iterableFromMongooseCursor(cursor) {
 }
 
 // The default cursor timeout is 600,000ms (10 minutes)
-const MONGO_CURSOR_TIMEOUT_MS = 600000;
+const MONGO_CURSOR_TIMEOUT_MS = 10 * 60 * 1000;
 // How much time can be left on the cursor before we try creating a new one.
 // 2 minutes
 const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 2 * 60 * 1000;
@@ -396,7 +395,6 @@ async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
       runningNumberOfDocsSinceCursorCreation > 0 &&
       runningNumberOfDocsSinceCursorCreation % batchSize === 0
     ) {
-      console.log(`Keeping cursor alive since we got ${batchSize} out of the cursor`);
       cursorRefreshTs = Date.now();
     }
 
@@ -404,11 +402,6 @@ async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
     // create a new cursor
     const durationSinceRefresh = Date.now() - cursorRefreshTs;
     if (durationSinceRefresh >= MONGO_CURSOR_TIMEOUT_MS - CURSOR_TIMEOUT_SAFE_THRESHOLD_MS) {
-      console.log(
-        `Creating new cursor because ${formatDurationInMsToPrettyString(
-          durationSinceRefresh
-        )} > ${MONGO_CURSOR_TIMEOUT_MS - CURSOR_TIMEOUT_SAFE_THRESHOLD_MS}`
-      );
       // Close the previous cursor to clean up after ourselves
       await cursor.close();
 
