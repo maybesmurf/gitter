@@ -11,6 +11,7 @@ const debugStats = require('debug')('gitter:scripts:matrix-historical-import:sta
 const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
+const config = env.config;
 const persistence = require('gitter-web-persistence');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
@@ -28,6 +29,14 @@ const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/f
 
 // The number of chat messages we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_MESSAGES = 100;
+// "secondary", "secondaryPreferred", etc
+// https://www.mongodb.com/docs/manual/core/read-preference/#read-preference
+//
+// This is an option because I often see it reading from the primary with
+// "secondaryPreferred" and want to try forcing it to "secondary".
+const DB_READ_PREFERENCE =
+  config.get('gitterToMatrixHistoricalImport:databaseReadPreference') ||
+  mongoReadPrefs.secondaryPreferred;
 const METRIC_SAMPLE_RATIO = 1 / 15;
 
 const QUARTER_SECOND_IN_MS = 250;
@@ -223,7 +232,7 @@ async function importThreadReplies({
         // the first place
         .sort({ _id: 'asc' })
         .lean()
-        .read(mongoReadPrefs.secondaryPreferred)
+        .read(DB_READ_PREFERENCE)
         .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
         .cursor();
 
@@ -526,7 +535,7 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
         // the first place
         .sort({ _id: 'asc' })
         .lean()
-        .read(mongoReadPrefs.secondaryPreferred)
+        .read(DB_READ_PREFERENCE)
         .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
         .cursor();
 
