@@ -236,16 +236,19 @@ const calculateWhichRoomToResumeFromIntervalId = setInterval(async () => {
     return;
   }
 
+  const checkpointData = {
+    resumeFromRoomId: trackingResumeFromRoomId
+  };
+
   try {
-    writingCheckpointFileLock = true;
-    await fs.writeFile(
-      roomResumePositionCheckpointFilePath,
-      JSON.stringify({
-        resumeFromRoomId: trackingResumeFromRoomId
-      })
+    logger.info(
+      `Writing room checkpoint file to disk roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}`,
+      checkpointData
     );
+    writingCheckpointFileLock = true;
+    await fs.writeFile(roomResumePositionCheckpointFilePath, JSON.stringify(checkpointData));
   } catch (err) {
-    logger.error(`Problem persisting checkpoint file to disk`, { exception: err });
+    logger.error(`Problem persisting room checkpoint file to disk`, { exception: err });
   } finally {
     writingCheckpointFileLock = false;
   }
