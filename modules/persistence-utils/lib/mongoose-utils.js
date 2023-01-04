@@ -335,8 +335,10 @@ const MONGO_CURSOR_TIMEOUT_MS = 600000;
 // How much time can be left on the cursor before we try creating a new one
 const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 3 * 60 * 1000;
 
-// Creates an iterable that strives to avoid pre-emptively avoid cursor timeout or
-// cursor not found errors.
+// Creates an iterable that strives to pre-emptively avoid cursor timeout or cursor not
+// found errors. Will create a new cursor any time we try to iterate with a cursor that
+// has timed out or is about to time out.
+//
 // ex.
 // ```
 // const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(({ resumeCursorFromId }) => {
@@ -362,7 +364,7 @@ const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 3 * 60 * 1000;
 // ```
 //
 // XXX: Should this just be the default implementation of `iterableFromMongooseCursor`?
-// We would need to refactor those usages to give us a function
+// We would need to refactor those usages to give us a function that creates the cursor.
 async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
   assert(typeof cursorCreationCb === 'function');
 
