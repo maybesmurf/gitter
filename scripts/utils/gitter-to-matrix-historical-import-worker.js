@@ -198,7 +198,7 @@ matrixHistoricalImportEventEmitter.on('eventImported', ({ gitterRoomId, count })
 
 const roomResumePositionCheckpointFilePath = path.join(
   tempDirectory,
-  `./_room-resume-position-checkpoint${opts.workerIndex || ''}${opts.workerTotal || ''}.json`
+  `./_room-resume-position-checkpoint-${opts.workerIndex || ''}-${opts.workerTotal || ''}.json`
 );
 let writingCheckpointFileLock;
 // Loop through all of the lanes and find the oldest room ID
