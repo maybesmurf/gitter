@@ -7,8 +7,6 @@ const debug = require('debug')('gitter:scripts-debug:concurrent-queue');
 const env = require('gitter-web-env');
 const logger = env.logger;
 
-const TIMEOUT_SYMBOL = Symbol('concurrent-queue:item-generator-timeout');
-
 class ConcurrentQueue {
   constructor(opts = {}) {
     const { concurrency, itemIdGetterFromItem } = opts;
