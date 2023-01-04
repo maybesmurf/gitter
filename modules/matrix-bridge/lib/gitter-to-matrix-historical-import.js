@@ -227,7 +227,7 @@ async function importThreadReplies({
         .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
         .cursor();
 
-      return threadReplyMessageCursor;
+      return { cursor: threadReplyMessageCursor, batchSize: DB_BATCH_SIZE_FOR_MESSAGES };
     }
   );
 
@@ -530,7 +530,7 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
         .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
         .cursor();
 
-      return messageCursor;
+      return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_MESSAGES };
     }
   );
 

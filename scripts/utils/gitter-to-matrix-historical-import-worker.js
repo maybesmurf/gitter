@@ -203,7 +203,7 @@ async function exec() {
       .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
       .cursor();
 
-    return gitterRoomCursor;
+    return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
   });
 
   await concurrentQueue.processFromGenerator(

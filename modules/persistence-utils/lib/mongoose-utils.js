@@ -7,6 +7,7 @@ var mongoose = require('gitter-web-mongoose-bluebird');
 var mongoUtils = require('./mongo-utils');
 var uniqueIds = require('mongodb-unique-ids');
 var mongoReadPrefs = require('./mongo-read-prefs');
+const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
 
 var Schema = mongoose.Schema;
 
@@ -360,13 +361,16 @@ const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 2 * 60 * 1000;
 //     .batchSize(20)
 //     .cursor();
 //
-//   return gitterRoomCursor;
+//   return {
+//     cursor: gitterRoomCursor,
+//     batchSize: 20
+//   };
 // });
 // ```
 //
 // XXX: Should this just be the default implementation of `iterableFromMongooseCursor`?
 // We would need to refactor those usages to give us a function that creates the cursor.
-async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb, batchSize) {
+async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
   assert(typeof cursorCreationCb === 'function');
 
   // We record the time just before creating the cursor instead of after for extra
@@ -374,7 +378,9 @@ async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb, batchSize)
   // in the database vs when we move on here (also keep in mind GC pauses, etc -
   // Designing data-intentsive applications, Martin Kleppmann);
   let cursorRefreshTs = Date.now();
-  let cursor = cursorCreationCb({ resumeCursorFromId: null });
+  let { cursor, batchSize } = cursorCreationCb({ resumeCursorFromId: null });
+  assert(cursor);
+  assert(batchSize > 0);
 
   let runningNumberOfDocsSinceCursorCreation = 0;
 
@@ -390,20 +396,26 @@ async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb, batchSize)
       runningNumberOfDocsSinceCursorCreation > 0 &&
       runningNumberOfDocsSinceCursorCreation % batchSize === 0
     ) {
+      console.log(`Keeping cursor alive since we got ${batchSize} out of the cursor`);
       cursorRefreshTs = Date.now();
     }
 
     // If it has been too long and the cursor has timed out or is about to time out,
     // create a new cursor
-    if (
-      Date.now() - cursorRefreshTs >=
-      MONGO_CURSOR_TIMEOUT_MS - CURSOR_TIMEOUT_SAFE_THRESHOLD_MS
-    ) {
+    const durationSinceRefresh = Date.now() - cursorRefreshTs;
+    if (durationSinceRefresh >= MONGO_CURSOR_TIMEOUT_MS - CURSOR_TIMEOUT_SAFE_THRESHOLD_MS) {
+      console.log(
+        `Creating new cursor because ${formatDurationInMsToPrettyString(
+          durationSinceRefresh
+        )} > ${MONGO_CURSOR_TIMEOUT_MS - CURSOR_TIMEOUT_SAFE_THRESHOLD_MS}`
+      );
       // Close the previous cursor to clean up after ourselves
       await cursor.close();
 
       cursorRefreshTs = Date.now();
-      cursor = cursorCreationCb({ resumeCursorFromId: doc.id || doc._id });
+      ({ cursor, batchSize } = cursorCreationCb({ resumeCursorFromId: doc.id || doc._id }));
+      assert(cursor);
+      assert(batchSize > 0);
       // Reset since we're back to a new cursor again
       runningNumberOfDocsSinceCursorCreation = 0;
     }
