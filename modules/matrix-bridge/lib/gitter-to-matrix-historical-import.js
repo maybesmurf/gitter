@@ -14,7 +14,9 @@ const stats = env.stats;
 const persistence = require('gitter-web-persistence');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
-const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
+const {
+  noTimeoutIterableFromMongooseCursor
+} = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const chatService = require('gitter-web-chats');
@@ -25,7 +27,7 @@ const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge
 const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
 
 // The number of chat messages we pull out at once to reduce database roundtrips
-const DB_BATCH_SIZE_FOR_MESSAGES = 256;
+const DB_BATCH_SIZE_FOR_MESSAGES = 100;
 const METRIC_SAMPLE_RATIO = 1 / 15;
 
 const QUARTER_SECOND_IN_MS = 250;
@@ -193,44 +195,51 @@ async function importThreadReplies({
   //
   //assert(stopAtMessageId);
 
-  const threadReplyMessageCursor = persistence.ChatMessage.find({
-    _id: (() => {
-      const idQuery = {
-        $gt: resumeFromMessageId
-      };
+  const threadReplyMessageStreamIterable = noTimeoutIterableFromMongooseCursor(
+    ({ resumeCursorFromId }) => {
+      const threadReplyMessageCursor = persistence.ChatMessage.find({
+        _id: (() => {
+          const idQuery = {
+            $gt: resumeCursorFromId || resumeFromMessageId
+          };
 
-      if (stopAtMessageId) {
-        // Protect from the edge-case scenario where the first live bridged message in the
-        // room was a reply to a thread. We should only import up to the live point since
-        // we can't have duplicate entries in the `MatrixBridgedChatMessageSchema`
-        idQuery['$lt'] = stopAtMessageId;
-      }
+          if (stopAtMessageId) {
+            // Protect from the edge-case scenario where the first live bridged message in the
+            // room was a reply to a thread. We should only import up to the live point since
+            // we can't have duplicate entries in the `MatrixBridgedChatMessageSchema`
+            idQuery['$lt'] = stopAtMessageId;
+          }
 
-      return idQuery;
-    })(),
-    // Only get threaded replies in this thread
-    parentId: threadParentId
-    // We don't need to filter by `toTroupeId` since we already filter by thread parent
-    // ID which is good enough.
-    //
-    //toTroupeId: gitterRoomId,
-  })
-    // Go from oldest to most recent so everything appears in the order it was sent in
-    // the first place
-    .sort({ _id: 'asc' })
-    .lean()
-    .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
-    .cursor();
-  const threadReplyMessageStreamIterable = filteredThreadedReplyMessageStreamIterable(
-    iterableFromMongooseCursor(threadReplyMessageCursor)
+          return idQuery;
+        })(),
+        // Only get threaded replies in this thread
+        parentId: threadParentId
+        // We don't need to filter by `toTroupeId` since we already filter by thread parent
+        // ID which is good enough.
+        //
+        //toTroupeId: gitterRoomId,
+      })
+        // Go from oldest to most recent so everything appears in the order it was sent in
+        // the first place
+        .sort({ _id: 'asc' })
+        .lean()
+        .read(mongoReadPrefs.secondaryPreferred)
+        .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
+        .cursor();
+
+      return { cursor: threadReplyMessageCursor, batchSize: DB_BATCH_SIZE_FOR_MESSAGES };
+    }
+  );
+
+  const filteredThreadReplyMessageStreamIterable = filteredThreadedReplyMessageStreamIterable(
+    threadReplyMessageStreamIterable
   );
 
   // eslint-disable-next-line no-use-before-define
   await importFromChatMessageStreamIterable({
     gitterRoomId,
     matrixHistoricalRoomId,
-    chatMessageStreamIterable: threadReplyMessageStreamIterable,
+    chatMessageStreamIterable: filteredThreadReplyMessageStreamIterable,
     stopAtMessageId
   });
 }
@@ -478,53 +487,61 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     }
   }
 
-  // Grab a cursor stream of all of the main messages in the room (no thread replies).
-  // Resume from where we left off importing last time and stop when we reach the point
-  // where the live room will continue seamlessly.
-  const chatMessageQuery = {
-    // Start the stream of messages where we left off, earliest message, going forwards
-    _id: (() => {
-      const idQuery = {};
-      // Where to resume from
-      if (gitterMessageIdToResumeFrom) {
-        idQuery['$gt'] = gitterMessageIdToResumeFrom;
-      }
-      // Where we should stop importing at because the live room will pick up from this point
-      if (gitterMessageIdToStopImportingAt) {
-        idQuery['$lt'] = gitterMessageIdToStopImportingAt;
-      }
+  const chatMessageStreamIterable = noTimeoutIterableFromMongooseCursor(
+    ({ resumeCursorFromId }) => {
+      // Grab a cursor stream of all of the main messages in the room (no thread replies).
+      // Resume from where we left off importing last time and stop when we reach the point
+      // where the live room will continue seamlessly.
+      const chatMessageQuery = {
+        // Start the stream of messages where we left off, earliest message, going forwards
+        _id: (() => {
+          const idQuery = {};
+          // Where to resume from
+          if (resumeCursorFromId || gitterMessageIdToResumeFrom) {
+            idQuery['$gt'] = resumeCursorFromId || gitterMessageIdToResumeFrom;
+          }
+          // Where we should stop importing at because the live room will pick up from this point
+          if (gitterMessageIdToStopImportingAt) {
+            idQuery['$lt'] = gitterMessageIdToStopImportingAt;
+          }
 
-      // If we haven't imported any history yet, just fallback to an `exists` (get all messages)
-      if (!gitterMessageIdToResumeFrom && !gitterMessageIdToStopImportingAt) {
-        idQuery['$exists'] = true;
-      }
+          // If we haven't imported any history yet, just fallback to an `exists` (get all messages)
+          if (!idQuery['$gt'] && !idQuery['$lt']) {
+            idQuery['$exists'] = true;
+          }
 
-      return idQuery;
-    })(),
-    toTroupeId: gitterRoomId
-    // We filter out the threaded replies via
-    // `filteredMainChatMessageStreamIterable(...)`. We assume there isn't that many
-    // threaded replies compared to the amount of main messages so filtering client-side
-    // is good enough.
-    //
-    //parentId: { $exists: false }
-  };
-  const messageCursor = persistence.ChatMessage.find(chatMessageQuery)
-    // Go from oldest to most recent so everything appears in the order it was sent in
-    // the first place
-    .sort({ _id: 'asc' })
-    .lean()
-    .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
-    .cursor();
-  const chatMessageStreamIterable = filteredMainChatMessageStreamIterable(
-    iterableFromMongooseCursor(messageCursor)
+          return idQuery;
+        })(),
+        toTroupeId: gitterRoomId
+        // We filter out the threaded replies via
+        // `filteredMainChatMessageStreamIterable(...)`. We assume there isn't that many
+        // threaded replies compared to the amount of main messages so filtering client-side
+        // is good enough.
+        //
+        //parentId: { $exists: false }
+      };
+
+      const messageCursor = persistence.ChatMessage.find(chatMessageQuery)
+        // Go from oldest to most recent so everything appears in the order it was sent in
+        // the first place
+        .sort({ _id: 'asc' })
+        .lean()
+        .read(mongoReadPrefs.secondaryPreferred)
+        .batchSize(DB_BATCH_SIZE_FOR_MESSAGES)
+        .cursor();
+
+      return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_MESSAGES };
+    }
+  );
+
+  const filteredChatMessageStreamIterable = filteredMainChatMessageStreamIterable(
+    chatMessageStreamIterable
   );
 
   await importFromChatMessageStreamIterable({
     gitterRoomId,
     matrixHistoricalRoomId,
-    chatMessageStreamIterable,
+    chatMessageStreamIterable: filteredChatMessageStreamIterable,
     stopAtMessageId: gitterMessageIdToStopImportingAt
   });
 
