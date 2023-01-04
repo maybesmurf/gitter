@@ -333,14 +333,14 @@ async function importFromChatMessageStreamIterable({
             'importMessageEnd'
           );
 
+          resolve();
+        } catch (err) {
+          reject(err);
+        } finally {
           performanceClearMarks(`request.sendEventRequestStart`);
           performanceClearMarks(`request.sendEventRequestEnd`);
           performanceClearMarks(`importMessageStart`);
           performanceClearMarks(`importMessageEnd`);
-
-          resolve();
-        } catch (err) {
-          reject(err);
         }
       });
 
