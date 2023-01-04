@@ -261,7 +261,7 @@ async function getRoomIdResumePosition() {
     return checkpointData.resumeFromRoomId;
   } catch (err) {
     logger.error(
-      'Unable to read roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}',
+      `Unable to read roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}`,
       {
         exception: err
       }
