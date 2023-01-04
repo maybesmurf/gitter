@@ -332,8 +332,9 @@ async function* iterableFromMongooseCursor(cursor) {
 
 // The default cursor timeout is 600,000ms (10 minutes)
 const MONGO_CURSOR_TIMEOUT_MS = 600000;
-// How much time can be left on the cursor before we try creating a new one
-const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 3 * 60 * 1000;
+// How much time can be left on the cursor before we try creating a new one.
+// 2 minutes
+const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 2 * 60 * 1000;
 
 // Creates an iterable that strives to pre-emptively avoid cursor timeout or cursor not
 // found errors. Will create a new cursor any time we try to iterate with a cursor that
@@ -365,30 +366,50 @@ const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 3 * 60 * 1000;
 //
 // XXX: Should this just be the default implementation of `iterableFromMongooseCursor`?
 // We would need to refactor those usages to give us a function that creates the cursor.
-async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
+async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb, batchSize) {
   assert(typeof cursorCreationCb === 'function');
 
   // We record the time just before creating the cursor instead of after for extra
   // safety in case there is a large pause between when the cursor is actually created
   // in the database vs when we move on here (also keep in mind GC pauses, etc -
   // Designing data-intentsive applications, Martin Kleppmann);
-  let cursorCreationTs = Date.now();
+  let cursorRefreshTs = Date.now();
   let cursor = cursorCreationCb({ resumeCursorFromId: null });
 
+  let runningNumberOfDocsSinceCursorCreation = 0;
+
   let doc = await cursor.next();
+  runningNumberOfDocsSinceCursorCreation++;
   while (doc !== null) {
     yield doc;
 
-    // If it has been too long, create a new cursor
+    // If we're able to pull more than the cursor `batchSize` number of documents from a
+    // cursor, then that means we went and retrieved new things over database connection
+    // to keep it alive.
     if (
-      Date.now() - cursorCreationTs >=
+      runningNumberOfDocsSinceCursorCreation > 0 &&
+      runningNumberOfDocsSinceCursorCreation % batchSize === 0
+    ) {
+      cursorRefreshTs = Date.now();
+    }
+
+    // If it has been too long and the cursor has timed out or is about to time out,
+    // create a new cursor
+    if (
+      Date.now() - cursorRefreshTs >=
       MONGO_CURSOR_TIMEOUT_MS - CURSOR_TIMEOUT_SAFE_THRESHOLD_MS
     ) {
-      cursorCreationTs = Date.now();
+      // Close the previous cursor to clean up after ourselves
+      await cursor.close();
+
+      cursorRefreshTs = Date.now();
       cursor = cursorCreationCb({ resumeCursorFromId: doc.id || doc._id });
+      // Reset since we're back to a new cursor again
+      runningNumberOfDocsSinceCursorCreation = 0;
     }
 
     doc = await cursor.next();
+    runningNumberOfDocsSinceCursorCreation++;
   }
 }
 
