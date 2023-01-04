@@ -55,8 +55,10 @@ function getLaneStatusMessage() {
       return `${laneString}: No more rooms for this lane to pick-up ✅`;
     }
 
-    if (laneStatus.laneTimedOut) {
-      return `${laneString}: 💀 The itemGenerator timed out getting next item (restart the script) 💀`;
+    if (!laneStatus.laneEndWaitingForNewItemTs) {
+      return `${laneString}: Waiting for next room to process ${formatDurationInMsToPrettyString(
+        laneStatusInfo.writeTs - laneStatus.laneStartWaitingForNewItemTs
+      )}`;
     }
 
     const gitterRoom = laneStatus.gitterRoom;
@@ -67,7 +69,7 @@ function getLaneStatusMessage() {
     ).padEnd(7)}`;
 
     const progressDecimal = laneStatus.numMessagesImported / laneStatus.numTotalMessagesInRoom;
-    const progressBarWidth = 30;
+    const progressBarWidth = 28;
     let progressBarJuice;
     if (isNaN(progressDecimal) || !isFinite(progressDecimal)) {
       progressBarJuice = '?'.repeat(progressBarWidth);
@@ -80,7 +82,11 @@ function getLaneStatusMessage() {
       laneStatusInfo.writeTs - laneStatus.startTs
     )}`;
 
-    return `${laneString}: ${progressBarString} ${progressString} ${gitterRoomString} - ${durationString}`;
+    const waitForItemDurationString = `${formatDurationInMsToPrettyString(
+      laneStatus.laneEndWaitingForNewItemTs - laneStatus.laneStartWaitingForNewItemTs
+    )}`;
+
+    return `${laneString}: ${progressBarString} ${progressString} ${gitterRoomString} - ${durationString} (waited ${waitForItemDurationString})`;
   });
 
   const currentTimeString = `Current time: ${new Date().toISOString()}`;
