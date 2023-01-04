@@ -13,7 +13,9 @@ const persistence = require('gitter-web-persistence');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const mongooseUtils = require('gitter-web-persistence-utils/lib/mongoose-utils');
-const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
+const {
+  noTimeoutIterableFromMongooseCursor
+} = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
@@ -27,7 +29,7 @@ const troupeService = require('gitter-web-rooms/lib/troupe-service');
 require('./gitter-to-matrix-historical-import/performance-observer-stats');
 
 // The number of rooms we pull out at once to reduce database roundtrips
-const DB_BATCH_SIZE_FOR_ROOMS = 64;
+const DB_BATCH_SIZE_FOR_ROOMS = 10;
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
@@ -181,14 +183,28 @@ async function exec() {
   logger.info('Setting up Matrix bridge');
   await installBridge();
 
-  const gitterRoomCursor = persistence.Troupe.find({})
-    // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
-    .sort({ _id: 'asc' })
-    .lean()
-    .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
-    .cursor();
-  const gitterRoomStreamIterable = iterableFromMongooseCursor(gitterRoomCursor);
+  const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(({ resumeCursorFromId }) => {
+    const gitterRoomCursor = persistence.Troupe.find({
+      _id: (() => {
+        const idQuery = {};
+        if (resumeCursorFromId) {
+          idQuery['$gt'] = resumeCursorFromId;
+        } else {
+          idQuery['$exists'] = true;
+        }
+
+        return idQuery;
+      })()
+    })
+      // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
+      .sort({ _id: 'asc' })
+      .lean()
+      .read(mongoReadPrefs.secondaryPreferred)
+      .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
+      .cursor();
+
+    return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
+  });
 
   await concurrentQueue.processFromGenerator(
     gitterRoomStreamIterable,
