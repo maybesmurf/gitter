@@ -184,8 +184,8 @@ class ConcurrentQueue {
         return;
       }
 
-      writingStatusInfoLock = true;
       try {
+        writingStatusInfoLock = true;
         await this.persistLaneStatusInfoToDisk(laneStatusFilePath);
       } catch (err) {
         logger.error(`Problem persisting lane status to disk`, { exception: err });
