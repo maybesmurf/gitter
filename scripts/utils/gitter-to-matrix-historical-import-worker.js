@@ -227,30 +227,33 @@ async function exec() {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
       // Track some meta info so we can display a nice UI in the dashboard around what's happening
-      const numTotalMessagesInRoom = await mongooseUtils.getEstimatedCountForId(
-        persistence.ChatMessage,
-        'toTroupeId',
-        gitterRoomId,
-        { read: true }
-      );
+      const numTotalMessagesInRoom =
+        (await mongooseUtils.getEstimatedCountForId(
+          persistence.ChatMessage,
+          'toTroupeId',
+          gitterRoomId,
+          { read: true }
+        )) || 0;
       // Find our current live Matrix room
       let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
       // Find the historical Matrix room we should import the history into
       let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
         gitterRoomId
       );
-      const numMessagesImportedAlreadyInLiveRoom = await mongooseUtils.getEstimatedCountForId(
-        persistence.MatrixBridgedChatMessage,
-        'matrixRoomId',
-        matrixRoomId,
-        { read: true }
-      );
-      const numMessagesImportedAlreadyInHistoricalRoom = await mongooseUtils.getEstimatedCountForId(
-        persistence.MatrixBridgedChatMessage,
-        'matrixRoomId',
-        matrixHistoricalRoomId,
-        { read: true }
-      );
+      const numMessagesImportedAlreadyInLiveRoom =
+        (await mongooseUtils.getEstimatedCountForId(
+          persistence.MatrixBridgedChatMessage,
+          'matrixRoomId',
+          matrixRoomId,
+          { read: true }
+        )) || 0;
+      const numMessagesImportedAlreadyInHistoricalRoom =
+        (await mongooseUtils.getEstimatedCountForId(
+          persistence.MatrixBridgedChatMessage,
+          'matrixRoomId',
+          matrixHistoricalRoomId,
+          { read: true }
+        )) || 0;
       concurrentQueue.updateLaneStatus(laneIndex, {
         startTs: Date.now(),
         gitterRoom: {
