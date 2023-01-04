@@ -5,6 +5,7 @@ const shutdown = require('shutdown');
 const path = require('path');
 const os = require('os');
 const mkdirp = require('mkdirp');
+const fs = require('fs').promises;
 //const debug = require('debug')('gitter:scripts:matrix-historical-import-worker');
 
 const env = require('gitter-web-env');
@@ -43,6 +44,10 @@ const DB_READ_PREFERENCE =
 logger.info(
   `Using DB_READ_PREFERENCE=${DB_READ_PREFERENCE} to read from MongoDB during this import process`
 );
+
+// Every N milliseconds (5 minutes), we should track which room we should resume from if
+// the import function errors out.
+const CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL = 5 * 60 * 1000;
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
@@ -191,17 +196,97 @@ matrixHistoricalImportEventEmitter.on('eventImported', ({ gitterRoomId, count })
   });
 });
 
+const roomResumePositionCheckpointFilePath = path.join(
+  tempDirectory,
+  `./_room-resume-position-checkpoint${opts.workerIndex || ''}${opts.workerTotal || ''}.json`
+);
+let writingCheckpointFileLock;
+// Loop through all of the lanes and find the oldest room ID
+const calculateWhichRoomToResumeFromIntervalId = setInterval(async () => {
+  // Get a list of room ID's that the queue is currently working on
+  const roomIds = [];
+  for (let i = 0; i < opts.concurrency; i++) {
+    const laneStatusInfo = concurrentQueue.getLaneStatus(i);
+    const laneWorkingOnGitterRoomId = laneStatusInfo.gitterRoom && laneStatusInfo.gitterRoom.id;
+    if (laneWorkingOnGitterRoomId) {
+      roomIds.push(laneWorkingOnGitterRoomId);
+    }
+  }
+
+  // Sort the list so the oldest room is sorted first
+  const chronologicalSortedRoomIds = roomIds.sort((a, b) => {
+    const aTimestamp = mongoUtils.getDateFromObjectId(a);
+    const bTimestamp = mongoUtils.getDateFromObjectId(b);
+    return aTimestamp - bTimestamp;
+  });
+
+  // Take the oldest room in the list. We have to be careful and keep this as the oldest
+  // room currently being imported. When we resume, we want to make sure we don't skip
+  // over a room that has many many messages just because we imported a bunch of small
+  // rooms after in other lanes.
+  const trackingResumeFromRoomId = chronologicalSortedRoomIds[0];
+
+  // Nothing to resume at yet, skip
+  if (!trackingResumeFromRoomId) {
+    return;
+  }
+
+  // Prevent multiple writes from building up. We only allow one write until it finishes
+  if (writingCheckpointFileLock) {
+    return;
+  }
+
+  try {
+    writingCheckpointFileLock = true;
+    await fs.writeFile(
+      roomResumePositionCheckpointFilePath,
+      JSON.stringify({
+        resumeFromRoomId: trackingResumeFromRoomId
+      })
+    );
+  } catch (err) {
+    logger.error(`Problem persisting checkpoint file to disk`, { exception: err });
+  } finally {
+    writingCheckpointFileLock = false;
+  }
+}, CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL);
+
+async function getRoomIdResumePosition() {
+  try {
+    logger.info(
+      `Trying to read resume information from roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}`
+    );
+    const fileContents = await fs.readFile(roomResumePositionCheckpointFilePath);
+    const checkpointData = JSON.parse(fileContents);
+    return checkpointData.resumeFromRoomId;
+  } catch (err) {
+    logger.error(
+      'Unable to read roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}',
+      {
+        exception: err
+      }
+    );
+  }
+}
+
 // eslint-disable-next-line max-statements
 async function exec() {
   logger.info('Setting up Matrix bridge');
   await installBridge();
 
+  const resumeFromGitterRoomId = await getRoomIdResumePosition();
+  if (resumeFromGitterRoomId) {
+    logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
+  }
+
   const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(({ resumeCursorFromId }) => {
     const gitterRoomCursor = persistence.Troupe.find({
       _id: (() => {
         const idQuery = {};
-        if (resumeCursorFromId) {
-          idQuery['$gt'] = resumeCursorFromId;
+
+        const possibleResumePosition = resumeCursorFromId || resumeFromGitterRoomId;
+        if (possibleResumePosition) {
+          idQuery['$gt'] = possibleResumePosition;
         } else {
           idQuery['$exists'] = true;
         }
@@ -341,6 +426,10 @@ exec()
     logger.error(`Error occurred while backfilling events:`, err.stack);
   })
   .then(async () => {
+    // Stop calculating which room to resume from as the process is stopping and we
+    // don't need to keep track anymore.
+    clearInterval(calculateWhichRoomToResumeFromIntervalId);
+
     // Stop writing the status file so we can cleanly exit
     concurrentQueue.stopPersistLaneStatusInfoToDisk();
     // Write one last time so the "finished" status can be reflected on the dasboard
