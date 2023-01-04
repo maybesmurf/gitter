@@ -68,7 +68,12 @@ function getLaneStatusMessage() {
 
     const progressDecimal = laneStatus.numMessagesImported / laneStatus.numTotalMessagesInRoom;
     const progressBarWidth = 30;
-    const progressBarJuice = '='.repeat(Math.floor(progressBarWidth * progressDecimal));
+    let progressBarJuice;
+    if (isNaN(progressDecimal)) {
+      progressBarJuice = '?'.repeat(progressBarWidth);
+    } else {
+      progressBarJuice = '='.repeat(Math.floor(progressBarWidth * progressDecimal));
+    }
     const progressBarString = `[${progressBarJuice.padEnd(progressBarWidth)}]`;
 
     const durationString = `${formatDurationInMsToPrettyString(
