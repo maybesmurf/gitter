@@ -29,6 +29,10 @@ require('./gitter-to-matrix-historical-import/performance-observer-stats');
 // The number of rooms we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_ROOMS = 64;
 
+// Every N milliseconds, we should track which room we should resume from if the import
+// function errors out.
+const CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL = 5 * 60 * 1000;
+
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const opts = require('yargs')
@@ -57,6 +61,10 @@ const opts = require('yargs')
     type: 'string',
     required: false,
     description: 'The regex filter to match against the room lcUri'
+  })
+  .option('resume-from-gitter-room-id', {
+    type: 'string',
+    description: `The Gitter room ID to start the import from. Usually, you probably won't use this option as you probably want to import everything and there is already a resume mechanism in the worker to keep going if the import ever fails.`
   })
   .help('help')
   .alias('help', 'h').argv;
@@ -176,8 +184,44 @@ matrixHistoricalImportEventEmitter.on('eventImported', ({ gitterRoomId, count })
   });
 });
 
-async function importMessages() {
-  const gitterRoomCursor = persistence.Troupe.find({})
+// We have to be careful and keep this as the oldest room currently being imported . We
+// want to make sure we don't skip over a room that has many many messages just because
+// we imported a bunch of small rooms after in other lanes.
+let trackingResumeFromRoomId;
+// Loop through all of the lanes and find the oldest room ID
+const calculateWhichRoomToResumeFromIntervalId = setInterval(() => {
+  // Get a list of room ID's that the queue is currently working on
+  const roomIds = [];
+  for (let i = 0; i < opts.concurrency; i++) {
+    const laneStatusInfo = concurrentQueue.getLaneStatus(i);
+    const laneWorkingOnGitterRoomId = laneStatusInfo.gitterRoom && laneStatusInfo.gitterRoom.id;
+    roomIds.push(laneWorkingOnGitterRoomId);
+  }
+
+  // Sort the list so the oldest room is sorted first
+  const chronologicalSortedRoomIds = roomIds.sort((a, b) => {
+    const aTimestamp = mongoUtils.getDateFromObjectId(a);
+    const bTimestamp = mongoUtils.getDateFromObjectId(b);
+    return aTimestamp - bTimestamp;
+  });
+
+  // Take the oldest event in the list
+  trackingResumeFromRoomId = chronologicalSortedRoomIds[0];
+}, CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL);
+
+async function importMessages({ resumeFromRoomId }) {
+  const gitterRoomCursor = persistence.Troupe.find({
+    _id: (() => {
+      const idQuery = {};
+      if (resumeFromRoomId) {
+        idQuery['$gt'] = resumeFromRoomId;
+      } else {
+        idQuery['$exists'] = true;
+      }
+
+      return idQuery;
+    })()
+  })
     // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
     .sort({ _id: 'asc' })
     .lean()
@@ -305,15 +349,20 @@ async function exec() {
   let finishedImporting = false;
   while (!finishedImporting) {
     // Keep trying whenever we fail. For example, this could be a `MongoError: Cursor
-    // not found, cursor id: 000` where all lanes were busy importing messages and by
-    // the time we come back and try to paginate the cursor to find the  next room, the
-    // cursor is gone.
+    // not found, cursor id: 000` where all lanes were busy importing messages for a
+    // while and by the time we come back and try to paginate the cursor to find the
+    // next room, the cursor is gone.
     try {
-      finishedImporting = await importMessages();
+      // TODO: Add some abort mechanism for the currently running lanes
+      finishedImporting = await importMessages({
+        resumeFromRoomId: trackingResumeFromRoomId || opts.resumeFromGitterRoomId
+      });
     } catch (err) {
       logger.error('Import process failed', {
         exception: err
       });
+
+      // TODO: Update stat for dashboard
     }
   }
 }
@@ -328,6 +377,10 @@ exec()
     logger.error(`Error occurred while backfilling events:`, err.stack);
   })
   .then(async () => {
+    // Stop calculating which room to resume from as the process is stopping and we
+    // don't need to keep track anymore.
+    clearInterval(calculateWhichRoomToResumeFromIntervalId);
+
     // Stop writing the status file so we can cleanly exit
     concurrentQueue.stopPersistLaneStatusInfoToDisk();
     // Write one last time so the "finished" status can be reflected on the dasboard
