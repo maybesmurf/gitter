@@ -33,8 +33,8 @@ class ConcurrentQueue {
     for (let laneIndex = 0; laneIndex < this.concurrency; laneIndex++) {
       this._laneStatusInfo.lanes[laneIndex] = {
         laneDone: false,
-        laneStartWaitingForNewItemTs: null,
-        laneEndWaitingForNewItemTs: null
+        laneStartWaitingForNextItemTs: null,
+        laneEndWaitingForNextItemTs: null
       };
     }
 
@@ -64,12 +64,12 @@ class ConcurrentQueue {
         typeof isGeneratorDone === 'boolean'
       ) {
         this.updateLaneStatus(laneIndex, {
-          laneStartWaitingForNewItemTs: Date.now(),
-          laneEndWaitingForNewItemTs: null
+          laneStartWaitingForNextItemTs: Date.now(),
+          laneEndWaitingForNextItemTs: null
         });
         const nextIteratorResult = await itemGenerator.next();
         this.updateLaneStatus(laneIndex, {
-          laneEndWaitingForNewItemTs: Date.now()
+          laneEndWaitingForNextItemTs: Date.now()
         });
         const { value: item, done } = nextIteratorResult;
         isGeneratorDone = done;

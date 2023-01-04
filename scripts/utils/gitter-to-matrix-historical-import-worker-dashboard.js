@@ -55,9 +55,9 @@ function getLaneStatusMessage() {
       return `${laneString}: No more rooms for this lane to pick-up ✅`;
     }
 
-    if (!laneStatus.laneEndWaitingForNewItemTs) {
+    if (!laneStatus.laneEndWaitingForNextItemTs) {
       return `${laneString}: Waiting for next room to process ${formatDurationInMsToPrettyString(
-        laneStatusInfo.writeTs - laneStatus.laneStartWaitingForNewItemTs
+        laneStatusInfo.writeTs - laneStatus.laneStartWaitingForNextItemTs
       )}`;
     }
 
@@ -83,7 +83,7 @@ function getLaneStatusMessage() {
     )}`;
 
     const waitForItemDurationString = `${formatDurationInMsToPrettyString(
-      laneStatus.laneEndWaitingForNewItemTs - laneStatus.laneStartWaitingForNewItemTs
+      laneStatus.laneEndWaitingForNextItemTs - laneStatus.laneStartWaitingForNextItemTs
     )}`;
 
     return `${laneString}: ${progressBarString} ${progressString} ${gitterRoomString} - ${durationString} (waited ${waitForItemDurationString})`;
