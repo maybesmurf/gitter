@@ -324,7 +324,7 @@ function makeLastModifiedUpdater(Model) {
 
 async function* iterableFromMongooseCursor(cursor) {
   let doc = await cursor.next();
-  while (doc !== null) {
+  while (doc !== null && doc !== undefined) {
     yield doc;
     doc = await cursor.next();
   }
@@ -385,7 +385,7 @@ async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
 
   let doc = await cursor.next();
   runningNumberOfDocsSinceCursorCreation++;
-  while (doc !== null) {
+  while (doc !== null && doc !== undefined) {
     yield doc;
 
     // If we're able to pull more than the cursor `batchSize` number of documents from a
