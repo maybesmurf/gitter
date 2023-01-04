@@ -40,6 +40,10 @@ const DB_READ_PREFERENCE =
   config.get('gitterToMatrixHistoricalImport:databaseReadPreference') ||
   mongoReadPrefs.secondaryPreferred;
 
+logger.info(
+  `Using DB_READ_PREFERENCE=${DB_READ_PREFERENCE} to read from MongoDB during this import process`
+);
+
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const opts = require('yargs')
