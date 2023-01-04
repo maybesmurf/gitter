@@ -1,5 +1,6 @@
 'use strict';
 
+const assert = require('assert');
 var _ = require('lodash');
 var Promise = require('bluebird');
 var mongoose = require('gitter-web-mongoose-bluebird');
@@ -329,6 +330,61 @@ async function* iterableFromMongooseCursor(cursor) {
   }
 }
 
+// The default cursor timeout is 600,000ms (10 minutes)
+const MONGO_CURSOR_TIMEOUT_MS = 600000;
+// How much time can be left on the cursor before we try creating a new one
+const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 3 * 60 * 1000;
+
+// Creates an iterable that strives to avoid pre-emptively avoid cursor timeout or
+// cursor not found errors.
+// ex.
+// ```
+// const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(({ resumeCursorFromId }) => {
+//   const gitterRoomCursor = persistence.Troupe.find({
+//     _id: (() => {
+//       const idQuery = {};
+//       if (resumeCursorFromId) {
+//         idQuery['$gt'] = resumeCursorFromId;
+//       } else {
+//         idQuery['$exists'] = true;
+//       }
+//
+//       return idQuery;
+//     })()
+//   })
+//     .lean()
+//     .read(mongoReadPrefs.secondaryPreferred)
+//     .batchSize(20)
+//     .cursor();
+//
+//   return gitterRoomCursor;
+// });
+// ```
+//
+// XXX: Should this just be the default implementation of `iterableFromMongooseCursor`?
+// We would need to refactor those usages to give us a function
+async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
+  assert(typeof cursorCreationCb === 'function');
+
+  let cursorCreationTs = Date.now();
+  let cursor = cursorCreationCb({ resumeCursorFromId: null });
+
+  let doc = await cursor.next();
+  while (doc !== null) {
+    yield doc;
+
+    // If it has been too long, create a new cursor
+    if (
+      Date.now() - cursorCreationTs >=
+      MONGO_CURSOR_TIMEOUT_MS - CURSOR_TIMEOUT_SAFE_THRESHOLD_MS
+    ) {
+      cursor = cursorCreationCb({ resumeCursorFromId: doc.id || doc._id });
+    }
+
+    doc = await cursor.next();
+  }
+}
+
 module.exports = {
   attachNotificationListenersToSchema: attachNotificationListenersToSchema,
   leanUpsert: leanUpsert,
@@ -342,5 +398,6 @@ module.exports = {
   getEstimatedCountForId: getEstimatedCountForId,
   getEstimatedCountForIds: getEstimatedCountForIds,
   makeLastModifiedUpdater: makeLastModifiedUpdater,
-  iterableFromMongooseCursor
+  iterableFromMongooseCursor,
+  noTimeoutIterableFromMongooseCursor
 };
