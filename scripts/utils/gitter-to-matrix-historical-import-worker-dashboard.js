@@ -69,7 +69,7 @@ function getLaneStatusMessage() {
     const progressDecimal = laneStatus.numMessagesImported / laneStatus.numTotalMessagesInRoom;
     const progressBarWidth = 30;
     let progressBarJuice;
-    if (isNaN(progressDecimal)) {
+    if (isNaN(progressDecimal) || !isFinite(progressDecimal)) {
       progressBarJuice = '?'.repeat(progressBarWidth);
     } else {
       progressBarJuice = '='.repeat(Math.floor(progressBarWidth * progressDecimal));
