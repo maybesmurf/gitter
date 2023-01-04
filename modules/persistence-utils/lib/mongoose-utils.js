@@ -368,6 +368,10 @@ const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 3 * 60 * 1000;
 async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
   assert(typeof cursorCreationCb === 'function');
 
+  // We record the time just before creating the cursor instead of after for extra
+  // safety in case there is a large pause between when the cursor is actually created
+  // in the database vs when we move on here (also keep in mind GC pauses, etc -
+  // Designing data-intentsive applications, Martin Kleppmann);
   let cursorCreationTs = Date.now();
   let cursor = cursorCreationCb({ resumeCursorFromId: null });
 
@@ -380,6 +384,7 @@ async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
       Date.now() - cursorCreationTs >=
       MONGO_CURSOR_TIMEOUT_MS - CURSOR_TIMEOUT_SAFE_THRESHOLD_MS
     ) {
+      cursorCreationTs = Date.now();
       cursor = cursorCreationCb({ resumeCursorFromId: doc.id || doc._id });
     }
 
