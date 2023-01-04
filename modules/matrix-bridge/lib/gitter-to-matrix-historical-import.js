@@ -53,12 +53,27 @@ shutdown.addHandler('matrix-bridge-batch-import', 20, async callback => {
   callback();
 });
 
-function sampledPerformance(frequency) {
+function sampledPerformance({
+  // Only actually record metrics at this frequency
+  frequency,
+  // Something unique for this scope so we don't collide with other async things going on
+  markSuffix
+}) {
+  assert(frequency);
+  assert(markSuffix);
+
   if (Math.random() < frequency) {
     return {
-      performanceMark: performance.mark.bind(performance),
-      performanceClearMarks: performance.clearMarks.bind(performance),
-      performanceMeasure: performance.measure.bind(performance)
+      performanceMark: (name, markOptions) => {
+        performance.mark(`${name}${markSuffix}`, markOptions);
+      },
+      performanceClearMarks: name => {
+        assert(name);
+        performance.clearMarks(`${name}${markSuffix}`);
+      },
+      performanceMeasure: (measureName, startMark, endMark) => {
+        performance.measure(measureName, `${startMark}${markSuffix}`, `${endMark}${markSuffix}`);
+      }
     };
   }
 
@@ -273,9 +288,10 @@ async function importFromChatMessageStreamIterable({
       }
 
       // To avoid spamming our stats server, only send stats 1/N of the time
-      const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance(
-        METRIC_SAMPLE_RATIO
-      );
+      const { performanceMark, performanceClearMarks, performanceMeasure } = sampledPerformance({
+        frequency: METRIC_SAMPLE_RATIO,
+        markSuffix: gitterMessageId
+      });
 
       performanceMark(`importMessageStart`);
       if (!message.fromUserId) {
