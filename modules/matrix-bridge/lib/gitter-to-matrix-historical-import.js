@@ -497,7 +497,7 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
         _id: (() => {
           const idQuery = {};
           // Where to resume from
-          if (gitterMessageIdToResumeFrom) {
+          if (resumeCursorFromId || gitterMessageIdToResumeFrom) {
             idQuery['$gt'] = resumeCursorFromId || gitterMessageIdToResumeFrom;
           }
           // Where we should stop importing at because the live room will pick up from this point
@@ -506,7 +506,7 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
           }
 
           // If we haven't imported any history yet, just fallback to an `exists` (get all messages)
-          if (!gitterMessageIdToResumeFrom && !gitterMessageIdToStopImportingAt) {
+          if (!idQuery['$gt'] && !idQuery['$lt']) {
             idQuery['$exists'] = true;
           }
 
