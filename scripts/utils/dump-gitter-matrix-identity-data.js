@@ -12,31 +12,63 @@ const { writeFile, appendFile } = require('fs').promises;
 const env = require('gitter-web-env');
 const logger = env.logger;
 const persistence = require('gitter-web-persistence');
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
-const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
+const {
+  noTimeoutIterableFromMongooseCursor
+} = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const identityService = require('gitter-web-identity');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
+const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 
 const DB_BATCH_SIZE_FOR_USERS = 256;
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const opts = require('yargs')
+  .option('concurrency', {
+    type: 'number',
+    required: true,
+    description: 'Number of users to process at once'
+  })
   .option('resume-from-gitter-user-id', {
     type: 'string',
     description:
       'The Gitter user ID to start the incremental dump from. Otherwise will dump everything available in the database.'
   })
+  // Worker index option to only process rooms which evenly divide against that index
+  // (partition) (make sure to update the `laneStatusFilePath` to be unique from other
+  // workers)
+  .option('worker-index', {
+    type: 'number',
+    description:
+      '1-based index of the worker (should be unique across all workers) to only process the subset of rooms where the ID evenly divides (partition). If not set, this should be the only worker across the whole environment.'
+  })
+  .option('worker-total', {
+    type: 'number',
+    description:
+      'The total number of workers. We will partition based on this number `(id % workerTotal) === workerIndex ? doWork : pass`'
+  })
   .help('help')
   .alias('help', 'h').argv;
+
+if (opts.workerIndex && opts.workerIndex <= 0) {
+  throw new Error(`opts.workerIndex=${opts.workerIndex} must start at 1`);
+}
+if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
+  throw new Error(
+    `opts.workerIndex=${opts.workerIndex} can not be higher than opts.workerTotal=${opts.workerTotal}`
+  );
+}
 
 const tempDirectory = path.join(os.tmpdir(), 'gitter-matrix-identity-data-dump');
 mkdirp.sync(tempDirectory);
 const dataDumpFilePath = path.join(
   tempDirectory,
-  `./gitter-matrix-identity-data-dump-${Date.now()}.ndjson`
+  `./gitter-matrix-identity-data-dump-${opts.workerIndex || ''}-${opts.workerTotal ||
+    ''}-${Date.now()}.ndjson`
 );
 logger.info(`Writing to data dump to dataDumpFilePath=${dataDumpFilePath}`);
 
@@ -50,6 +82,14 @@ async function appendToDataDumpFile(dataList) {
 
   return appendFile(dataDumpFilePath, ndJsonString);
 }
+
+const concurrentQueue = new ConcurrentQueue({
+  concurrency: opts.concurrency,
+  itemIdGetterFromItem: gitterRoom => {
+    const gitterRoomId = gitterRoom.id || gitterRoom._id;
+    return String(gitterRoomId);
+  }
+});
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -72,32 +112,60 @@ async function exec() {
   logger.info('Setting up Matrix bridge');
   stopBridge = await installBridge();
 
-  const gitterUserCursor = persistence.User.find({
-    _id: (() => {
-      const idQuery = {};
-      // Resume position to make incremental dump
-      if (opts.resumeFromGitterUserId) {
-        idQuery['$gt'] = opts.resumeFromGitterUserId;
-      } else {
-        idQuery['$exists'] = true;
+  const gitterUserStreamIterable = noTimeoutIterableFromMongooseCursor(({ resumeCursorFromId }) => {
+    const gitterUserCursor = persistence.User.find({
+      _id: (() => {
+        const idQuery = {};
+
+        const possibleResumePosition =
+          resumeCursorFromId ||
+          // Resume position to make incremental dump
+          opts.resumeFromGitterUserId;
+        if (possibleResumePosition) {
+          idQuery['$gt'] = possibleResumePosition;
+        } else {
+          idQuery['$exists'] = true;
+        }
+
+        return idQuery;
+      })()
+    })
+      // Go from oldest to most recent for a consistent incremental dump
+      .sort({ _id: 'asc' })
+      .lean()
+      .read(mongoReadPrefs.secondaryPreferred)
+      .batchSize(DB_BATCH_SIZE_FOR_USERS)
+      .cursor();
+
+    return { cursor: gitterUserCursor, batchSize: DB_BATCH_SIZE_FOR_USERS };
+  });
+
+  let runningDataList = [];
+  await concurrentQueue.processFromGenerator(
+    gitterUserStreamIterable,
+    // User filter
+    gitterUser => {
+      const gitterUserId = gitterUser.id || gitterUser._id;
+
+      // If we're in worker mode, only process a sub-section of the roomID's.
+      // We partition based on part of the Mongo ObjectID.
+      if (opts.workerIndex && opts.workerTotal) {
+        // Partition based on the incrementing value part of the Mongo ObjectID. We
+        // can't just `parseInt(objectId, 16)` because the number is bigger than 64-bit
+        // (12 bytes is 96 bits) and we will lose precision
+        const { incrementingValue } = mongoUtils.splitMongoObjectIdIntoPieces(gitterUserId);
+
+        const shouldBeProcessedByThisWorker =
+          incrementingValue % opts.workerTotal === opts.workerIndex - 1;
+        return shouldBeProcessedByThisWorker;
       }
 
-      return idQuery;
-    })()
-  })
-    // Go from oldest to most recent for a consistent incremental dump
-    .sort({ _id: 'asc' })
-    .lean()
-    .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(DB_BATCH_SIZE_FOR_USERS)
-    .cursor();
-  const gitterUserStreamIterable = iterableFromMongooseCursor(gitterUserCursor);
+      return true;
+    },
+    // Process function
+    async ({ value: gitterUser, laneIndex }) => {
+      const gitterUserId = gitterUser.id || gitterUser._id;
 
-  const failedItemIds = [];
-  let runningDataList = [];
-  for await (let gitterUser of gitterUserStreamIterable) {
-    const gitterUserId = gitterUser.id || gitterUser._id;
-    try {
       // Ensure that there is an associated Matrix user for Gitter user. This way there is
       // some MXID for us to insert the Synapse `user_external_ids` data for.
       const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
@@ -114,6 +182,9 @@ async function exec() {
       };
       runningDataList.push(data);
 
+      // Even though this is running in a "concurrent" queue, Node.js is single threaded
+      // and we can safely just run this at whatever point we want and reset it without
+      // worry about duplicating the output or losing data.
       if (runningDataList.length >= 100) {
         await appendToDataDumpFile(runningDataList);
 
@@ -124,11 +195,8 @@ async function exec() {
         // Reset after we've persisted this info
         runningDataList = [];
       }
-    } catch (err) {
-      logger.error(`Failed to process gitterUserId=${gitterUserId}`, err.stack);
-      failedItemIds.push(gitterUserId);
     }
-  }
+  );
 
   // Append the last leftover info
   if (runningDataList.length >= 0) {
@@ -141,6 +209,7 @@ async function exec() {
   // on the same line as the .....
   rl.write('\n');
 
+  const failedItemIds = concurrentQueue.getFailedItemIds();
   if (failedItemIds.length === 0) {
     logger.info(`Successfully dumped all users with no errors`);
   } else {

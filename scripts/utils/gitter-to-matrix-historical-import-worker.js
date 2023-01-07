@@ -92,47 +92,6 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   );
 }
 
-// Handles numbers bigger than 64-bit
-function hexToByteArray(hexInput) {
-  // For each hex character, convert it to it's binary form
-  const binaryForCharList = hexInput.split('').map(hexChar => {
-    const decimalChar = parseInt(hexChar.toUpperCase(), 16);
-
-    if (Number.isNaN(decimalChar)) {
-      throw new Error(`Unexpected character ${hexChar} that is not hex`);
-    }
-
-    return decimalChar.toString(2).padStart(4, '0');
-  });
-
-  // Turn it into one big long binary string
-  const binaryString = binaryForCharList.join('');
-
-  // Convert into a byte list
-  const byteArray = binaryString.match(/.{8}/g);
-
-  return byteArray;
-}
-
-function splitMongoObjectIdIntoPieces(objectId) {
-  const stringifiedObjectId = String(objectId);
-  // We can't just `parseInt(objectId, 16)` because the number is bigger than 64-bit and we
-  // will lose precision
-  const byteArray = hexToByteArray(stringifiedObjectId);
-
-  // The 12-byte ObjectId consists of:
-  return {
-    // A 4-byte timestamp, representing the ObjectId's creation, measured in seconds
-    // since the Unix epoch.
-    timestampSecondsPiece: parseInt(byteArray.slice(0, 4).join(''), 2),
-    // A 5-byte random value generated once per process. This random value is unique to
-    // the machine and process.
-    randomValuePerProcess: parseInt(byteArray.slice(4, 9).join(''), 2),
-    // A 3-byte incrementing counter, initialized to a random value.
-    incrementingValue: parseInt(byteArray.slice(9, 12).join(''), 2)
-  };
-}
-
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
   itemIdGetterFromItem: gitterRoom => {
@@ -330,7 +289,7 @@ async function exec() {
         // Partition based on the incrementing value part of the Mongo ObjectID. We
         // can't just `parseInt(objectId, 16)` because the number is bigger than 64-bit
         // (12 bytes is 96 bits) and we will lose precision
-        const { incrementingValue } = splitMongoObjectIdIntoPieces(gitterRoomId);
+        const { incrementingValue } = mongoUtils.splitMongoObjectIdIntoPieces(gitterRoomId);
 
         const shouldBeProcessedByThisWorker =
           incrementingValue % opts.workerTotal === opts.workerIndex - 1;
