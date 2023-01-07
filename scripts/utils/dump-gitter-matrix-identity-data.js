@@ -186,14 +186,18 @@ async function exec() {
       // and we can safely just run this at whatever point we want and reset it without
       // worry about duplicating the output or losing data.
       if (runningDataList.length >= 100) {
-        await appendToDataDumpFile(runningDataList);
+        // Copy the data we want to persist and reset the list before we do the async
+        // `appendToDataDumpFile` call to avoid the length condition above being true
+        // for multiple concurrent things while we persist and end-up duplicating data
+        // in the dump.
+        const dataToPersist = runningDataList;
+        runningDataList = [];
+
+        await appendToDataDumpFile(dataToPersist);
 
         // Write a dot to the console to let them know that the script is still chugging
         // successfully
         rl.write('.');
-
-        // Reset after we've persisted this info
-        runningDataList = [];
       }
     }
   );
