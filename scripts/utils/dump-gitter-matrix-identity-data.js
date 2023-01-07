@@ -163,7 +163,7 @@ async function exec() {
       return true;
     },
     // Process function
-    async ({ value: gitterUser, laneIndex }) => {
+    async ({ value: gitterUser /*, laneIndex */ }) => {
       const gitterUserId = gitterUser.id || gitterUser._id;
 
       // Ensure that there is an associated Matrix user for Gitter user. This way there is
