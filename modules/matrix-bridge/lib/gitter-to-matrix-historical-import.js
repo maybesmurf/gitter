@@ -211,11 +211,11 @@ async function importThreadReplies({
   //assert(stopAtMessageId);
 
   const threadReplyMessageStreamIterable = noTimeoutIterableFromMongooseCursor(
-    ({ resumeCursorFromId }) => {
+    ({ previousIdFromCursor }) => {
       const threadReplyMessageCursor = persistence.ChatMessage.find({
         _id: (() => {
           const idQuery = {
-            $gt: resumeCursorFromId || resumeFromMessageId
+            $gt: previousIdFromCursor || resumeFromMessageId
           };
 
           if (stopAtMessageId) {
@@ -451,12 +451,12 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   const lastBridgedMessageEntryInHistoricalRoom = await findLatestBridgedMessageInRoom(
     matrixHistoricalRoomId
   );
-  const gitterMessageIdToResumeFrom =
+  const lastGitterMessageIdThatWasImported =
     lastBridgedMessageEntryInHistoricalRoom &&
     lastBridgedMessageEntryInHistoricalRoom.gitterMessageId;
-  if (gitterMessageIdToResumeFrom) {
+  if (lastGitterMessageIdThatWasImported) {
     debug(
-      `Resuming from gitterMessageIdToResumeFrom=${gitterMessageIdToResumeFrom} matrixEventId=${lastBridgedMessageEntryInHistoricalRoom.matrixEventId} (matrixHistoricalRoomId=${matrixHistoricalRoomId})`
+      `Resuming from lastGitterMessageIdThatWasImported=${lastGitterMessageIdThatWasImported} matrixEventId=${lastBridgedMessageEntryInHistoricalRoom.matrixEventId} (matrixHistoricalRoomId=${matrixHistoricalRoomId})`
     );
   }
 
@@ -473,16 +473,18 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
   // If we see that the resume position is a thread reply or we stopped at a thread
   // parent, then we need to finish off that thread first before moving on to the main
   // messages again. We must have failed out in the middle of the thread before.
-  if (gitterMessageIdToResumeFrom) {
-    const gitterMessageToResumeFrom = await chatService.findByIdLean(gitterMessageIdToResumeFrom);
-    const isInThread = gitterMessageToResumeFrom.parentId;
-    const isThreadParent = gitterMessageToResumeFrom.threadMessageCount > 0;
+  if (lastGitterMessageIdThatWasImported) {
+    const lastGitterMessageThatWasImported = await chatService.findByIdLean(
+      lastGitterMessageIdThatWasImported
+    );
+    const isInThread = lastGitterMessageThatWasImported.parentId;
+    const isThreadParent = lastGitterMessageThatWasImported.threadMessageCount > 0;
 
     let threadParentId;
     if (isThreadParent) {
-      threadParentId = gitterMessageToResumeFrom.id || gitterMessageToResumeFrom._id;
+      threadParentId = lastGitterMessageThatWasImported.id || lastGitterMessageThatWasImported._id;
     } else if (isInThread) {
-      threadParentId = gitterMessageToResumeFrom.parentId;
+      threadParentId = lastGitterMessageThatWasImported.parentId;
     }
 
     if (threadParentId) {
@@ -496,14 +498,14 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
         matrixHistoricalRoomId,
         threadParentId,
         // Resume and finish importing the thread we left off at
-        resumeFromMessageId: gitterMessageIdToResumeFrom,
+        resumeFromMessageId: lastGitterMessageIdThatWasImported,
         stopAtMessageId: gitterMessageIdToStopImportingAt
       });
     }
   }
 
   const chatMessageStreamIterable = noTimeoutIterableFromMongooseCursor(
-    ({ resumeCursorFromId }) => {
+    ({ previousIdFromCursor }) => {
       // Grab a cursor stream of all of the main messages in the room (no thread replies).
       // Resume from where we left off importing last time and stop when we reach the point
       // where the live room will continue seamlessly.
@@ -512,8 +514,8 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
         _id: (() => {
           const idQuery = {};
           // Where to resume from
-          if (resumeCursorFromId || gitterMessageIdToResumeFrom) {
-            idQuery['$gt'] = resumeCursorFromId || gitterMessageIdToResumeFrom;
+          if (previousIdFromCursor || lastGitterMessageIdThatWasImported) {
+            idQuery['$gt'] = previousIdFromCursor || lastGitterMessageIdThatWasImported;
           }
           // Where we should stop importing at because the live room will pick up from this point
           if (gitterMessageIdToStopImportingAt) {

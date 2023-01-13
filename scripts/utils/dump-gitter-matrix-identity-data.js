@@ -112,33 +112,35 @@ async function exec() {
   logger.info('Setting up Matrix bridge');
   stopBridge = await installBridge();
 
-  const gitterUserStreamIterable = noTimeoutIterableFromMongooseCursor(({ resumeCursorFromId }) => {
-    const gitterUserCursor = persistence.User.find({
-      _id: (() => {
-        const idQuery = {};
+  const gitterUserStreamIterable = noTimeoutIterableFromMongooseCursor(
+    ({ previousIdFromCursor }) => {
+      const gitterUserCursor = persistence.User.find({
+        _id: (() => {
+          const idQuery = {};
 
-        const possibleResumePosition =
-          resumeCursorFromId ||
-          // Resume position to make incremental dump
-          opts.resumeFromGitterUserId;
-        if (possibleResumePosition) {
-          idQuery['$gt'] = possibleResumePosition;
-        } else {
-          idQuery['$exists'] = true;
-        }
+          const lastIdThatWasProcessed =
+            previousIdFromCursor ||
+            // Resume position to make incremental dump
+            opts.resumeFromGitterUserId;
+          if (lastIdThatWasProcessed) {
+            idQuery['$gt'] = lastIdThatWasProcessed;
+          } else {
+            idQuery['$exists'] = true;
+          }
 
-        return idQuery;
-      })()
-    })
-      // Go from oldest to most recent for a consistent incremental dump
-      .sort({ _id: 'asc' })
-      .lean()
-      .read(mongoReadPrefs.secondaryPreferred)
-      .batchSize(DB_BATCH_SIZE_FOR_USERS)
-      .cursor();
+          return idQuery;
+        })()
+      })
+        // Go from oldest to most recent for a consistent incremental dump
+        .sort({ _id: 'asc' })
+        .lean()
+        .read(mongoReadPrefs.secondaryPreferred)
+        .batchSize(DB_BATCH_SIZE_FOR_USERS)
+        .cursor();
 
-    return { cursor: gitterUserCursor, batchSize: DB_BATCH_SIZE_FOR_USERS };
-  });
+      return { cursor: gitterUserCursor, batchSize: DB_BATCH_SIZE_FOR_USERS };
+    }
+  );
 
   let runningDataList = [];
   await concurrentQueue.processFromGenerator(
