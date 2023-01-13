@@ -100,6 +100,11 @@ async function exec() {
     gitterUser => {
       const gitterUserId = gitterUser.id || gitterUser._id;
 
+      // We only want to process ghosted users
+      if (!gitterUser.username.startsWith('ghost~')) {
+        return false;
+      }
+
       // If we're in worker mode, only process a sub-section of the roomID's.
       // We partition based on part of the Mongo ObjectID.
       if (opts.workerIndex && opts.workerTotal) {
