@@ -18,6 +18,9 @@ const mongooseUtils = require('gitter-web-persistence-utils/lib/mongoose-utils')
 const {
   noTimeoutIterableFromMongooseCursor
 } = require('gitter-web-persistence-utils/lib/mongoose-utils');
+const groupService = require('gitter-web-groups');
+const troupeService = require('gitter-web-rooms/lib/troupe-service');
+
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
@@ -26,7 +29,6 @@ const {
   matrixHistoricalImportEventEmitter
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
-const troupeService = require('gitter-web-rooms/lib/troupe-service');
 // Setup stat logging
 require('./gitter-to-matrix-historical-import/performance-observer-stats');
 
@@ -236,6 +238,9 @@ async function exec() {
   logger.info('Setting up Matrix bridge');
   await installBridge();
 
+  const matrixDmGroupUri = 'matrix';
+  const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
+
   const resumeFromGitterRoomId = await getRoomIdResumePosition();
   if (resumeFromGitterRoomId) {
     logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
@@ -269,6 +274,7 @@ async function exec() {
   await concurrentQueue.processFromGenerator(
     gitterRoomStreamIterable,
     // Room filter
+    // eslint-disable-next-line complexity
     gitterRoom => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
@@ -281,6 +287,16 @@ async function exec() {
           return false;
         }
         // Otherwise fall-through to the next filter
+      }
+
+      // Ignore Matrix DMs, rooms under the matrix/ group (matrixDmGroupUri). By their
+      // nature, they have been around since the Matrix bridge so there is nothing to
+      // import.
+      if (
+        matrixDmGroup &&
+        mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
+      ) {
+        return false;
       }
 
       // If we're in worker mode, only process a sub-section of the roomID's.
