@@ -149,9 +149,6 @@ async function exec() {
     gitterUser => {
       const gitterUserId = gitterUser.id || gitterUser._id;
 
-      // TODO: Add option to only dump ghosted users since we're recreating their MXID's
-      // in some cases
-
       // If we're in worker mode, only process a sub-section of the roomID's.
       // We partition based on part of the Mongo ObjectID.
       if (opts.workerIndex && opts.workerTotal) {
