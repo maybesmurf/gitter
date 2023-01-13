@@ -342,12 +342,12 @@ const CURSOR_TIMEOUT_SAFE_THRESHOLD_MS = 2 * 60 * 1000;
 //
 // ex.
 // ```
-// const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(({ resumeCursorFromId }) => {
+// const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(({ previousIdFromCursor }) => {
 //   const gitterRoomCursor = persistence.Troupe.find({
 //     _id: (() => {
 //       const idQuery = {};
-//       if (resumeCursorFromId) {
-//         idQuery['$gt'] = resumeCursorFromId;
+//       if (previousIdFromCursor) {
+//         idQuery['$gt'] = previousIdFromCursor;
 //       } else {
 //         idQuery['$exists'] = true;
 //       }
@@ -377,7 +377,7 @@ async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
   // in the database vs when we move on here (also keep in mind GC pauses, etc -
   // Designing data-intentsive applications, Martin Kleppmann);
   let cursorRefreshTs = Date.now();
-  let { cursor, batchSize } = cursorCreationCb({ resumeCursorFromId: null });
+  let { cursor, batchSize } = cursorCreationCb({ previousIdFromCursor: null });
   assert(cursor);
   assert(batchSize > 0);
 
@@ -406,7 +406,7 @@ async function* noTimeoutIterableFromMongooseCursor(cursorCreationCb) {
       await cursor.close();
 
       cursorRefreshTs = Date.now();
-      ({ cursor, batchSize } = cursorCreationCb({ resumeCursorFromId: doc.id || doc._id }));
+      ({ cursor, batchSize } = cursorCreationCb({ previousIdFromCursor: doc.id || doc._id }));
       assert(cursor);
       assert(batchSize > 0);
       // Reset since we're back to a new cursor again
