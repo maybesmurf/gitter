@@ -10,13 +10,20 @@ const config = env.config;
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const {
+  noTimeoutIterableFromMongooseCursor
+} = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const persistence = require('gitter-web-persistence');
+const groupService = require('gitter-web-groups');
 const roomMembershipService = require('gitter-web-rooms/lib/room-membership-service');
+const policyFactory = require('gitter-web-permissions/lib/policy-factory');
+
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const parseGitterMxid = require('gitter-web-matrix-bridge/lib/parse-gitter-mxid');
+const { ROOM_ADMIN_POWER_LEVEL } = require('gitter-web-matrix-bridge/lib/constants');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 
 const configuredServerName = config.get('matrix:bridge:serverName');
@@ -57,6 +64,7 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   );
 }
 
+// eslint-disable-next-line max-statements
 async function syncRoomMembershipForBridgedRoom(bridgedRoomEntry) {
   const gitterRoomId = bridgedRoomEntry.troupeId;
   assert(gitterRoomId);
@@ -81,6 +89,7 @@ async function syncRoomMembershipForBridgedRoom(bridgedRoomEntry) {
 
     const gitterUserId = await matrixStore.getGitterUserIdByMatrixUserId(mxid);
 
+    // Or `roomMembershipService.findUserMembershipInRooms`
     const isGitterRoomMember = await roomMembershipService.checkRoomMembership(
       gitterRoomId,
       gitterUserId
@@ -90,14 +99,14 @@ async function syncRoomMembershipForBridgedRoom(bridgedRoomEntry) {
 
     // Remove from Matrix room if they are no longer part of the room on Gitter
     if (!isGitterRoomMember) {
-      const intent = this.matrixBridge.getIntent(mxid);
-      // TODO: We might as well leave the "live" room and the historical room at the same time
+      const intent = matrixBridge.getIntent(mxid);
+      // XXX: Can we possibly de-duplicate some work and also join the historical room?
       await intent.leave(matrixRoomId);
     }
   }
 
   const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
-    ({ resumeCursorFromId }) => {
+    (/*{ resumeCursorFromId }*/) => {
       const messageCursor = persistence.TroupeUser.find(
         {
           gitterRoomId
@@ -122,13 +131,45 @@ async function syncRoomMembershipForBridgedRoom(bridgedRoomEntry) {
   // Loop through all members of the Gitter room, add anyone who is not already present.
   for await (const gitterRoomMemberUserId of gitterMembershipStreamIterable) {
     console.log('gitterRoomMemberUserId TODO: is this a user ID?', gitterRoomMemberUserId);
+
+    const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+      gitterRoomMemberUserId
+    );
+
     // We can skip if we already know the Gitter user is joined to the Matrix room from the
     // previous loop
-    if (alreadyJoinedGitterUserIdsToMatrixRoom[gitterRoomMemberUserId]) {
-      continue;
+    if (!alreadyJoinedGitterUserIdsToMatrixRoom[gitterRoomMemberUserId]) {
+      // Join Gitter user to the "live" room
+      const intent = matrixBridge.getIntent(gitterUserMxid);
+      // XXX: Can we possibly de-duplicate some work and also join the historical room?
+      await intent.join(matrixRoomId);
     }
 
-    // TODO: Join Gitter user to the "live" and historical Matrix room
+    // These stubs are hacks knowing how `createPolicyForRoom` works to save the lookup
+    const stubbedGitterUser = {
+      _id: gitterRoomMemberUserId
+    };
+    const stubbedGitterRoom = {
+      _id: gitterRoomId
+    };
+    const policy = policyFactory.createPolicyForRoom(stubbedGitterUser, stubbedGitterRoom);
+    const canAdmin = policy.canAdmin();
+    if (canAdmin) {
+      const bridgeIntent = matrixBridge.getIntent();
+      const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+        matrixRoomId,
+        'm.room.power_levels'
+      );
+
+      // Update power-level to allow this user to admin the room
+      await matrixUtils.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+        ...currentPowerLevelContent,
+        users: {
+          ...(currentPowerLevelContent.users || {}),
+          [gitterUserMxid]: ROOM_ADMIN_POWER_LEVEL
+        }
+      });
+    }
   }
 }
 
@@ -144,6 +185,9 @@ const concurrentQueue = new ConcurrentQueue({
 async function exec() {
   logger.info('Setting up Matrix bridge');
   await installBridge();
+
+  const matrixDmGroupUri = 'matrix';
+  const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
 
   const bridgedMatrixRoomCursor = persistence.MatrixBridgedRoom.find({})
     // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
@@ -172,10 +216,21 @@ async function exec() {
         return shouldBeProcessedByThisWorker;
       }
 
-      // TODO: We don't need to process ONE_TO_ONE rooms or Matrix DM rooms since those
-      // are always between two people who are sending the messages there. And for
-      // Matrix DM's, by their nature have always bridged to Matrix so there is no
-      // mismatch.
+      // We don't need to process ONE_TO_ONE rooms since they are always between two
+      // people who are sending the messages there.
+      if (gitterRoom.oneToOne) {
+        return false;
+      }
+
+      // Ignore Matrix DMs, rooms under the matrix/ group (matrixDmGroupUri). By their
+      // nature, they have been around since the Matrix bridge so there is nothing to
+      // import.
+      if (
+        matrixDmGroup &&
+        mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
+      ) {
+        return false;
+      }
 
       return true;
     },
