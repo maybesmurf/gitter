@@ -8,7 +8,7 @@ function getMxidForGitterUser(gitterUser) {
   // bridging libraries otehrwise and cause MXID mismatches and then claims we haven't
   // registered the user yet.
   //
-  // Ghosted usernames look like `@ghost=7e5f762ffe986e461e663059f0-5f762ffe986e461e663059f0:gitter.im`
+  // Ghosted Gitter usernames look like `ghost~5f762ffe986e461e663059f0`
   if (gitterUser.username.startsWith('ghost~')) {
     return `@ghost-${gitterUser.id}:${serverName}`;
   }

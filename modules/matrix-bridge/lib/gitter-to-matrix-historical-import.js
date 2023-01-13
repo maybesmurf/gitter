@@ -180,12 +180,6 @@ async function _getOrCreateMatrixUserByGitterUserIdCached(gitterUserId) {
   }
 
   const matrixId = await matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
-  console.log(
-    '_getOrCreateMatrixUserByGitterUserIdCached gitterUserId',
-    gitterUserId,
-    'matrixId',
-    matrixId
-  );
 
   gitterUserIdToMxidCache.set(cacheKey, matrixId);
 
