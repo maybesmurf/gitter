@@ -246,30 +246,33 @@ async function exec() {
     logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
   }
 
-  const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(({ resumeCursorFromId }) => {
-    const gitterRoomCursor = persistence.Troupe.find({
-      _id: (() => {
-        const idQuery = {};
+  const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
+    ({ previousIdFromCursor }) => {
+      const gitterRoomCursor = persistence.Troupe.find({
+        _id: (() => {
+          const idQuery = {};
 
-        const possibleResumePosition = resumeCursorFromId || resumeFromGitterRoomId;
-        if (possibleResumePosition) {
-          idQuery['$gt'] = possibleResumePosition;
-        } else {
-          idQuery['$exists'] = true;
-        }
+          if (previousIdFromCursor) {
+            idQuery['$gt'] = previousIdFromCursor;
+          } else if (resumeFromGitterRoomId) {
+            idQuery['$gte'] = resumeFromGitterRoomId;
+          } else {
+            idQuery['$exists'] = true;
+          }
 
-        return idQuery;
-      })()
-    })
-      // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
-      .sort({ _id: 'asc' })
-      .lean()
-      .read(DB_READ_PREFERENCE)
-      .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
-      .cursor();
+          return idQuery;
+        })()
+      })
+        // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
+        .sort({ _id: 'asc' })
+        .lean()
+        .read(DB_READ_PREFERENCE)
+        .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
+        .cursor();
 
-    return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
-  });
+      return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
+    }
+  );
 
   await concurrentQueue.processFromGenerator(
     gitterRoomStreamIterable,
