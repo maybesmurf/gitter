@@ -52,8 +52,15 @@ const opts = require('yargs')
     description:
       'The total number of workers. We will partition based on this number `(id % workerTotal) === workerIndex ? doWork : pass`'
   })
+  .option('uri-deny-pattern', {
+    type: 'string',
+    required: false,
+    description: 'The regex filter to match against the room lcUri'
+  })
   .help('help')
   .alias('help', 'h').argv;
+
+const roomUriDenyFilterRegex = opts.uriDenyPattern ? new RegExp(opts.uriDenyPattern, 'i') : null;
 
 if (opts.workerIndex && opts.workerIndex <= 0) {
   throw new Error(`opts.workerIndex=${opts.workerIndex} must start at 1`);
@@ -203,17 +210,15 @@ async function exec() {
     gitterRoom => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
-      // If we're in worker mode, only process a sub-section of the roomID's.
-      // We partition based on part of the Mongo ObjectID.
-      if (opts.workerIndex && opts.workerTotal) {
-        // Partition based on the incrementing value part of the Mongo ObjectID. We
-        // can't just `parseInt(objectId, 16)` because the number is bigger than 64-bit
-        // (12 bytes is 96 bits) and we will lose precision
-        const { incrementingValue } = mongoUtils.splitMongoObjectIdIntoPieces(gitterRoomId);
-
-        const shouldBeProcessedByThisWorker =
-          incrementingValue % opts.workerTotal === opts.workerIndex - 1;
-        return shouldBeProcessedByThisWorker;
+      // We should *not* process any room that matches this room URI deny filter,
+      if (roomUriDenyFilterRegex) {
+        // A ONE_TO_ONE room won't have a `lcUri` so we need to protect against that.
+        const didMatchDenyRegex =
+          gitterRoom.lcUri && gitterRoom.lcUri.match(roomUriDenyFilterRegex);
+        if (didMatchDenyRegex) {
+          return false;
+        }
+        // Otherwise fall-through to the next filter
       }
 
       // We don't need to process ONE_TO_ONE rooms since they are always between two
@@ -230,6 +235,19 @@ async function exec() {
         mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
       ) {
         return false;
+      }
+
+      // If we're in worker mode, only process a sub-section of the roomID's.
+      // We partition based on part of the Mongo ObjectID.
+      if (opts.workerIndex && opts.workerTotal) {
+        // Partition based on the incrementing value part of the Mongo ObjectID. We
+        // can't just `parseInt(objectId, 16)` because the number is bigger than 64-bit
+        // (12 bytes is 96 bits) and we will lose precision
+        const { incrementingValue } = mongoUtils.splitMongoObjectIdIntoPieces(gitterRoomId);
+
+        const shouldBeProcessedByThisWorker =
+          incrementingValue % opts.workerTotal === opts.workerIndex - 1;
+        return shouldBeProcessedByThisWorker;
       }
 
       return true;
