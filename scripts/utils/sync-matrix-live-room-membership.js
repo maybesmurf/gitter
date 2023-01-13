@@ -72,7 +72,7 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
 }
 
 // eslint-disable-next-line max-statements
-async function syncRoomMembershipForBridgedRoom(bridgedRoomEntry) {
+async function syncRoomMembershipFromBridgedRoomEntry(bridgedRoomEntry) {
   const gitterRoomId = bridgedRoomEntry.troupeId;
   assert(gitterRoomId);
   const matrixRoomId = bridgedRoomEntry.matrixRoomId;
@@ -237,6 +237,8 @@ async function exec() {
         return false;
       }
 
+      // TODO: Add option to only handle non-public rooms where room membership really matters
+
       // If we're in worker mode, only process a sub-section of the roomID's.
       // We partition based on part of the Mongo ObjectID.
       if (opts.workerIndex && opts.workerTotal) {
@@ -253,7 +255,7 @@ async function exec() {
       return true;
     },
     async ({ value: bridgedRoomEntry /*, laneIndex*/ }) => {
-      await syncRoomMembershipForBridgedRoom(bridgedRoomEntry);
+      await syncRoomMembershipFromBridgedRoomEntry(bridgedRoomEntry);
     }
   );
 
