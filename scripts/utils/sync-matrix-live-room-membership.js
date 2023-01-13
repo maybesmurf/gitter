@@ -113,11 +113,11 @@ async function syncRoomMembershipFromBridgedRoomEntry(bridgedRoomEntry) {
   }
 
   const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
-    (/*{ resumeCursorFromId }*/) => {
+    (/*{ previousIdFromCursor }*/) => {
       const messageCursor = persistence.TroupeUser.find(
         {
           gitterRoomId
-          // Ideally, we would factor in `resumeCursorFromId` here but there isn't an
+          // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
           // `_id` index for this to be efficient. Instead, we will just get a brand new
           // cursor starting from the beginning and try again.
         },
