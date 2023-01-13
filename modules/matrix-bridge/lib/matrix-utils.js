@@ -811,7 +811,8 @@ class MatrixUtils {
         // Workaround the fact there isn't an official way to reset the avatar,
         // see https://github.com/matrix-org/matrix-spec/issues/378.
         //
-        // An empty string is what Element Web does to reset things.
+        // An empty string is what Element Web does to reset things. If we left this as
+        // `undefined`, it would throw `M_MISSING_PARAM: Missing key 'avatar_url'`
         await intent.setAvatarUrl('');
       }
     }
