@@ -8,7 +8,6 @@ const env = require('gitter-web-env');
 const logger = env.logger;
 const config = env.config;
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
-const { iterableFromMongooseCursor } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const {
   noTimeoutIterableFromMongooseCursor
@@ -38,6 +37,11 @@ const opts = require('yargs')
     type: 'number',
     required: true,
     description: 'Number of rooms to process at once'
+  })
+  .option('resume-from-gitter-room-id', {
+    type: 'string',
+    description:
+      'The Gitter room ID to start the sync from. Otherwise will sync everything available in the database.'
   })
   // Worker index option to only process rooms which evenly divide against that index
   // (partition) (make sure to update the `laneStatusFilePath` to be unique from other
@@ -71,15 +75,119 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   );
 }
 
-// eslint-disable-next-line max-statements
-async function syncRoomMembershipFromBridgedRoomEntry(bridgedRoomEntry) {
-  const gitterRoomId = bridgedRoomEntry.troupeId;
+async function ensureMembershipFromGitterRoom({
+  gitterRoomId,
+  matrixRoomId,
+  alreadyJoinedGitterUserIdsToMatrixRoom
+}) {
   assert(gitterRoomId);
-  const matrixRoomId = bridgedRoomEntry.matrixRoomId;
   assert(matrixRoomId);
+  assert(alreadyJoinedGitterUserIdsToMatrixRoom);
 
-  const alreadyJoinedGitterUserIdsToMatrixRoom = {};
+  const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
+    (/*{ previousIdFromCursor }*/) => {
+      const messageCursor = persistence.TroupeUser.find(
+        {
+          troupeId: gitterRoomId
+          // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
+          // `_id` index for this to be efficient. Instead, we will just get a brand new
+          // cursor starting from the beginning and try again.
+          // TODO: ^ is this actually true?
+        },
+        { userId: 1 }
+      )
+        // Go from oldest to most recent so everything appears in the order it was sent in
+        // the first place
+        .sort({ _id: 'asc' })
+        .lean()
+        .read(mongoReadPrefs.secondaryPreferred)
+        .batchSize(DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP)
+        .cursor();
 
+      return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP };
+    }
+  );
+
+  const bridgeIntent = matrixBridge.getIntent();
+  let currentPowerLevelContent = await bridgeIntent.getStateEvent(
+    matrixRoomId,
+    'm.room.power_levels'
+  );
+
+  // Loop through all members of the Gitter room, and join anyone who is not already present.
+  for await (const gitterRoomMemberUserId of gitterMembershipStreamIterable) {
+    console.log('gitterRoomMemberUserId TODO: is this a user ID?', gitterRoomMemberUserId);
+
+    const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+      gitterRoomMemberUserId
+    );
+
+    // We can skip if we already know the Gitter user is joined to the Matrix room from the
+    // previous loop
+    if (!alreadyJoinedGitterUserIdsToMatrixRoom[gitterRoomMemberUserId]) {
+      // Join Gitter user to the "live" room
+      const intent = matrixBridge.getIntent(gitterUserMxid);
+      // XXX: Can we possibly de-duplicate some work and also join the historical room?
+      await intent.join(matrixRoomId);
+    }
+
+    // These stubs are hacks assuming how `createPolicyForRoom` works so we can save the
+    // lookup
+    const stubbedGitterUser = {
+      _id: gitterRoomMemberUserId
+    };
+    const stubbedGitterRoom = {
+      _id: gitterRoomId
+    };
+    const policy = policyFactory.createPolicyForRoom(stubbedGitterUser, stubbedGitterRoom);
+    const canAdmin = policy.canAdmin();
+    if (canAdmin) {
+      currentPowerLevelContent = await bridgeIntent.getStateEvent(
+        matrixRoomId,
+        'm.room.power_levels'
+      );
+
+      // Update power-level to allow this user to admin the room
+      await matrixUtils.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+        ...currentPowerLevelContent,
+        users: {
+          ...(currentPowerLevelContent.users || {}),
+          [gitterUserMxid]: ROOM_ADMIN_POWER_LEVEL
+        }
+      });
+    } else {
+      // If the user is listed as an admin in the Matrix room power levels but is no
+      // longer an admin on Gitter, remove the PL's
+      if ((currentPowerLevelContent.users || {})[gitterUserMxid] === ROOM_ADMIN_POWER_LEVEL) {
+        // Even though we use the previous `currentPowerLevelContent` for the check
+        // above, before we make an update, we need to get the latest to account for any
+        // new admins we might have added in other loops.
+        currentPowerLevelContent = await bridgeIntent.getStateEvent(
+          matrixRoomId,
+          'm.room.power_levels'
+        );
+
+        // Copy the power level users map
+        const newPowerLevelUsersMap = {
+          ...(currentPowerLevelContent.users || {})
+        };
+        // Then delete the person that should no longer be an admin
+        delete newPowerLevelUsersMap[gitterUserMxid];
+
+        await matrixUtils.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+          ...currentPowerLevelContent,
+          users: newPowerLevelUsersMap
+        });
+      }
+    }
+  }
+}
+
+async function ensureNoExtraMembersInMatrixRoom({
+  gitterRoomId,
+  matrixRoomId,
+  alreadyJoinedGitterUserIdsToMatrixRoom
+}) {
   // Loop through all members in the current Matrix room, remove if they are no longer
   // present in the Gitter room.
   const matrixMemberEvents = await matrixUtils.getRoomMembers({
@@ -111,80 +219,36 @@ async function syncRoomMembershipFromBridgedRoomEntry(bridgedRoomEntry) {
       await intent.leave(matrixRoomId);
     }
   }
+}
 
-  const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
-    (/*{ previousIdFromCursor }*/) => {
-      const messageCursor = persistence.TroupeUser.find(
-        {
-          gitterRoomId
-          // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
-          // `_id` index for this to be efficient. Instead, we will just get a brand new
-          // cursor starting from the beginning and try again.
-        },
-        { userId: 1 }
-      )
-        // Go from oldest to most recent so everything appears in the order it was sent in
-        // the first place
-        .sort({ _id: 'asc' })
-        .lean()
-        .read(mongoReadPrefs.secondaryPreferred)
-        .batchSize(DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP)
-        .cursor();
+// eslint-disable-next-line max-statements, complexity
+async function syncMatrixRoomMembershipFromGitterRoom(gitterRoom) {
+  const gitterRoomId = gitterRoom.id || gitterRoom._id;
+  assert(gitterRoomId);
 
-      return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP };
-    }
-  );
+  const matrixRoomId = matrixStore.getMatrixRoomIdByGitterRoomId(gitterRoomId);
+  assert(matrixRoomId);
 
-  // Loop through all members of the Gitter room, add anyone who is not already present.
-  for await (const gitterRoomMemberUserId of gitterMembershipStreamIterable) {
-    console.log('gitterRoomMemberUserId TODO: is this a user ID?', gitterRoomMemberUserId);
+  const alreadyJoinedGitterUserIdsToMatrixRoom = {};
 
-    const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
-      gitterRoomMemberUserId
-    );
+  await ensureNoExtraMembersInMatrixRoom({
+    gitterRoomId,
+    matrixRoomId,
+    alreadyJoinedGitterUserIdsToMatrixRoom
+  });
 
-    // We can skip if we already know the Gitter user is joined to the Matrix room from the
-    // previous loop
-    if (!alreadyJoinedGitterUserIdsToMatrixRoom[gitterRoomMemberUserId]) {
-      // Join Gitter user to the "live" room
-      const intent = matrixBridge.getIntent(gitterUserMxid);
-      // XXX: Can we possibly de-duplicate some work and also join the historical room?
-      await intent.join(matrixRoomId);
-    }
-
-    // These stubs are hacks knowing how `createPolicyForRoom` works to save the lookup
-    const stubbedGitterUser = {
-      _id: gitterRoomMemberUserId
-    };
-    const stubbedGitterRoom = {
-      _id: gitterRoomId
-    };
-    const policy = policyFactory.createPolicyForRoom(stubbedGitterUser, stubbedGitterRoom);
-    const canAdmin = policy.canAdmin();
-    if (canAdmin) {
-      const bridgeIntent = matrixBridge.getIntent();
-      const currentPowerLevelContent = await bridgeIntent.getStateEvent(
-        matrixRoomId,
-        'm.room.power_levels'
-      );
-
-      // Update power-level to allow this user to admin the room
-      await matrixUtils.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
-        ...currentPowerLevelContent,
-        users: {
-          ...(currentPowerLevelContent.users || {}),
-          [gitterUserMxid]: ROOM_ADMIN_POWER_LEVEL
-        }
-      });
-    }
-  }
+  await ensureMembershipFromGitterRoom({
+    gitterRoomId,
+    matrixRoomId,
+    alreadyJoinedGitterUserIdsToMatrixRoom
+  });
 }
 
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
-  itemIdGetterFromItem: bridgedRoomEntry => {
-    const matrixRoomId = bridgedRoomEntry.matrixRoomId;
-    return matrixRoomId;
+  itemIdGetterFromItem: gitterRoom => {
+    const gitterRoomId = gitterRoom.id || gitterRoom._id;
+    return String(gitterRoomId);
   }
 });
 
@@ -196,14 +260,35 @@ async function exec() {
   const matrixDmGroupUri = 'matrix';
   const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
 
-  const bridgedMatrixRoomCursor = persistence.MatrixBridgedRoom.find({})
-    // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
-    .sort({ _id: 'asc' })
-    .lean()
-    .read(mongoReadPrefs.secondaryPreferred)
-    .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
-    .cursor();
-  const bridgedMatrixRoomStreamIterable = iterableFromMongooseCursor(bridgedMatrixRoomCursor);
+  const bridgedMatrixRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
+    ({ previousIdFromCursor }) => {
+      const gitterRoomCursor = persistence.Troupe.find({
+        _id: (() => {
+          const idQuery = {};
+
+          const lastIdThatWasProcessed =
+            previousIdFromCursor ||
+            // Resume position to sync from
+            opts.resumeFromGitterRoomId;
+          if (lastIdThatWasProcessed) {
+            idQuery['$gt'] = lastIdThatWasProcessed;
+          } else {
+            idQuery['$exists'] = true;
+          }
+
+          return idQuery;
+        })()
+      })
+        // Just use a consistent sort and it makes ascending makes sense to use with `$gt` resuming
+        .sort({ _id: 'asc' })
+        .lean()
+        .read(mongoReadPrefs.secondaryPreferred)
+        .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
+        .cursor();
+
+      return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
+    }
+  );
 
   await concurrentQueue.processFromGenerator(
     bridgedMatrixRoomStreamIterable,
@@ -254,8 +339,8 @@ async function exec() {
 
       return true;
     },
-    async ({ value: bridgedRoomEntry /*, laneIndex*/ }) => {
-      await syncRoomMembershipFromBridgedRoomEntry(bridgedRoomEntry);
+    async ({ value: gitterRoom /*, laneIndex*/ }) => {
+      await syncMatrixRoomMembershipFromGitterRoom(gitterRoom);
     }
   );
 
