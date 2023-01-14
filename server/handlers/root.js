@@ -121,12 +121,26 @@ router.get(
 if (nconf.get('matrix:wellKnownServer')) {
   router.get(
     '/.well-known/matrix/server',
-    identifyRoute('well-known-matrix'),
+    identifyRoute('well-known-matrix-server'),
     preventClickjackingMiddleware,
     function(req, res) {
       res.set('Content-Type', 'application/manifest+json');
-      res.render('wellknown-matrix', {
+      res.render('wellknown-matrix-server', {
         matrixWellKnownServer: nconf.get('matrix:wellKnownServer')
+      });
+    }
+  );
+}
+
+if (nconf.get('matrix:wellKnownClient')) {
+  router.get(
+    '/.well-known/matrix/client',
+    identifyRoute('well-known-matrix-client'),
+    preventClickjackingMiddleware,
+    function(req, res) {
+      res.set('Content-Type', 'application/manifest+json');
+      res.render('wellknown-matrix-client', {
+        matrixWellKnownClient: nconf.get('matrix:wellKnownClient')
       });
     }
   );
