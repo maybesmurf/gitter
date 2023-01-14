@@ -23,7 +23,6 @@ const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const parseGitterMxid = require('gitter-web-matrix-bridge/lib/parse-gitter-mxid');
-const { ROOM_ADMIN_POWER_LEVEL } = require('gitter-web-matrix-bridge/lib/constants');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 
 const configuredServerName = config.get('matrix:bridge:serverName');
@@ -173,7 +172,7 @@ async function syncRoomMembershipFromBridgedRoomEntry(bridgedRoomEntry) {
         ...currentPowerLevelContent,
         users: {
           ...(currentPowerLevelContent.users || {}),
-          [gitterUserMxid]: ROOM_ADMIN_POWER_LEVEL
+          [gitterUserMxid]: 100
         }
       });
     }

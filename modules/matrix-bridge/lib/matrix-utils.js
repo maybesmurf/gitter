@@ -26,7 +26,6 @@ const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter
 const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
 const downloadFileToBuffer = require('./download-file-to-buffer');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
-const { BRIDGE_USER_POWER_LEVEL, ROOM_ADMIN_POWER_LEVEL } = require('./constants');
 
 const store = require('./store');
 
@@ -458,17 +457,17 @@ class MatrixUtils {
       users: {
         ...existingUserPowerLevels,
         ...extraPowerLevelUsers,
-        [bridgeMxid]: BRIDGE_USER_POWER_LEVEL
+        [bridgeMxid]: 100
       },
       events: {
         'm.room.avatar': 50,
         'm.room.canonical_alias': 50,
-        'm.room.encryption': ROOM_ADMIN_POWER_LEVEL,
-        'm.room.history_visibility': ROOM_ADMIN_POWER_LEVEL,
+        'm.room.encryption': 100,
+        'm.room.history_visibility': 100,
         'm.room.name': 50,
-        'm.room.power_levels': ROOM_ADMIN_POWER_LEVEL,
-        'm.room.server_acl': ROOM_ADMIN_POWER_LEVEL,
-        'm.room.tombstone': ROOM_ADMIN_POWER_LEVEL
+        'm.room.power_levels': 100,
+        'm.room.server_acl': 100,
+        'm.room.tombstone': 100
       },
       events_default: readOnly ? 50 : 0,
       state_default: 50,
