@@ -27,6 +27,11 @@ const opts = require('yargs')
     required: true,
     description: 'Number of users to process at once'
   })
+  .option('resume-from-gitter-user-id', {
+    type: 'string',
+    description:
+      'The Gitter user ID to start the reset from. Otherwise will reset all ghost users available in the database.'
+  })
   // Worker index option to only process rooms which evenly divide against that index
   // (partition) (make sure to update the `laneStatusFilePath` to be unique from other
   // workers)
@@ -72,8 +77,12 @@ async function exec() {
         _id: (() => {
           const idQuery = {};
 
-          if (previousIdFromCursor) {
-            idQuery['$gt'] = previousIdFromCursor;
+          const lastIdThatWasProcessed =
+            previousIdFromCursor ||
+            // Resume position to start the process again
+            opts.resumeFromGitterUserId;
+          if (lastIdThatWasProcessed) {
+            idQuery['$gt'] = lastIdThatWasProcessed;
           } else {
             idQuery['$exists'] = true;
           }
@@ -81,8 +90,9 @@ async function exec() {
           return idQuery;
         })()
       })
-        // Go from oldest to most recent (no reason). We probably will find more ghosted
-        // users the longer someone's account has been around 🤷
+        // Go from oldest to most recent (no reason, we just need a consistent
+        // direction). We probably will find more ghosted users the longer someone's
+        // account has been around 🤷
         .sort({ _id: 'asc' })
         .lean()
         .read(mongoReadPrefs.secondaryPreferred)
