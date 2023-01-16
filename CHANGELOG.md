@@ -1,5 +1,9 @@
-# 21.57.0 - 2022-12-21
+# 21.56.1 - 2023-01-16
 
+ - Link and point out the [Gitter to Matrix migration pre-announcement](https://blog.gitter.im/2023/01/16/gitter-is-going-fully-native-matrix-in-feb-2023/) from the left-menu, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2340
+
+
+# 21.57.0 - 2022-12-21
 
 Developer facing:
 
@@ -8,6 +12,7 @@ Developer facing:
  - Add script to be able to dump user with backing identity information, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2318, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2319, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2330
  - Add script to be able reset deleted ghost user MXIDs to fix import process failing with ghost users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2333, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2337
  - Update `mongodb` sub-dependency in `mongoose` for hopefully stable connection (no timeout errors, timed out), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2321
+
 
 # 21.56.0 - 2022-12-06
 
