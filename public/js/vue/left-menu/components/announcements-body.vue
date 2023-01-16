@@ -20,7 +20,14 @@ export default {
       Any bots and scripts using the Gitter API will be cut off and will need to be updated to use
       the Matrix APIs.
     </p>
-    <p>You can read more about this pre-announcement in the <a href="#TODO">blog post</a>.</p>
+    <p>
+      You can read more about this pre-announcement in the
+      <a
+        href="https://blog.gitter.im/2023/01/16/gitter-is-going-fully-native-matrix-in-feb-2023/"
+        target="_blank"
+        >blog post</a
+      >.
+    </p>
   </div>
 </template>
 
