@@ -327,7 +327,7 @@ async function exec() {
           persistence.ChatMessage,
           'toTroupeId',
           gitterRoomId,
-          { read: true }
+          { read: DB_READ_PREFERENCE }
         )) || 0;
       // Find our current live Matrix room
       let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
@@ -340,14 +340,14 @@ async function exec() {
           persistence.MatrixBridgedChatMessage,
           'matrixRoomId',
           matrixRoomId,
-          { read: true }
+          { read: DB_READ_PREFERENCE }
         )) || 0;
       const numMessagesImportedAlreadyInHistoricalRoom =
         (await mongooseUtils.getEstimatedCountForId(
           persistence.MatrixBridgedChatMessage,
           'matrixRoomId',
           matrixHistoricalRoomId,
-          { read: true }
+          { read: DB_READ_PREFERENCE }
         )) || 0;
       concurrentQueue.updateLaneStatus(laneIndex, {
         startTs: Date.now(),
