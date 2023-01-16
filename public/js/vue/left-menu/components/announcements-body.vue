@@ -13,16 +13,14 @@ export default {
     <h2 class="announcements-body-title">Announcement</h2>
     <p>
       Heads-up that on February 6th, you will be signed out and required to sign-in via
-      app.gitter.im. This is part of the Gitter migration process to switch to a fully
-      Matrix setup. Don't worry, all of your rooms and messages will still be available!
+      app.gitter.im. This is part of the Gitter migration process to switch to a fully Matrix setup.
+      Don't worry, all of your rooms and messages will still be available!
     </p>
     <p>
-      Any bots and scripts using the Gitter API will be cut off and will need to be
-      updated to use the Matrix APIs.
+      Any bots and scripts using the Gitter API will be cut off and will need to be updated to use
+      the Matrix APIs.
     </p>
-    <p>
-      You can read more about this pre-announcement in the <a href="#TODO">blog post</a>.
-    </p>
+    <p>You can read more about this pre-announcement in the <a href="#TODO">blog post</a>.</p>
   </div>
 </template>
 
