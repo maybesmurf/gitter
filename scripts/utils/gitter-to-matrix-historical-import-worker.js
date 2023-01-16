@@ -233,6 +233,34 @@ async function getRoomIdResumePosition() {
   }
 }
 
+const failedRoomIdsFilePath = path.join(tempDirectory, `./_failed-room-ids-${Date.now()}.json`);
+async function persistFailedRoomIds(failedRoomIds) {
+  const failedRoomIdsToPersist = failedRoomIds || [];
+
+  try {
+    logger.info(
+      `Writing failedRoomIds (${failedRoomIdsToPersist.length}) disk failedRoomIdsFilePath=${failedRoomIdsFilePath}`
+    );
+    await fs.writeFile(failedRoomIdsFilePath, JSON.stringify(failedRoomIdsToPersist));
+  } catch (err) {
+    logger.error(`Problem persisting failedRoomIds file to disk`, { exception: err });
+  }
+}
+
+const failedRoomInfosFilePath = path.join(tempDirectory, `./_failed-room-infos-${Date.now()}.json`);
+async function persistFailedRoomInfos(failedRoomInfos) {
+  const failedRoomInfosToPersist = failedRoomInfos || [];
+
+  try {
+    logger.info(
+      `Writing failedRoomInfos (${failedRoomInfosToPersist.length}) disk failedRoomInfosFilePath=${failedRoomInfosFilePath}`
+    );
+    await fs.writeFile(failedRoomInfosFilePath, JSON.stringify(failedRoomInfosToPersist));
+  } catch (err) {
+    logger.error(`Problem persisting failedRoomInfos file to disk`, { exception: err });
+  }
+}
+
 // eslint-disable-next-line max-statements
 async function exec() {
   logger.info('Setting up Matrix bridge');
@@ -370,6 +398,10 @@ async function exec() {
   );
 
   const failedRoomIds = concurrentQueue.getFailedItemIds();
+  // Persist this even if no rooms failed so it's easy to tell whether or not we
+  // succeeded in writing anything out. It's better to know nothing failed than whether
+  // or not we actually made it to the end.
+  await persistFailedRoomIds(failedRoomIds);
   if (failedRoomIds.length === 0) {
     logger.info(
       `Successfully imported all historical messages for all rooms (aprox. ${eventsImportedRunningTotal} messages)`
@@ -394,6 +426,7 @@ async function exec() {
         .join('\n'),
       `\n}`
     );
+    await persistFailedRoomInfos(failedRoomInfos);
   }
 }
 
