@@ -33,6 +33,7 @@ exports[`menu-bar-body matches snapshot when pinned 1`] = `
      
     <menu-bar-item-stub
       class="item-announcements"
+      hasmentions="true"
       label="View latest announcements from the Gitter team"
       type="announcements"
     />
@@ -73,6 +74,7 @@ exports[`menu-bar-body matches snapshot when unpinned 1`] = `
      
     <menu-bar-item-stub
       class="item-announcements"
+      hasmentions="true"
       label="View latest announcements from the Gitter team"
       type="announcements"
     />
@@ -114,6 +116,7 @@ exports[`menu-bar-body unreads matches snapshot when mentions 1`] = `
      
     <menu-bar-item-stub
       class="item-announcements"
+      hasmentions="true"
       label="View latest announcements from the Gitter team"
       type="announcements"
     />
@@ -156,6 +159,7 @@ exports[`menu-bar-body unreads matches snapshot when one to one unreads 1`] = `
      
     <menu-bar-item-stub
       class="item-announcements"
+      hasmentions="true"
       label="View latest announcements from the Gitter team"
       type="announcements"
     />
@@ -197,6 +201,7 @@ exports[`menu-bar-body unreads matches snapshot when unreads 1`] = `
      
     <menu-bar-item-stub
       class="item-announcements"
+      hasmentions="true"
       label="View latest announcements from the Gitter team"
       type="announcements"
     />

@@ -108,6 +108,7 @@ export default {
         type="announcements"
         class="item-announcements"
         label="View latest announcements from the Gitter team"
+        :hasMentions="true"
       >
         <template v-slot:icon>
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 16 16">
