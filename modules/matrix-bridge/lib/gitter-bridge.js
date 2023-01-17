@@ -8,6 +8,7 @@ const appEvents = require('gitter-web-appevents');
 const userService = require('gitter-web-users');
 const chatService = require('gitter-web-chats');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
+const policyFactory = require('gitter-web-permissions/lib/policy-factory');
 const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
@@ -415,7 +416,6 @@ class GitterBridge {
 
     const gitterRoom = await troupeService.findById(gitterRoomId);
     assert(gitterRoom);
-    const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
     const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     // Just ignore the bridging join if the Matrix room hasn't been created yet
