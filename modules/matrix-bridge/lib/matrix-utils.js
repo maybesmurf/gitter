@@ -10,10 +10,8 @@ const Promise = require('bluebird');
 const request = Promise.promisify(require('request'));
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
-const groupService = require('gitter-web-groups');
 const userService = require('gitter-web-users');
 const avatars = require('gitter-web-avatars');
-const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-troupe-name');
 const securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
 const env = require('gitter-web-env');
 const config = env.config;
@@ -355,18 +353,12 @@ class MatrixUtils {
     } = {}
   ) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
-    const gitterGroup = await groupService.findById(gitterRoom.groupId);
 
     // Protect from accidentally running this on a ONE_TO_ONE room.
     assert.notStrictEqual(
       gitterRoom.sd.type,
       'ONE_TO_ONE',
       `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
-    );
-
-    assert(
-      gitterGroup,
-      `groupId=${gitterRoom.groupId} unexpectedly does not exist for gitterRoomId=${gitterRoomId}`
     );
 
     // Protect from accidentally running this on a Matrix DM room.
@@ -499,7 +491,7 @@ class MatrixUtils {
       },
       channel: {
         id: gitterRoom.id,
-        displayname: `${gitterGroup.name}/${getRoomNameFromTroupeName(gitterRoom.uri)}`,
+        displayname: gitterRoom.uri,
         avatar_url: roomMxcUrl,
         external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
       }
