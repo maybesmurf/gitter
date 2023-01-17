@@ -406,11 +406,16 @@ class GitterBridge {
     }
   }
 
+  // eslint-disable-next-line max-statements
   async handleUserJoiningRoom(gitterRoomId, model) {
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
     if (!allowedToBridge) {
       return null;
     }
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
+    const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
     const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     // Just ignore the bridging join if the Matrix room hasn't been created yet
@@ -429,9 +434,6 @@ class GitterBridge {
     } catch (err) {
       // Create a new DM room on Matrix if the user is no longer able to join the old again
       if (err.message === 'Failed to join room') {
-        const gitterRoom = await troupeService.findById(gitterRoomId);
-        assert(gitterRoom);
-
         const matrixDm = discoverMatrixDmUri(gitterRoom.lcUri);
         if (!matrixDm) {
           // If it's not a DM, just throw the error that happened
@@ -455,12 +457,38 @@ class GitterBridge {
         );
 
         logger.info(
-          `Storing new bridged DM room (Gitter room id=${gitterRoom._id} -> Matrix room_id=${newMatrixRoomId}): ${gitterRoom.lcUri}`
+          `Storing new bridged DM room (Gitter gitterRoomId=${gitterRoomId} -> Matrix room_id=${newMatrixRoomId}): ${gitterRoom.lcUri}`
         );
-        await store.storeBridgedRoom(gitterRoom._id, newMatrixRoomId);
+        await store.storeBridgedRoom(gitterRoomId, newMatrixRoomId);
       } else {
         throw err;
       }
+    }
+
+    // When someone joins the room, check if they are an admin and add power levels if necessary
+    let canAdmin;
+    try {
+      const gitterUser = await userService.findById(gitterUserId);
+      assert(gitterUser);
+      const policy = policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+      canAdmin = policy.canAdmin();
+      if (canAdmin) {
+        this.matrixUtils.addAdminToMatrixRoomId({
+          mxid: matrixId,
+          matrixRoomId
+        });
+      }
+    } catch (err) {
+      if (canAdmin) {
+        logger.error(
+          `User (gitterUserId=${gitterUserId}) joined gitterRoomId=${gitterRoomId} but we failed to add their mxid=${matrixId} as an admin of ${matrixRoomId}. This will result in unsynced power-levels in the Matrix room. Hopefully another action will update things.`,
+          {
+            exception: err
+          }
+        );
+      }
+
+      throw err;
     }
   }
 

@@ -26,6 +26,7 @@ const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter
 const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
 const downloadFileToBuffer = require('./download-file-to-buffer');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
+const { BRIDGE_USER_POWER_LEVEL, ROOM_ADMIN_POWER_LEVEL } = require('./constants');
 
 const store = require('./store');
 
@@ -250,6 +251,60 @@ class MatrixUtils {
     );
   }
 
+  async addAdminToMatrixRoomId({ mxid, matrixRoomId }) {
+    assert(mxid.startsWith('@'));
+    assert(matrixRoomId.startsWith('!'));
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+
+    await this.ensureStateEventAsMxid(
+      // undefined will give us the bridgeIntent
+      undefined,
+      matrixRoomId,
+      'm.room.power_levels',
+      {
+        ...currentPowerLevelContent,
+        users: {
+          ...(currentPowerLevelContent.users || {}),
+          [mxid]: ROOM_ADMIN_POWER_LEVEL
+        }
+      }
+    );
+  }
+
+  async removeAdminFromMatrixRoomId({ mxid, matrixRoomId }) {
+    assert(mxid.startsWith('@'));
+    assert(matrixRoomId.startsWith('!'));
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+
+    // Copy the power level users map
+    const newPowerLevelUsersMap = {
+      ...(currentPowerLevelContent.users || {})
+    };
+    // Then delete the person that should no longer be an admin
+    delete newPowerLevelUsersMap[mxid];
+
+    await this.ensureStateEventAsMxid(
+      // undefined will give us the bridgeIntent
+      undefined,
+      matrixRoomId,
+      'm.room.power_levels',
+      {
+        ...currentPowerLevelContent,
+        users: newPowerLevelUsersMap
+      }
+    );
+  }
+
   async ensureRoomAlias(matrixRoomId, alias) {
     const bridgeIntent = this.matrixBridge.getIntent();
 
@@ -456,17 +511,17 @@ class MatrixUtils {
       users: {
         ...existingUserPowerLevels,
         ...extraPowerLevelUsers,
-        [bridgeMxid]: 100
+        [bridgeMxid]: BRIDGE_USER_POWER_LEVEL
       },
       events: {
         'm.room.avatar': 50,
         'm.room.canonical_alias': 50,
-        'm.room.encryption': 100,
-        'm.room.history_visibility': 100,
+        'm.room.encryption': ROOM_ADMIN_POWER_LEVEL,
+        'm.room.history_visibility': ROOM_ADMIN_POWER_LEVEL,
         'm.room.name': 50,
-        'm.room.power_levels': 100,
-        'm.room.server_acl': 100,
-        'm.room.tombstone': 100
+        'm.room.power_levels': ROOM_ADMIN_POWER_LEVEL,
+        'm.room.server_acl': ROOM_ADMIN_POWER_LEVEL,
+        'm.room.tombstone': ROOM_ADMIN_POWER_LEVEL
       },
       events_default: readOnly ? 50 : 0,
       state_default: 50,
