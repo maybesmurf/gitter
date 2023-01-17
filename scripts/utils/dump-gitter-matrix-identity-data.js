@@ -173,6 +173,14 @@ async function exec() {
       const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
 
       // Lookup information from Identity
+      //
+      // XXX: This function is flawed for a select handful of users that accidentally
+      // went through the GitHub repo scope OAuth upgrade flow before it was patched in
+      // https://gitlab.com/gitterHQ/webapp/-/issues/2328. This means that
+      // Twitter/GitLab users also have `githubToken`/`githubScopes` defined which
+      // triggers some of our simplistic logic to assume they are a GitHub user and
+      // choose GitHub as the identity wrongly. This flaw in the data was noticed by @clokep,
+      // https://gitlab.com/gitterHQ/webapp/-/issues/2856#note_1243268761
       const primaryIdentity = await identityService.findPrimaryIdentityForUser(gitterUser);
 
       // Append info to ndjson file
