@@ -313,9 +313,38 @@ async function importFromChatMessageStreamIterable({
 
       performanceMark(`importMessageStart`);
       if (!message.fromUserId) {
-        throw new Error(
-          `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}`
+        // Example:
+        // ```
+        // {
+        //     "_id" : ObjectId("529f0bd24613267312000035"),
+        //     "editedAt" : null,
+        //     "fromUserId" : null,
+        //     "issues" : [ ],
+        //     "mentions" : [ ],
+        //     "meta" : {
+        //         "url" : "http://foo.bar/",
+        //         "phase" : "started",
+        //         "job" : "gitter-webapp-production",
+        //         "service" : "jenkins",
+        //         "type" : "webhook"
+        //     },
+        //     "readBy" : [
+        //         ObjectId("529c6c1fed5ab0b3bf04d813")
+        //     ],
+        //     "sent" : ISODate("2013-12-04T11:02:42.963Z"),
+        //     "skipAlerts" : true,
+        //     "text" : "[Jenkins] Job gitter-webapp-production started http://foo.bar:8080/job/gitter-webapp-production/17/",
+        //     "toTroupeId" : ObjectId("5298e324ed5ab0b3bf04c988"),
+        //     "urls" : [ ],
+        //     "lang" : "en"
+        // }
+        // ```
+        logger.warning(
+          `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}. This is probably a legacy webhook message in the main timeline.`
         );
+
+        // Skip to the next message
+        continue;
       }
       const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
       const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
