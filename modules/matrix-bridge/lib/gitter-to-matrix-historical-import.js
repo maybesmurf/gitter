@@ -340,7 +340,7 @@ async function importFromChatMessageStreamIterable({
         //     "lang" : "en"
         // }
         // ```
-        logger.warning(
+        logger.warn(
           `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}. This is probably a legacy webhook message in the main timeline.`
         );
 
@@ -384,7 +384,7 @@ async function importFromChatMessageStreamIterable({
           resolve();
         } catch (err) {
           if (err.status === 413 && err.errcode === 'M_TOO_LARGE') {
-            logger.warning(
+            logger.warn(
               `Skipping gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} since it was too large to send (M_TOO_LARGE).`
             );
 
