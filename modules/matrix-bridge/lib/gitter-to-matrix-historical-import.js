@@ -26,6 +26,7 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge/lib/generate-matrix-content-from-gitter-message');
 const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
+const RethrownError = require('./rethrown-error');
 
 // The number of chat messages we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_MESSAGES = 100;
@@ -353,7 +354,17 @@ async function importFromChatMessageStreamIterable({
 
           resolve();
         } catch (err) {
-          reject(err);
+          if (err.status === 413 && err.errcode === 'M_TOO_LARGE') {
+            logger.warning(
+              `Skipping gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} since it was too large to send (M_TOO_LARGE).`
+            );
+
+            // Skip to the next message
+            resolve();
+            return null;
+          }
+
+          reject(new RethrownError(`Failed to import gitterMessageId=${gitterMessageId}`, err));
         } finally {
           performanceClearMarks(`request.sendEventRequestStart`);
           performanceClearMarks(`request.sendEventRequestEnd`);
