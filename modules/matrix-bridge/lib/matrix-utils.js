@@ -894,12 +894,18 @@ class MatrixUtils {
       });
 
       if (res.statusCode !== 200) {
-        throw new StatusError(
+        const responseError = new StatusError(
           res.statusCode,
           `sendEventAtTimestmap({ matrixRoomId: ${matrixRoomId} }) failed ${
             res.statusCode
           }: ${JSON.stringify(res.body)}`
         );
+        // Attach a little bit more of info to work from. This is a little bit hacky :shrug:
+        if (res.body && res.body.errcode) {
+          responseError.errcode = res.body.errcode;
+        }
+
+        throw responseError;
       }
 
       const eventId = res.body.event_id;
