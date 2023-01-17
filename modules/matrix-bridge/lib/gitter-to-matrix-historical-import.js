@@ -313,9 +313,11 @@ async function importFromChatMessageStreamIterable({
 
       performanceMark(`importMessageStart`);
       if (!message.fromUserId) {
-        throw new Error(
-          `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}`
+        logger.warning(
+          `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}. This is probably a legacy webhook message in the main timeline.`
         );
+        // Skip to the next message
+        continue;
       }
       const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
       const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
