@@ -1096,7 +1096,15 @@ describe('gitter-bridge', () => {
           model: { id: fixture.user1.id }
         });
 
-        assert.strictEqual(matrixBridge.getIntent.callCount, 3);
+        assert.strictEqual(
+          matrixBridge.getIntent.callCount,
+          3,
+          `Expected callCount does not match actual:\n` +
+            matrixBridge.getIntent
+              .getCalls()
+              .map((call, index) => `${index}: getIntent(${call.args.join(', ')})`)
+              .join('\n')
+        );
         assert.strictEqual(matrixBridge.getIntent.getCall(2).args[0], mxidForGitterUser);
         assert.strictEqual(matrixBridge.getIntent().join.callCount, 1);
         assert.strictEqual(matrixBridge.getIntent().join.getCall(0).args[0], matrixRoomId);

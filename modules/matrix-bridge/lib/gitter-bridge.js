@@ -470,8 +470,8 @@ class GitterBridge {
     try {
       const gitterUser = await userService.findById(gitterUserId);
       assert(gitterUser);
-      const policy = policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
-      canAdmin = policy.canAdmin();
+      const policy = await policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+      canAdmin = await policy.canAdmin();
       if (canAdmin) {
         this.matrixUtils.addAdminToMatrixRoomId({
           mxid: matrixId,
@@ -481,7 +481,7 @@ class GitterBridge {
     } catch (err) {
       if (canAdmin) {
         logger.error(
-          `User (gitterUserId=${gitterUserId}) joined gitterRoomId=${gitterRoomId} but we failed to add their mxid=${matrixId} as an admin of ${matrixRoomId}. This will result in unsynced power-levels in the Matrix room. Hopefully another action will update things.`,
+          `User (gitterUserId=${gitterUserId}) joined gitterRoomId=${gitterRoomId} but we failed to add their mxid=${matrixId} as an admin of ${matrixRoomId}. This will result in desynced power-levels in the Matrix room. Hopefully another action will update things.`,
           {
             exception: err
           }
