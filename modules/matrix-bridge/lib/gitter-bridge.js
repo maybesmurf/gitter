@@ -59,6 +59,7 @@ class GitterBridge {
         );
       }
 
+      // TODO: remove
       console.log('onDataChange', data);
 
       if (data.type === 'chatMessage') {
@@ -79,6 +80,17 @@ class GitterBridge {
         } else if (gitterRoomId && data.operation === 'remove') {
           await this.handleRoomRemoveEvent(gitterRoomId, data.model);
         }
+      }
+
+      if (data.type === 'room.sd') {
+        const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)/) || [];
+        if (gitterRoomId && (data.operation === 'patch' || data.operation === 'update')) {
+          await this.handleRoomSecurityDescriptorUpdateEvent(gitterRoomId, data.model);
+        }
+      }
+
+      if (data.type === 'group.sd') {
+        // TODO
       }
 
       if (data.type === 'user') {
@@ -396,6 +408,7 @@ class GitterBridge {
       });
     }
 
+    // Also remove the historical Matrix room
     const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
       gitterRoomId
     );
@@ -552,6 +565,37 @@ class GitterBridge {
     } else if (operation === 'remove') {
       logger.info(`Unbanning ${bannedMxid} from ${matrixRoomId}`);
       await bridgeIntent.unban(matrixRoomId, bannedMxid);
+    }
+  }
+
+  async handleRoomSecurityDescriptorUpdateEvent(gitterRoomId, model) {
+    const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
+    if (!matrixRoomId) {
+      return null;
+    }
+
+    const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
+      gitterRoomId
+    );
+
+    // If only the `extraAdmins` were updated, then we can shortcut and only run through
+    // admins in that list
+    if (Object.keys(model) === 1 && model.extraAdmins) {
+      // Loop through all of the room admins listed in the Matrix power levels and
+      // remove any people that don't pass the `isAdmin` check here.
+      await this.matrixUtils.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
+        matrixRoomId,
+        gitterRoomId
+      });
+      await this.matrixUtils.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
+        matrixRoomId: matrixHistoricalRoomId,
+        gitterRoomId
+      });
+
+      // TODO: Loop through all Gitter `extraAdmins` and make sure they are added to the Matrix power levels
+      1;
+    } else {
+      // TODO
     }
   }
 }

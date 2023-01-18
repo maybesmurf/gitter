@@ -21,8 +21,8 @@ module.exports = {
   patch: function(groupId, patch) {
     const url = `/groups/${groupId}/security`;
     const patchMessage = {
-      ...patch,
-      groupId
+      ...patch
+      //groupId
     };
     appEvents.dataChange2(url, 'patch', patchMessage, 'group.sd');
   },

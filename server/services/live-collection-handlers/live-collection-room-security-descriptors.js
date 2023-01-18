@@ -21,8 +21,8 @@ module.exports = {
   patch: function(roomId, patch) {
     const url = `/rooms/${roomId}/security`;
     const patchMessage = {
-      ...patch,
-      roomId
+      ...patch
+      //roomId
     };
     appEvents.dataChange2(url, 'patch', patchMessage, 'room.sd');
   },

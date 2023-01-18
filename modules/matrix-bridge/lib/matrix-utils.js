@@ -15,6 +15,7 @@ const userService = require('gitter-web-users');
 const avatars = require('gitter-web-avatars');
 const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-troupe-name');
 const securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
+const policyFactory = require('gitter-web-permissions/lib/policy-factory');
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
@@ -26,6 +27,7 @@ const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter
 const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
 const downloadFileToBuffer = require('./download-file-to-buffer');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
+const parseGitterMxid = require('./parse-gitter-mxid');
 const { BRIDGE_USER_POWER_LEVEL, ROOM_ADMIN_POWER_LEVEL } = require('./constants');
 
 const store = require('./store');
@@ -47,6 +49,22 @@ const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLev
   accumulatedPowerLevelUsers[key] = value;
   return accumulatedPowerLevelUsers;
 }, {});
+
+// A small wrapper to check admin permissions in Gitter room just so we don't have to
+// keep perpetuating these stub hacks everywhere we want to take this shortcut
+async function checkIfGitterUserIdCanAdminInGitterRoomId({ gitterUserId, gitterRoomId }) {
+  // These stubs are hacks assuming how `createPolicyForRoom` works so we can save the
+  // lookup
+  const stubbedGitterUser = {
+    _id: gitterUserId
+  };
+  const stubbedGitterRoom = {
+    _id: gitterRoomId
+  };
+  const policy = await policyFactory.createPolicyForRoom(stubbedGitterUser, stubbedGitterRoom);
+  const canAdmin = await policy.canAdmin();
+  return canAdmin;
+}
 
 let txnCount = 0;
 function getTxnId() {
@@ -303,6 +321,48 @@ class MatrixUtils {
         users: newPowerLevelUsersMap
       }
     );
+  }
+
+  // Loop through all of the room admins listed in the Matrix power levels and
+  // remove any people that don't pass the `isAdmin` check here.
+  async cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({ matrixRoomId, gitterRoomId }) {
+    assert(gitterRoomId);
+    assert(matrixRoomId);
+
+    const configuredServerName = this.matrixBridge.opts.domain;
+    assert(configuredServerName);
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+
+    for (const mxid in Object.keys(currentPowerLevelContent.users || {})) {
+      // Skip any MXID's that aren't from our own server (gitter.im)
+      const { serverName } = parseGitterMxid(mxid) || {};
+      if (serverName !== configuredServerName) {
+        continue;
+      }
+
+      const currentPowerLevelOfMxid = currentPowerLevelContent.users[mxid];
+      // If the user is listed as an admin in the Matrix room power levels,
+      // check to make sure they should still be an admin
+      if (currentPowerLevelOfMxid === ROOM_ADMIN_POWER_LEVEL) {
+        const gitterUserId = await store.getGitterUserIdByMatrixUserId(mxid);
+
+        const canAdmin = await checkIfGitterUserIdCanAdminInGitterRoomId({
+          gitterUserId,
+          gitterRoomId
+        });
+
+        // If the person can no longer admin the Gitter room, remove their power levels
+        // from the Matrix room.
+        if (!canAdmin) {
+          await this.removeAdminFromMatrixRoomId({ mxid, matrixRoomId });
+        }
+      }
+    }
   }
 
   async ensureRoomAlias(matrixRoomId, alias) {
