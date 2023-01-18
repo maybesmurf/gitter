@@ -130,6 +130,8 @@ SecurityDescriptorService.prototype.addExtraAdmin = function(id, userId) {
         {
           // So we get the new updated document back
           new: true,
+          // We just need the data, no fancy wrapper
+          lean: true,
           // We only need to get the `extraAdmins` back
           select: {
             _id: 0,
@@ -170,6 +172,8 @@ SecurityDescriptorService.prototype.removeExtraAdmin = function(id, userId) {
     {
       // So we get the new updated document back
       new: true,
+      // We just need the data, no fancy wrapper
+      lean: true,
       // We only need to get the `extraAdmins` back
       select: {
         _id: 0,
