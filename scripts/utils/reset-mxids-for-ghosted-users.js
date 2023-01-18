@@ -110,8 +110,10 @@ async function exec() {
     gitterUser => {
       const gitterUserId = gitterUser.id || gitterUser._id;
 
-      // We only want to process ghosted users
-      if (!gitterUser.username.startsWith('ghost~')) {
+      // We only want to process problem users with a tilde (`~`) in their username like
+      // ghosted users, `ghost~123` or `removed~123` because it gets escaped as `=7e`
+      // and our expectation vs the bridge is misaligned.
+      if (!gitterUser.username.includes('~')) {
         return false;
       }
 
