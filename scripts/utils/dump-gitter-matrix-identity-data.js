@@ -17,7 +17,6 @@ const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-pref
 const {
   noTimeoutIterableFromMongooseCursor
 } = require('gitter-web-persistence-utils/lib/mongoose-utils');
-const identityService = require('gitter-web-identity');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
@@ -172,23 +171,24 @@ async function exec() {
       // some MXID for us to insert the Synapse `user_external_ids` data for.
       const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
 
-      // Lookup information from Identity
-      //
-      // XXX: This function is flawed for a select handful of users that accidentally
-      // went through the GitHub repo scope OAuth upgrade flow before it was patched in
-      // https://gitlab.com/gitterHQ/webapp/-/issues/2328. This means that
-      // Twitter/GitLab users also have `githubToken`/`githubScopes` defined which
-      // triggers some of our simplistic logic to assume they are a GitHub user and
-      // choose GitHub as the identity wrongly. This flaw in the data was noticed by @clokep,
+      // XXX: We don't use this function because it is flawed for a small handful of
+      // users that accidentally went through the GitHub repo scope OAuth upgrade flow
+      // before it was patched in https://gitlab.com/gitterHQ/webapp/-/issues/2328. This
+      // means that those affected Twitter/GitLab users also have
+      // `githubToken`/`githubScopes` defined which triggers some of our simplistic
+      // logic (`isGitHubUser`) to assume they are a GitHub user and choose GitHub as
+      // the identity wrongly. This flaw in the data was noticed by @clokep,
       // https://gitlab.com/gitterHQ/webapp/-/issues/2856#note_1243268761
-      const primaryIdentity = await identityService.findPrimaryIdentityForUser(gitterUser);
+      //
+      //const primaryIdentity = await identityService.findPrimaryIdentityForUser(gitterUser);
 
       // Append info to ndjson file
       const data = {
         gitterUserId,
         mxid: gitterUserMxid,
-        provider: primaryIdentity.provider,
-        providerKey: primaryIdentity.providerKey
+        // This is flawed with #multiple-identity-user so make sure to update this when that happens
+        provider: gitterUser.identities[0].provider,
+        providerKey: gitterUser.identities[0].providerKey
       };
       runningDataList.push(data);
 
