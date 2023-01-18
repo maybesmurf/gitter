@@ -9,8 +9,8 @@ const StatusError = require('statuserror');
 const Promise = require('bluebird');
 const request = Promise.promisify(require('request'));
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
-const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const groupService = require('gitter-web-groups');
+const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const userService = require('gitter-web-users');
 const avatars = require('gitter-web-avatars');
 const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-troupe-name');
@@ -410,18 +410,12 @@ class MatrixUtils {
     } = {}
   ) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
-    const gitterGroup = await groupService.findById(gitterRoom.groupId);
 
     // Protect from accidentally running this on a ONE_TO_ONE room.
     assert.notStrictEqual(
       gitterRoom.sd.type,
       'ONE_TO_ONE',
       `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
-    );
-
-    assert(
-      gitterGroup,
-      `groupId=${gitterRoom.groupId} unexpectedly does not exist for gitterRoomId=${gitterRoomId}`
     );
 
     // Protect from accidentally running this on a Matrix DM room.
@@ -543,6 +537,17 @@ class MatrixUtils {
       });
     }
 
+    let roomDisplayName;
+    const gitterGroup = await groupService.findById(gitterRoom.groupId);
+    if (gitterGroup) {
+      // We do this because it's more correct for how the full name is displayed in
+      // Gitter. The name of a group doesn't have to match the URI and often people have
+      // nice display names with spaces so it appears like 'The Big Ocean/Fish'
+      roomDisplayName = `${gitterGroup.name}/${getRoomNameFromTroupeName(gitterRoom.uri)}`;
+    } else {
+      roomDisplayName = gitterRoom.uri;
+    }
+
     // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter
     await this.ensureStateEvent(matrixRoomId, 'uk.half-shot.bridge', {
       bridgebot: this.getMxidForMatrixBridgeUser(),
@@ -554,7 +559,7 @@ class MatrixUtils {
       },
       channel: {
         id: gitterRoom.id,
-        displayname: `${gitterGroup.name}/${getRoomNameFromTroupeName(gitterRoom.uri)}`,
+        displayname: roomDisplayName,
         avatar_url: roomMxcUrl,
         external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
       }
@@ -949,12 +954,18 @@ class MatrixUtils {
       });
 
       if (res.statusCode !== 200) {
-        throw new StatusError(
+        const responseError = new StatusError(
           res.statusCode,
           `sendEventAtTimestmap({ matrixRoomId: ${matrixRoomId} }) failed ${
             res.statusCode
           }: ${JSON.stringify(res.body)}`
         );
+        // Attach a little bit more of info to work from. This is a little bit hacky :shrug:
+        if (res.body && res.body.errcode) {
+          responseError.errcode = res.body.errcode;
+        }
+
+        throw responseError;
       }
 
       const eventId = res.body.event_id;
