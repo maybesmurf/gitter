@@ -59,6 +59,8 @@ class GitterBridge {
         );
       }
 
+      console.log('onDataChange', data);
+
       if (data.type === 'chatMessage') {
         const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/chatMessages/) || [];
         if (gitterRoomId && data.operation === 'create') {

@@ -8,6 +8,7 @@ var mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 var transform = require('./transform');
 var StatusError = require('statuserror');
 var User = require('gitter-web-persistence').User;
+const liveCollections = require('gitter-web-live-collection-events');
 
 function SecurityDescriptorService(Model) {
   this.Model = Model;
@@ -115,11 +116,11 @@ SecurityDescriptorService.prototype.findExtraMembers = function findExtraMembers
 SecurityDescriptorService.prototype.addExtraAdmin = function(id, userId) {
   assert(userId, 'userId required');
   userId = mongoUtils.asObjectID(userId);
+  const Model = this.Model;
 
   return checkUsersValid([userId])
-    .bind(this)
     .then(function() {
-      return this.Model.update(
+      return Model.findOneAndUpdate(
         { _id: id },
         {
           $addToSet: {
@@ -127,7 +128,9 @@ SecurityDescriptorService.prototype.addExtraAdmin = function(id, userId) {
           }
         },
         {
-          new: false,
+          // So we get the new updated document back
+          new: true,
+          // We only need to get the `extraAdmins` back
           select: {
             _id: 0,
             'sd.extraAdmins': 1
@@ -136,15 +139,28 @@ SecurityDescriptorService.prototype.addExtraAdmin = function(id, userId) {
       ).exec();
     })
     .then(function(result) {
-      return result && result.nModified === 1;
+      if (result && result.sd && result.sd.extraAdmins) {
+        if (Model === persistence.Troupe) {
+          liveCollections.roomSecurityDescriptors.emit('patch', id, {
+            extraAdmins: result.sd.extraAdmins
+          });
+        } else if (Model === persistence.Group) {
+          liveCollections.groupSecurityDescriptors.emit('patch', id, {
+            extraAdmins: result.sd.extraAdmins
+          });
+        }
+      }
+
+      return !!result;
     });
 };
 
 SecurityDescriptorService.prototype.removeExtraAdmin = function(id, userId) {
   assert(userId, 'userId required');
   userId = mongoUtils.asObjectID(userId);
+  const Model = this.Model;
 
-  return this.Model.update(
+  return Model.findOneAndUpdate(
     { _id: id },
     {
       $pullAll: {
@@ -152,7 +168,9 @@ SecurityDescriptorService.prototype.removeExtraAdmin = function(id, userId) {
       }
     },
     {
-      new: false,
+      // So we get the new updated document back
+      new: true,
+      // We only need to get the `extraAdmins` back
       select: {
         _id: 0,
         'sd.extraAdmins': 1
@@ -161,14 +179,27 @@ SecurityDescriptorService.prototype.removeExtraAdmin = function(id, userId) {
   )
     .exec()
     .then(function(result) {
-      return result && result.nModified === 1;
+      if (result && result.sd && result.sd.extraAdmins) {
+        if (Model === persistence.Troupe) {
+          liveCollections.roomSecurityDescriptors.emit('patch', id, {
+            extraAdmins: result.sd.extraAdmins
+          });
+        } else if (Model === persistence.Group) {
+          liveCollections.groupSecurityDescriptors.emit('patch', id, {
+            extraAdmins: result.sd.extraAdmins
+          });
+        }
+      }
+
+      return !!result;
     });
 };
 
 SecurityDescriptorService.prototype.updateSecurityDescriptor = function(id, sd) {
   securityDescriptorWriteValidator(sd);
+  const Model = this.Model;
 
-  return this.Model.findByIdAndUpdate(
+  return Model.findByIdAndUpdate(
     id,
     {
       $set: {
@@ -192,7 +223,15 @@ SecurityDescriptorService.prototype.updateSecurityDescriptor = function(id, sd) 
   )
     .exec()
     .then(function(doc) {
-      return doc && doc.sd;
+      const newSd = doc && doc.sd;
+
+      if (Model === persistence.Troupe) {
+        liveCollections.roomSecurityDescriptors.emit('update', id, { sd: newSd });
+      } else if (Model === persistence.Group) {
+        liveCollections.groupSecurityDescriptors.emit('update', id, { sd: newSd });
+      }
+
+      return newSd;
     });
 };
 
