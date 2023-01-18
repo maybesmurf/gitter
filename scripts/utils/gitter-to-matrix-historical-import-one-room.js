@@ -72,9 +72,22 @@ exec()
     shutdown.shutdownGracefully();
   })
   .catch(err => {
+    let errorThingToPrint = err.stack;
+    // Special case from matrix-appservice-bridge/matrix-bot-sdk
+    if (err.body && err.body.errcode && err.toJSON) {
+      const serializedRequestAsError = err.toJSON();
+      (serializedRequestAsError.request || {}).headers = {
+        ...serializedRequestAsError.request.headers,
+        Authorization: '<redacted>'
+      };
+      errorThingToPrint = `matrix-appservice-bridge/matrix-bot-sdk threw an error that looked more like a request object, see ${JSON.stringify(
+        serializedRequestAsError
+      )}`;
+    }
+
     logger.error(
       `Error occurred while backfilling events for opts.uri=${opts.uri} gitterRoomId=${gitterRoomId}:`,
-      err.stack
+      errorThingToPrint
     );
     shutdown.shutdownGracefully();
   });
