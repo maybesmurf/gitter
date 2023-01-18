@@ -1,3 +1,10 @@
+
+# 21.56.2 - 2023-01-18
+
+ - Update homepage latest news block to point to the [Gitter to Matrix migration pre-announcement](https://blog.gitter.im/2023/01/16/gitter-is-going-fully-native-matrix-in-feb-2023/), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2350
+    - Thanks to [@dregad](https://gitlab.com/dregad) for the contribution
+
+
 # 21.56.1 - 2023-01-16
 
  - Link and point out the [Gitter to Matrix migration pre-announcement](https://blog.gitter.im/2023/01/16/gitter-is-going-fully-native-matrix-in-feb-2023/) from the left-menu, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2340
