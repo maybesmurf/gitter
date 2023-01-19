@@ -139,6 +139,9 @@ if (nconf.get('matrix:wellKnownClient')) {
     preventClickjackingMiddleware,
     function(req, res) {
       res.set('Content-Type', 'application/manifest+json');
+      // Allow any other client app to request this resource across origins (CORS)
+      res.set('access-control-allow-origin', '*');
+
       res.render('wellknown-matrix-client', {
         matrixWellKnownClient: nconf.get('matrix:wellKnownClient')
       });
