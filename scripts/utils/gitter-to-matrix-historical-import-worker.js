@@ -51,6 +51,9 @@ logger.info(
 // the import function errors out.
 const CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL = 5 * 60 * 1000;
 
+// Every N milliseconds (5 minutes), we should record which rooms have failed to import so far
+const RECORD_FAILED_ROOMS_TIME_INTERVAL = 5 * 60 * 1000;
+
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const opts = require('yargs')
@@ -246,6 +249,22 @@ async function persistFailedRoomIds(failedRoomIds) {
     logger.error(`Problem persisting failedRoomIds file to disk`, { exception: err });
   }
 }
+
+let writingFailedRoomsFileLock;
+const recordFailedRoomsIntervalId = setInterval(async () => {
+  // Prevent multiple writes from building up. We only allow one write until it finishes
+  if (writingFailedRoomsFileLock) {
+    return;
+  }
+
+  try {
+    writingFailedRoomsFileLock = true;
+    const failedRoomIds = concurrentQueue.getFailedItemIds();
+    await persistFailedRoomIds(failedRoomIds);
+  } finally {
+    writingFailedRoomsFileLock = false;
+  }
+}, RECORD_FAILED_ROOMS_TIME_INTERVAL);
 
 const failedRoomInfosFilePath = path.join(tempDirectory, `./_failed-room-infos-${Date.now()}.json`);
 async function persistFailedRoomInfos(failedRoomInfos) {
@@ -443,6 +462,8 @@ exec()
     // Stop calculating which room to resume from as the process is stopping and we
     // don't need to keep track anymore.
     clearInterval(calculateWhichRoomToResumeFromIntervalId);
+    // Stop recording failed rooms as we're done doing anythign and the process is stopping
+    clearInterval(recordFailedRoomsIntervalId);
 
     // Stop writing the status file so we can cleanly exit
     concurrentQueue.stopPersistLaneStatusInfoToDisk();
