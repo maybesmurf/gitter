@@ -7,6 +7,7 @@ const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const appEvents = require('gitter-web-appevents');
 const userService = require('gitter-web-users');
 const chatService = require('gitter-web-chats');
+const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const policyFactory = require('gitter-web-permissions/lib/policy-factory');
 const env = require('gitter-web-env');
@@ -568,33 +569,85 @@ class GitterBridge {
     }
   }
 
+  // eslint-disable-next-line complexity
   async handleRoomSecurityDescriptorUpdateEvent(gitterRoomId, model) {
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
+    // Not all rooms are in a group like ONE_TO_ONE's
+    const gitterGroup = await groupService.findById(gitterRoom.groupId);
+
     const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     if (!matrixRoomId) {
       return null;
     }
 
+    // A historical room is optional as it might not have been created yet.
     const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
       gitterRoomId
     );
 
-    // If only the `extraAdmins` were updated, then we can shortcut and only run through
-    // admins in that list
-    if (Object.keys(model) === 1 && model.extraAdmins) {
-      // Loop through all of the room admins listed in the Matrix power levels and
-      // remove any people that don't pass the `isAdmin` check here.
-      await this.matrixUtils.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
-        matrixRoomId,
-        gitterRoomId
-      });
+    // Loop through all of the room admins listed in the Matrix power levels and
+    // remove any people that don't pass the `isAdmin` check here.
+    await this.matrixUtils.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      matrixRoomId,
+      gitterRoomId
+    });
+    if (matrixHistoricalRoomId) {
       await this.matrixUtils.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
         matrixRoomId: matrixHistoricalRoomId,
         gitterRoomId
       });
+    }
 
-      // TODO: Loop through all Gitter `extraAdmins` and make sure they are added to the Matrix power levels
-      1;
-    } else {
+    // If only the `sd.extraAdmins` were updated, then we can shortcut and only run through
+    // admins in that list and make sure they have the proper Matrix power levels
+    const onlyExtraAdminsUpdated = Object.keys(model) === 1 && model.extraAdmins;
+    // If the only admins in the room are specified manually, then we know all admins
+    // possible by looking at `sd.extraAdmins` and we can shortcut...
+    const onlyUsingManualAdmins =
+      gitterRoom.sd && gitterRoom.sd.type === null && gitterRoom.sd.admins === 'MANUAL';
+    // If the room is inheriting from the group but the group is using manual
+    // admins, then we know all admins possible by looking at the groups
+    // `sd.extraAdmins` and we can shortcut...
+    const inheritingFromGroupAndGroupUsingManualAdmins =
+      gitterRoom.sd &&
+      gitterRoom.sd.type === 'GROUP' &&
+      gitterRoom.sd.admins === 'GROUP_ADMIN' &&
+      gitterGroup &&
+      gitterGroup.sd.type === null &&
+      gitterGroup.sd.admins === 'MANUAL';
+    if (
+      onlyExtraAdminsUpdated ||
+      onlyUsingManualAdmins ||
+      inheritingFromGroupAndGroupUsingManualAdmins
+    ) {
+      let extraAdminsToCheck = (gitterRoom.sd && gitterRoom.sd.extraAdmins) || [];
+      // If the room is inheriting from the group, also add on the group extraAdmins
+      if (inheritingFromGroupAndGroupUsingManualAdmins) {
+        extraAdminsToCheck = extraAdminsToCheck.concat(
+          (gitterGroup.sd && gitterGroup.sd.extraAdmins) || []
+        );
+      }
+
+      for (const gitterExtraAdminUserId of extraAdminsToCheck) {
+        const gitterUserMxid = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(
+          gitterExtraAdminUserId
+        );
+
+        await this.matrixUtils.addAdminToMatrixRoomId({
+          mxid: gitterUserMxid,
+          matrixRoomId
+        });
+        if (matrixHistoricalRoomId) {
+          await this.matrixUtils.addAdminToMatrixRoomId({
+            mxid: gitterUserMxid,
+            matrixRoomId: matrixHistoricalRoomId
+          });
+        }
+      }
+    }
+    // Otherwise, we just have to loop through all room members and check for any admins present
+    else {
       // TODO
     }
   }
