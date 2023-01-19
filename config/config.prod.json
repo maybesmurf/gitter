@@ -48,6 +48,9 @@
   },
   "matrix": {
     "wellKnownServer": "gitter.ems.host:443",
+    "wellKnownClient": {
+      "homeserverBaseUrl": "https://gitter.ems.host"
+    },
     "bridge": {
       "homeserverUrl": "https://gitter.ems.host",
       "serverName": "gitter.im",
@@ -56,9 +59,7 @@
       "gitterBridgeBackingUsername": "matrixbot",
       "gitterBridgeProfileUsername": "gitter-badger",
       "gitterLogoMxc": "mxc://gitter.im/5ca06a9ec041815b7bfe089ec2733507753aa43c",
-      "extraPowerLevelUserList": [
-        ["@moderation:gitter.im", 100]
-      ]
+      "extraPowerLevelUserList": [["@moderation:gitter.im", 100]]
     }
   },
   "virtualUsers": {
@@ -67,10 +68,7 @@
     }
   },
   "spam-detection": {
-    "ethereum-dirty-group-list": [
-      "57542c12c43b8c601976fa66",
-      "57542beec43b8c601976e3c5"
-    ]
+    "ethereum-dirty-group-list": ["57542c12c43b8c601976fa66", "57542beec43b8c601976e3c5"]
   },
   "notifications": {
     "notificationsSender": "support@gitter.im",
