@@ -261,6 +261,10 @@ const recordFailedRoomsIntervalId = setInterval(async () => {
     writingFailedRoomsFileLock = true;
     const failedRoomIds = concurrentQueue.getFailedItemIds();
     await persistFailedRoomIds(failedRoomIds);
+  } catch (err) {
+    logger.error(`Problem persisting failedRoomIds file to disk (from the interval)`, {
+      exception: err
+    });
   } finally {
     writingFailedRoomsFileLock = false;
   }
