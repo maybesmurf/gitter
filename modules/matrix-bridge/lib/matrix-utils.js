@@ -9,6 +9,11 @@ const StatusError = require('statuserror');
 const Promise = require('bluebird');
 const request = Promise.promisify(require('request'));
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
+const {
+  noTimeoutIterableFromMongooseCursor
+} = require('gitter-web-persistence-utils/lib/mongoose-utils');
+const persistence = require('gitter-web-persistence');
 const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const userService = require('gitter-web-users');
@@ -31,6 +36,8 @@ const parseGitterMxid = require('./parse-gitter-mxid');
 const { BRIDGE_USER_POWER_LEVEL, ROOM_ADMIN_POWER_LEVEL } = require('./constants');
 
 const store = require('./store');
+
+const DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP = 100;
 
 const serverName = config.get('matrix:bridge:serverName');
 // The bridge user we are using to interact with everything on the Matrix side
@@ -360,6 +367,106 @@ class MatrixUtils {
         // from the Matrix room.
         if (!canAdmin) {
           await this.removeAdminFromMatrixRoomId({ mxid, matrixRoomId });
+        }
+      }
+    }
+  }
+
+  // eslint-disable-next-line complexity
+  async addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+    matrixRoomId,
+    gitterRoomId,
+    useShortcutToOnlyLookThroughExtraAdmins = false
+  }) {
+    assert(gitterRoomId);
+    assert(matrixRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
+    // Not all rooms are in a group like ONE_TO_ONE's
+    const gitterGroup = await groupService.findById(gitterRoom.groupId);
+
+    // If the only admins in the room are specified manually, then we know all admins
+    // possible by looking at `sd.extraAdmins` and we can shortcut...
+    const onlyUsingManualAdmins =
+      gitterRoom.sd && gitterRoom.sd.type === null && gitterRoom.sd.admins === 'MANUAL';
+    // If the room is inheriting from the group but the group is using manual
+    // admins, then we know all admins possible by looking at the groups
+    // `sd.extraAdmins` and we can shortcut...
+    const inheritingFromGroupAndGroupUsingManualAdmins =
+      gitterRoom.sd &&
+      gitterRoom.sd.type === 'GROUP' &&
+      gitterRoom.sd.admins === 'GROUP_ADMIN' &&
+      gitterGroup &&
+      gitterGroup.sd.type === null &&
+      gitterGroup.sd.admins === 'MANUAL';
+
+    if (
+      useShortcutToOnlyLookThroughExtraAdmins ||
+      onlyUsingManualAdmins ||
+      inheritingFromGroupAndGroupUsingManualAdmins
+    ) {
+      let extraAdminsToCheck = (gitterRoom.sd && gitterRoom.sd.extraAdmins) || [];
+      // If the room is inheriting from the group, also add on the group extraAdmins
+      if (inheritingFromGroupAndGroupUsingManualAdmins) {
+        extraAdminsToCheck = extraAdminsToCheck.concat(
+          (gitterGroup.sd && gitterGroup.sd.extraAdmins) || []
+        );
+      }
+
+      for (const gitterExtraAdminUserId of extraAdminsToCheck) {
+        const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(
+          gitterExtraAdminUserId
+        );
+
+        await this.addAdminToMatrixRoomId({
+          mxid: gitterUserMxid,
+          matrixRoomId
+        });
+      }
+    }
+    // Otherwise, we just have to loop through all room members and check for any admins present
+    else {
+      const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
+        (/*{ previousIdFromCursor }*/) => {
+          const messageCursor = persistence.TroupeUser.find(
+            {
+              troupeId: gitterRoomId
+              // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
+              // `_id` index for this to be efficient. Instead, we will just get a brand new
+              // cursor starting from the beginning and try again.
+              // TODO: ^ is this actually true?
+            },
+            { userId: 1 }
+          )
+            // Go from oldest to most recent so everything appears in the order it was sent in
+            // the first place
+            .sort({ _id: 'asc' })
+            .lean()
+            .read(mongoReadPrefs.secondaryPreferred)
+            .batchSize(DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP)
+            .cursor();
+
+          return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP };
+        }
+      );
+
+      for await (const gitterRoomMemberUserId of gitterMembershipStreamIterable) {
+        // TODO: remove
+        console.log('gitterRoomMemberUserId TODO: is this a user ID?', gitterRoomMemberUserId);
+
+        const canAdmin = await checkIfGitterUserIdCanAdminInGitterRoomId({
+          gitterUserId: gitterRoomMemberUserId,
+          gitterRoomId
+        });
+
+        // If the person can admin the Gitter room, add power levels to the Matrix room.
+        if (canAdmin) {
+          const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(
+            gitterRoomMemberUserId
+          );
+
+          await this.addAdminToMatrixRoomId({ mxid: gitterUserMxid, matrixRoomId });
         }
       }
     }
