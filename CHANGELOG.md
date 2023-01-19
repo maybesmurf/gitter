@@ -1,3 +1,7 @@
+# 21.56.3 - 2023-01-19
+
+ - Add `/.well-known/matrix/client` for Matrix clients so you can simply enter `gitter.im` on the Element sign-in page and it all just works, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2336
+
 
 # 21.56.2 - 2023-01-18
 
