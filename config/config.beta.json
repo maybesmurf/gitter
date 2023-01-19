@@ -51,6 +51,9 @@
   },
   "matrix": {
     "wellKnownServer": "gitter-beta.ems.host:443",
+    "wellKnownClient": {
+      "homeserverBaseUrl": "https://gitter-beta.ems.host"
+    },
     "bridge": {
       "homeserverUrl": "https://gitter-beta.ems.host",
       "serverName": "beta.gitter.im",
