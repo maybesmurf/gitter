@@ -331,7 +331,7 @@ class MatrixUtils {
   }
 
   // Loop through all of the room admins listed in the Matrix power levels and
-  // remove any people that don't pass the `isAdmin` check here.
+  // remove any people that don't pass the Gitter admin check.
   async cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({ matrixRoomId, gitterRoomId }) {
     assert(gitterRoomId);
     assert(matrixRoomId);
@@ -372,6 +372,9 @@ class MatrixUtils {
     }
   }
 
+  // Loop through all Gitter admins (smartly) and add power levels for anyone that
+  // passes the Gitter admin check.
+  //
   // eslint-disable-next-line complexity
   async addAdminsInMatrixRoomIdAccordingToGitterRoomId({
     matrixRoomId,
