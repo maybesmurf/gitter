@@ -418,9 +418,6 @@ class MatrixUtils {
       onlyUsingManualAdmins ||
       inheritingFromGroupAndGroupUsingManualAdmins;
 
-    // TODO: Remove
-    console.log('canGetAwayWithUsingShortcutOnly', canGetAwayWithUsingShortcutOnly);
-
     let extraAdminsToCheck = (gitterRoom.sd && gitterRoom.sd.extraAdmins) || [];
     // If the room is inheriting from the group, also add on the group extraAdmins
     if (inheritingFromGroupAndGroupUsingManualAdmins) {
