@@ -57,21 +57,6 @@ const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLev
   return accumulatedPowerLevelUsers;
 }, {});
 
-// A small wrapper to check admin permissions in Gitter room just so we don't have to
-// keep perpetuating these stub hacks everywhere we want to take this shortcut
-async function checkIfGitterUserIdCanAdminInGitterRoomId({ gitterUserId, gitterRoomId }) {
-  // These stubs are hacks assuming how `createPolicyForRoom` works so we can save the
-  // lookup
-  const stubbedGitterRoom = {
-    _id: gitterRoomId
-  };
-  const gitterUser = await persistence.User.findById(gitterUserId, null, { lean: true }).exec();
-
-  const policy = await policyFactory.createPolicyForRoom(gitterUser, stubbedGitterRoom);
-  const canAdmin = await policy.canAdmin();
-  return canAdmin;
-}
-
 let txnCount = 0;
 function getTxnId() {
   txnCount++;
@@ -345,6 +330,9 @@ class MatrixUtils {
     assert(gitterRoomId);
     assert(matrixRoomId);
 
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
+
     const configuredServerName = this.matrixBridge.opts.domain;
     assert(configuredServerName);
 
@@ -366,11 +354,11 @@ class MatrixUtils {
       // check to make sure they should still be an admin
       if (currentPowerLevelOfMxid === ROOM_ADMIN_POWER_LEVEL) {
         const gitterUserId = await store.getGitterUserIdByMatrixUserId(mxid);
-
-        const canAdmin = await checkIfGitterUserIdCanAdminInGitterRoomId({
-          gitterUserId,
-          gitterRoomId
-        });
+        const gitterUser = await persistence.User.findById(gitterUserId, null, {
+          lean: true
+        }).exec();
+        const policy = await policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+        const canAdmin = await policy.canAdmin();
 
         // If the person no longer exists on Gitter or if the person can no longer admin
         // the Gitter room, remove their power levels from the Matrix room.
@@ -398,8 +386,8 @@ class MatrixUtils {
     // Not all rooms are in a group like ONE_TO_ONE's
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
 
-    // If the only admins in the room are specified manually, then we know all admins
-    // possible by looking at `sd.extraAdmins` and we can shortcut...
+    // If the only admins in the room are specified manually, then we know that all of
+    // the admins possible by looking at `sd.extraAdmins` and we can shortcut...
     const onlyUsingManualAdmins =
       gitterRoom.sd && gitterRoom.sd.type === null && gitterRoom.sd.admins === 'MANUAL';
     // If the room is inheriting from the group and the group is using manual
@@ -464,11 +452,11 @@ class MatrixUtils {
 
       for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
         const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
-
-        const canAdmin = await checkIfGitterUserIdCanAdminInGitterRoomId({
-          gitterUserId: gitterRoomMemberUserId,
-          gitterRoomId
-        });
+        const gitterUser = await persistence.User.findById(gitterRoomMemberUserId, null, {
+          lean: true
+        }).exec();
+        const policy = await policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+        const canAdmin = await policy.canAdmin();
 
         // If the person can admin the Gitter room, add power levels to the Matrix room.
         if (canAdmin) {

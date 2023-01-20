@@ -594,8 +594,8 @@ class GitterBridge {
       });
     }
 
-    // If only the `sd.extraAdmins` were updated as part of a "patch", then we know the
-    // only admin changes are in this list so we can shortcut and only run through
+    // If only the `sd.extraAdmins` were updated as part of a "patch", then we know that
+    // the only admin changes are in this list so we can shortcut and only run through
     // admins in that list and make sure they have the proper Matrix power levels
     const onlyExtraAdminsUpdated = Object.keys(model) === 1 && model.extraAdmins;
 
@@ -617,8 +617,8 @@ class GitterBridge {
 
   // This is tested by `test/request-web-tests/matrix-bridging-power-level-tests.js`
   async handleGroupSecurityDescriptorUpdateEvent(gitterGroupId /*, model*/) {
-    // If only the `sd.extraAdmins` were updated as part of a "patch", then we know the
-    // only admin changes are in this list so we can shortcut and only run through
+    // If only the `sd.extraAdmins` were updated as part of a "patch", then we know that
+    // the only admin changes are in this list so we can shortcut and only run through
     // admins in that list and make sure they have the proper Matrix power levels
     //
     // XXX: In the future, it would be cool to factor in this shortcut to the room
