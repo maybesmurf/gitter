@@ -14,7 +14,6 @@ const env = require('gitter-web-env');
 const config = env.config;
 const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
 
-const chatService = require('gitter-web-chats');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
@@ -27,6 +26,34 @@ const matrixUtils = new MatrixUtils(matrixBridge);
 const app = require('../../server/web');
 
 const TEST_WAIT_TIMEOUT_MS = 5000;
+async function waitUntilTimeoutOrSuccess(asyncTask, timeoutMs) {
+  return new Promise(async (resolve, reject) => {
+    let done = false;
+    let lastError;
+    let numAttempts = 0;
+    setTimeout(() => {
+      done = true;
+      reject(
+        new RethrownError(
+          `waitUntilTimeoutOrSuccess(...) tried to run the async task ${numAttempts} times but it never completed successfully. The last error thrown was`,
+          lastError
+        )
+      );
+    }, timeoutMs);
+
+    do {
+      try {
+        const returnedValue = await asyncTask();
+        resolve(returnedValue);
+        done = true;
+      } catch (err) {
+        lastError = err;
+      } finally {
+        numAttempts++;
+      }
+    } while (!done);
+  });
+}
 
 async function setupMatrixRoomWithFakeAdminsForGitterRoomId({
   gitterRoomId,
@@ -72,7 +99,8 @@ async function setupMatrixRoomWithFakeAdminsForGitterRoomId({
   return matrixRoomId;
 }
 
-async function ensureMatrixRoomIdPowerLevelsAreCorrect({
+// Use the wrapping `ensureMatrixRoomIdPowerLevelsAreCorrect` function in your tests instead
+async function _checkMatrixRoomIdPowerLevelsAreCorrect({
   matrixRoomId,
   expectedAdminGitterUserIds,
   denyAdminGitterUserIds
@@ -131,36 +159,31 @@ async function ensureMatrixRoomIdPowerLevelsAreCorrect({
   }
 }
 
-async function waitUntilTimeoutOrSuccess(asyncTask, timeoutMs) {
-  return new Promise(async (resolve, reject) => {
-    let done = false;
-    let lastError;
-    let numAttempts = 0;
-    setTimeout(() => {
-      done = true;
-      reject(
-        new RethrownError(
-          `waitUntilTimeoutOrSuccess(...) tried to run the async task ${numAttempts} times but it never completed successfully. The last error thrown was`,
-          lastError
-        )
-      );
-    }, timeoutMs);
-
-    do {
-      try {
-        const returnedValue = await asyncTask();
-        resolve(returnedValue);
-        done = true;
-      } catch (err) {
-        lastError = err;
-      } finally {
-        numAttempts++;
-      }
-    } while (!done);
-  });
+async function ensureMatrixRoomIdPowerLevelsAreCorrect({
+  matrixRoomId,
+  expectedAdminGitterUserIds,
+  denyAdminGitterUserIds
+}) {
+  // Since we're using the async out-of-loop Gitter event-listeners to listen for the
+  // security descriptor change to come through and bridge changes to Matrix we just
+  // have to wait until the test times out or the assertions succeed.
+  return await waitUntilTimeoutOrSuccess(async () => {
+    return await _checkMatrixRoomIdPowerLevelsAreCorrect({
+      matrixRoomId,
+      expectedAdminGitterUserIds,
+      denyAdminGitterUserIds
+    });
+  }, TEST_WAIT_TIMEOUT_MS);
 }
 
 describe('Gitter -> Matrix briding power-levels e2e', () => {
+  fixtureLoader.ensureIntegrationEnvironment(
+    // This is a public member of `GITTER_INTEGRATION_ORG`
+    '#integrationCollabUser1',
+    'GITTER_INTEGRATION_ORG',
+    'GITTER_INTEGRATION_ORG_ID'
+  );
+
   const fixture = fixtureLoader.setupEach({
     user1: {
       accessToken: 'web-internal'
@@ -201,6 +224,29 @@ describe('Gitter -> Matrix briding power-levels e2e', () => {
     troupeOneToOne: {
       oneToOne: true,
       users: ['user1', 'user2']
+    },
+
+    userIntegration1: '#integrationCollabUser1',
+    groupBackedByGitHub2: {
+      securityDescriptor: {
+        type: 'GH_ORG',
+        admins: 'GH_ORG_MEMBER',
+        members: 'PUBLIC',
+        public: true,
+        linkPath: fixtureLoader.GITTER_INTEGRATION_ORG,
+        externalId: fixtureLoader.GITTER_INTEGRATION_ORG_ID,
+        extraAdmins: []
+      }
+    },
+    troupeBackedByGroup2: {
+      group: 'groupBackedByGitHub2',
+      users: ['user1', 'userAdmin1', 'userIntegration1'],
+      securityDescriptor: {
+        members: 'PUBLIC',
+        admins: 'MANUAL',
+        public: true,
+        extraAdmins: ['userAdmin1']
+      }
     }
   });
 
@@ -217,7 +263,7 @@ describe('Gitter -> Matrix briding power-levels e2e', () => {
       .map(fixtureKey => {
         return `${fixtureKey}: ${fixture[fixtureKey].username} (${fixture[fixtureKey].id})`;
       });
-    debug(`Fixture map of users:\n${userFixtureDebugStrings.join(' - ')}\n`);
+    debug(`Fixture map of users:\n${userFixtureDebugStrings.join('\n - ')}`);
   });
 
   afterEach(async () => {
@@ -226,30 +272,113 @@ describe('Gitter -> Matrix briding power-levels e2e', () => {
     }
   });
 
-  it(`A patch to a room's \`sd.extraAdmins\` updates power levels`, async () => {
-    const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
-      gitterRoomId: fixture.troupe1.id,
-      fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
-    });
+  it(
+    `Adding another Gitter room admin will emit a \`room.sd\` \`patch\` event ` +
+      `about \`sd.extraAdmins\` and will update Matrix power levels`,
+    async () => {
+      const fixtureRoom = fixture.troupe1;
+      const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
+        gitterRoomId: fixtureRoom.id,
+        fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
+      });
 
-    // Trigger a `room.sd` patch change (meaning only the `extraAdmins` changed) by
-    // adding another admin
-    await request(app)
-      .post(`/api/v1/rooms/${fixture.troupe1.id}/security/extraAdmins`)
-      .send({ id: fixture.userAdminToAdd1.id })
-      .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
-      .expect(200);
+      // Trigger a `room.sd` patch event (meaning only the `sd.extraAdmins` changed) by
+      // adding another admin and using the `/security/extraAdmins` endpoint
+      //
+      // We expect this to use the shortcut method of updating admins where it only
+      // looks over specified `extraAdmins` although we don't assert how the bridge gets
+      // things done.
+      await request(app)
+        .post(`/api/v1/rooms/${fixtureRoom.id}/security/extraAdmins`)
+        .send({ id: fixture.userAdminToAdd1.id })
+        .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
+        .expect(200);
 
-    // Since we're using the async out-of-loop Gitter event-listeners to listen
-    // for the security descriptor change to come through and bridge we just have to wait
-    // until the test times out
-    await waitUntilTimeoutOrSuccess(async () => {
       // Ensure power levels look as expected
       await ensureMatrixRoomIdPowerLevelsAreCorrect({
         matrixRoomId,
         expectedAdminGitterUserIds: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id],
         denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
       });
-    }, TEST_WAIT_TIMEOUT_MS);
-  });
+    }
+  );
+
+  it(
+    `Updating the whole room security descriptor but still using manual admins ` +
+      `will emit an \`room.sd\` \`update\` event and update Matrix power levels`,
+    async () => {
+      const fixtureRoom = fixture.troupe1;
+      const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
+        gitterRoomId: fixtureRoom.id,
+        fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
+      });
+
+      // Trigger a `room.sd` update event (meaning only the whole `sd` changed) by
+      // adding another admin and using the `/security` endpoint.
+      //
+      // We expect this to use the shortcut method of updating admins where it only
+      // looks over specified `extraAdmins` although we don't assert how the bridge gets
+      // things done.
+      await request(app)
+        .put(`/api/v1/rooms/${fixtureRoom.id}/security`)
+        .send({
+          type: null,
+          members: 'PUBLIC',
+          admins: 'MANUAL',
+          extraAdmins: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id]
+        })
+        .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
+        .expect(200);
+
+      // Ensure power levels look as expected
+      await ensureMatrixRoomIdPowerLevelsAreCorrect({
+        matrixRoomId,
+        expectedAdminGitterUserIds: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id],
+        denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
+      });
+    }
+  );
+
+  it(
+    `Updating the whole room security descriptor and changing \`sd.type\` ` +
+      `will emit an \`room.sd\` \`update\` event and update Matrix power levels`,
+    async () => {
+      const fixtureRoom = fixture.troupeBackedByGroup2;
+      const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
+        gitterRoomId: fixtureRoom.id,
+        fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
+      });
+
+      // Trigger a `room.sd` update event (meaning only the whole `sd` changed) by
+      // adding another admin and using the `/security` endpoint
+      //
+      // We expect this to use the long-method of updating admins where it only loops
+      // over all room members to find admins although we don't assert how the bridge
+      // gets things done.
+      await request(app)
+        .put(`/api/v1/rooms/${fixtureRoom.id}/security`)
+        .send({
+          type: 'GROUP',
+          members: 'PUBLIC',
+          admins: 'GROUP_ADMIN',
+          extraAdmins: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id]
+        })
+        .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
+        .expect(200);
+
+      // Ensure power levels look as expected
+      await ensureMatrixRoomIdPowerLevelsAreCorrect({
+        matrixRoomId,
+        expectedAdminGitterUserIds: [
+          fixture.userAdmin1.id,
+          fixture.userAdminToAdd1.id,
+          // This was a user of the room and the room security descriptor was updated to
+          // use group permissions which inherit from the GitHub org. So this org member
+          // should be an admin of the room now.
+          fixture.userIntegration1.id
+        ],
+        denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
+      });
+    }
+  );
 });

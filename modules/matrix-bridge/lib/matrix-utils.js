@@ -62,13 +62,12 @@ const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLev
 async function checkIfGitterUserIdCanAdminInGitterRoomId({ gitterUserId, gitterRoomId }) {
   // These stubs are hacks assuming how `createPolicyForRoom` works so we can save the
   // lookup
-  const stubbedGitterUser = {
-    _id: gitterUserId
-  };
   const stubbedGitterRoom = {
     _id: gitterRoomId
   };
-  const policy = await policyFactory.createPolicyForRoom(stubbedGitterUser, stubbedGitterRoom);
+  const gitterUser = await persistence.User.findById(gitterUserId, null, { lean: true }).exec();
+
+  const policy = await policyFactory.createPolicyForRoom(gitterUser, stubbedGitterRoom);
   const canAdmin = await policy.canAdmin();
   return canAdmin;
 }
@@ -286,6 +285,11 @@ class MatrixUtils {
       'm.room.power_levels'
     );
 
+    // We can bail early if the mxid in question is already in the power levels as an admin
+    if ((currentPowerLevelContent.users || {})[mxid] === ROOM_ADMIN_POWER_LEVEL) {
+      return;
+    }
+
     await this.ensureStateEventAsMxid(
       // undefined will give us the bridgeIntent
       undefined,
@@ -310,6 +314,11 @@ class MatrixUtils {
       matrixRoomId,
       'm.room.power_levels'
     );
+
+    // We can bail early in the mxid in question is already not in the power levels
+    if ((currentPowerLevelContent.users || {})[mxid] === undefined) {
+      return;
+    }
 
     // Copy the power level users map
     const newPowerLevelUsersMap = {
@@ -404,32 +413,34 @@ class MatrixUtils {
       gitterGroup.sd.type === null &&
       gitterGroup.sd.admins === 'MANUAL';
 
-    if (
+    const canGetAwayWithUsingShortcutOnly =
       useShortcutToOnlyLookThroughExtraAdmins ||
       onlyUsingManualAdmins ||
-      inheritingFromGroupAndGroupUsingManualAdmins
-    ) {
-      let extraAdminsToCheck = (gitterRoom.sd && gitterRoom.sd.extraAdmins) || [];
-      // If the room is inheriting from the group, also add on the group extraAdmins
-      if (inheritingFromGroupAndGroupUsingManualAdmins) {
-        extraAdminsToCheck = extraAdminsToCheck.concat(
-          (gitterGroup.sd && gitterGroup.sd.extraAdmins) || []
-        );
-      }
+      inheritingFromGroupAndGroupUsingManualAdmins;
 
-      for (const gitterExtraAdminUserId of extraAdminsToCheck) {
-        const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(
-          gitterExtraAdminUserId
-        );
+    // TODO: Remove
+    console.log('canGetAwayWithUsingShortcutOnly', canGetAwayWithUsingShortcutOnly);
 
-        await this.addAdminToMatrixRoomId({
-          mxid: gitterUserMxid,
-          matrixRoomId
-        });
-      }
+    let extraAdminsToCheck = (gitterRoom.sd && gitterRoom.sd.extraAdmins) || [];
+    // If the room is inheriting from the group, also add on the group extraAdmins
+    if (inheritingFromGroupAndGroupUsingManualAdmins) {
+      extraAdminsToCheck = extraAdminsToCheck.concat(
+        (gitterGroup.sd && gitterGroup.sd.extraAdmins) || []
+      );
     }
+
+    // This is the shortcut method where we only have to check over the extraAdmins
+    for (const gitterExtraAdminUserId of extraAdminsToCheck) {
+      const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterExtraAdminUserId);
+
+      await this.addAdminToMatrixRoomId({
+        mxid: gitterUserMxid,
+        matrixRoomId
+      });
+    }
+
     // Otherwise, we just have to loop through all room members and check for any admins present
-    else {
+    if (!canGetAwayWithUsingShortcutOnly) {
       const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
         (/*{ previousIdFromCursor }*/) => {
           const messageCursor = persistence.TroupeUser.find(
@@ -440,7 +451,7 @@ class MatrixUtils {
               // cursor starting from the beginning and try again.
               // TODO: ^ is this actually true?
             },
-            { userId: 1 }
+            { _id: 0, userId: 1 }
           )
             // Go from oldest to most recent so everything appears in the order it was sent in
             // the first place
@@ -454,9 +465,8 @@ class MatrixUtils {
         }
       );
 
-      for await (const gitterRoomMemberUserId of gitterMembershipStreamIterable) {
-        // TODO: remove
-        console.log('gitterRoomMemberUserId TODO: is this a user ID?', gitterRoomMemberUserId);
+      for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
+        const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
 
         const canAdmin = await checkIfGitterUserIdCanAdminInGitterRoomId({
           gitterUserId: gitterRoomMemberUserId,

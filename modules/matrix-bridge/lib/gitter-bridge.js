@@ -568,6 +568,7 @@ class GitterBridge {
     }
   }
 
+  // This is tested by `test/request-web-tests/matrix-bridging-power-level-tests.js`
   async handleRoomSecurityDescriptorUpdateEvent(gitterRoomId, model) {
     const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     if (!matrixRoomId) {
