@@ -17,7 +17,6 @@ const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServi
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
-const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const { ROOM_ADMIN_POWER_LEVEL } = require('gitter-web-matrix-bridge/lib/constants');
 const RethrownError = require('gitter-web-matrix-bridge/lib/rethrown-error');
 
