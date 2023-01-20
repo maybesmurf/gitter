@@ -599,13 +599,13 @@ class GitterBridge {
 
     // Loop through all Gitter admins (smartly) and add power levels for anyone that
     // passes the Gitter admin check.
-    await await this.matrixUtils.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+    await this.matrixUtils.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
       matrixRoomId,
       gitterRoomId,
       useShortcutToOnlyLookThroughExtraAdmins: onlyExtraAdminsUpdated
     });
     if (matrixHistoricalRoomId) {
-      await await this.matrixUtils.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      await this.matrixUtils.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
         matrixRoomId: matrixHistoricalRoomId,
         gitterRoomId,
         useShortcutToOnlyLookThroughExtraAdmins: onlyExtraAdminsUpdated

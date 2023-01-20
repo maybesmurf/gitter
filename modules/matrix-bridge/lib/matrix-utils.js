@@ -345,7 +345,7 @@ class MatrixUtils {
       'm.room.power_levels'
     );
 
-    for (const mxid in Object.keys(currentPowerLevelContent.users || {})) {
+    for (const mxid of Object.keys(currentPowerLevelContent.users || {})) {
       // Skip any MXID's that aren't from our own server (gitter.im)
       const { serverName } = parseGitterMxid(mxid) || {};
       if (serverName !== configuredServerName) {
@@ -363,9 +363,9 @@ class MatrixUtils {
           gitterRoomId
         });
 
-        // If the person can no longer admin the Gitter room, remove their power levels
-        // from the Matrix room.
-        if (!canAdmin) {
+        // If the person no longer exists on Gitter or if the person can no longer admin
+        // the Gitter room, remove their power levels from the Matrix room.
+        if (!gitterUserId || !canAdmin) {
           await this.removeAdminFromMatrixRoomId({ mxid, matrixRoomId });
         }
       }
@@ -693,6 +693,12 @@ class MatrixUtils {
       kick: 50,
       redact: 50,
       invite: 0
+    });
+
+    // Add the Gitter room admins to the power levels to be able to self-manage later
+    await this.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      matrixRoomId,
+      gitterRoomId
     });
 
     // TODO: Ensure historical predecessor set correctly. This function is also used for
