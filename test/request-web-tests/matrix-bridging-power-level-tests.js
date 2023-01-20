@@ -211,20 +211,6 @@ describe('Gitter -> Matrix briding power-levels e2e', () => {
         extraAdmins: ['userAdmin1']
       }
     },
-    troupePrivate1: {
-      group: 'group1',
-      users: ['user1', 'userAdmin1'],
-      securityDescriptor: {
-        members: 'INVITE',
-        admins: 'MANUAL',
-        public: false,
-        extraAdmins: ['userAdmin1']
-      }
-    },
-    troupeOneToOne: {
-      oneToOne: true,
-      users: ['user1', 'user2']
-    },
 
     userIntegration1: '#integrationCollabUser1',
     groupBackedByGitHub2: {
@@ -246,6 +232,28 @@ describe('Gitter -> Matrix briding power-levels e2e', () => {
         admins: 'MANUAL',
         public: true,
         extraAdmins: ['userAdmin1']
+      }
+    },
+
+    group3: {
+      securityDescriptor: {
+        type: null,
+        members: 'PUBLIC',
+        admins: 'MANUAL',
+        public: true,
+        extraAdmins: ['userAdmin1']
+      }
+    },
+    troupe3Inheriting: {
+      group: 'group3',
+      users: ['user1'],
+      securityDescriptor: {
+        type: 'GROUP',
+        internalId: 'group3',
+        members: 'PUBLIC',
+        public: true,
+        admins: 'GROUP_ADMIN',
+        extraAdmins: []
       }
     }
   });
@@ -272,113 +280,151 @@ describe('Gitter -> Matrix briding power-levels e2e', () => {
     }
   });
 
-  it(
-    `Adding another Gitter room admin will emit a \`room.sd\` \`patch\` event ` +
-      `about \`sd.extraAdmins\` and will update Matrix power levels`,
-    async () => {
-      const fixtureRoom = fixture.troupe1;
-      const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
-        gitterRoomId: fixtureRoom.id,
-        fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
-      });
+  describe('Gitter room.sd changes update power levels in Matrix room', () => {
+    it(
+      `Adding another Gitter room admin will emit a \`room.sd\` \`patch\` event ` +
+        `about \`sd.extraAdmins\` and will update Matrix power levels`,
+      async () => {
+        const fixtureRoom = fixture.troupe1;
+        const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
+          gitterRoomId: fixtureRoom.id,
+          fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
+        });
 
-      // Trigger a `room.sd` patch event (meaning only the `sd.extraAdmins` changed) by
-      // adding another admin and using the `/security/extraAdmins` endpoint
-      //
-      // We expect this to use the shortcut method of updating admins where it only
-      // looks over specified `extraAdmins` although we don't assert how the bridge gets
-      // things done.
-      await request(app)
-        .post(`/api/v1/rooms/${fixtureRoom.id}/security/extraAdmins`)
-        .send({ id: fixture.userAdminToAdd1.id })
-        .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
-        .expect(200);
+        // Trigger a `room.sd` patch event (meaning only the `sd.extraAdmins` changed) by
+        // adding another admin and using the `/security/extraAdmins` endpoint
+        //
+        // We expect this to use the shortcut method of updating admins where it only
+        // looks over specified `extraAdmins` although we don't assert how the bridge gets
+        // things done.
+        await request(app)
+          .post(`/api/v1/rooms/${fixtureRoom.id}/security/extraAdmins`)
+          .send({ id: fixture.userAdminToAdd1.id })
+          .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
+          .expect(200);
 
-      // Ensure power levels look as expected
-      await ensureMatrixRoomIdPowerLevelsAreCorrect({
-        matrixRoomId,
-        expectedAdminGitterUserIds: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id],
-        denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
-      });
-    }
-  );
+        // Ensure power levels look as expected
+        await ensureMatrixRoomIdPowerLevelsAreCorrect({
+          matrixRoomId,
+          expectedAdminGitterUserIds: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id],
+          denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
+        });
+      }
+    );
 
-  it(
-    `Updating the whole room security descriptor but still using manual admins ` +
-      `will emit an \`room.sd\` \`update\` event and update Matrix power levels`,
-    async () => {
-      const fixtureRoom = fixture.troupe1;
-      const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
-        gitterRoomId: fixtureRoom.id,
-        fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
-      });
+    it(
+      `Updating the whole room security descriptor but still using manual admins ` +
+        `will emit an \`room.sd\` \`update\` event and update Matrix power levels`,
+      async () => {
+        const fixtureRoom = fixture.troupe1;
+        const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
+          gitterRoomId: fixtureRoom.id,
+          fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
+        });
 
-      // Trigger a `room.sd` update event (meaning only the whole `sd` changed) by
-      // adding another admin and using the `/security` endpoint.
-      //
-      // We expect this to use the shortcut method of updating admins where it only
-      // looks over specified `extraAdmins` although we don't assert how the bridge gets
-      // things done.
-      await request(app)
-        .put(`/api/v1/rooms/${fixtureRoom.id}/security`)
-        .send({
-          type: null,
-          members: 'PUBLIC',
-          admins: 'MANUAL',
-          extraAdmins: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id]
-        })
-        .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
-        .expect(200);
+        // Trigger a `room.sd` update event (meaning only the whole `sd` changed) by
+        // adding another admin and using the `/security` endpoint.
+        //
+        // We expect this to use the shortcut method of updating admins where it only
+        // looks over specified `extraAdmins` although we don't assert how the bridge gets
+        // things done.
+        await request(app)
+          .put(`/api/v1/rooms/${fixtureRoom.id}/security`)
+          .send({
+            type: null,
+            members: 'PUBLIC',
+            admins: 'MANUAL',
+            extraAdmins: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id]
+          })
+          .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
+          .expect(200);
 
-      // Ensure power levels look as expected
-      await ensureMatrixRoomIdPowerLevelsAreCorrect({
-        matrixRoomId,
-        expectedAdminGitterUserIds: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id],
-        denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
-      });
-    }
-  );
+        // Ensure power levels look as expected
+        await ensureMatrixRoomIdPowerLevelsAreCorrect({
+          matrixRoomId,
+          expectedAdminGitterUserIds: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id],
+          denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
+        });
+      }
+    );
 
-  it(
-    `Updating the whole room security descriptor and changing \`sd.type\` ` +
-      `will emit an \`room.sd\` \`update\` event and update Matrix power levels`,
-    async () => {
-      const fixtureRoom = fixture.troupeBackedByGroup2;
-      const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
-        gitterRoomId: fixtureRoom.id,
-        fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
-      });
+    it(
+      `Updating the whole room security descriptor and changing \`sd.type\` ` +
+        `will emit an \`room.sd\` \`update\` event and update Matrix power levels`,
+      async () => {
+        const fixtureRoom = fixture.troupeBackedByGroup2;
+        const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
+          gitterRoomId: fixtureRoom.id,
+          fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
+        });
 
-      // Trigger a `room.sd` update event (meaning only the whole `sd` changed) by
-      // adding another admin and using the `/security` endpoint
-      //
-      // We expect this to use the long-method of updating admins where it only loops
-      // over all room members to find admins although we don't assert how the bridge
-      // gets things done.
-      await request(app)
-        .put(`/api/v1/rooms/${fixtureRoom.id}/security`)
-        .send({
-          type: 'GROUP',
-          members: 'PUBLIC',
-          admins: 'GROUP_ADMIN',
-          extraAdmins: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id]
-        })
-        .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
-        .expect(200);
+        // Trigger a `room.sd` update event (meaning only the whole `sd` changed) by
+        // adding another admin and using the `/security` endpoint
+        //
+        // We expect this to use the long-method of updating admins where it only loops
+        // over all room members to find admins although we don't assert how the bridge
+        // gets things done.
+        await request(app)
+          .put(`/api/v1/rooms/${fixtureRoom.id}/security`)
+          .send({
+            type: 'GROUP',
+            members: 'PUBLIC',
+            admins: 'GROUP_ADMIN',
+            extraAdmins: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id]
+          })
+          .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
+          .expect(200);
 
-      // Ensure power levels look as expected
-      await ensureMatrixRoomIdPowerLevelsAreCorrect({
-        matrixRoomId,
-        expectedAdminGitterUserIds: [
-          fixture.userAdmin1.id,
-          fixture.userAdminToAdd1.id,
-          // This was a user of the room and the room security descriptor was updated to
-          // use group permissions which inherit from the GitHub org. So this org member
-          // should be an admin of the room now.
-          fixture.userIntegration1.id
-        ],
-        denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
-      });
-    }
-  );
+        // Ensure power levels look as expected
+        await ensureMatrixRoomIdPowerLevelsAreCorrect({
+          matrixRoomId,
+          expectedAdminGitterUserIds: [
+            fixture.userAdmin1.id,
+            fixture.userAdminToAdd1.id,
+            // This was a user of the room and the room security descriptor was updated to
+            // use group permissions which inherit from the GitHub org. So this org member
+            // should be an admin of the room now.
+            fixture.userIntegration1.id
+          ],
+          denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
+        });
+      }
+    );
+  });
+
+  describe('Gitter group.sd changes update power levels in Matrix room', () => {
+    it(
+      `Updating the whole group security descriptor will update any rooms ` +
+        `inheriting admins from the group and update Matrix power levels`,
+      async () => {
+        const fixtureGroup = fixture.group3;
+        const fixtureRoom = fixture.troupe3Inheriting;
+        const matrixRoomId = await setupMatrixRoomWithFakeAdminsForGitterRoomId({
+          gitterRoomId: fixtureRoom.id,
+          fakeAdminGitterUserId: fixture.userWhoShouldNotBeAdmin1.id
+        });
+
+        // Trigger a `group.sd` update event
+        //
+        // We expect all of the rooms that inherit from this group to be updated
+        await request(app)
+          .put(`/api/v1/groups/${fixtureGroup.id}/security`)
+          .send({
+            type: null,
+            members: 'PUBLIC',
+            admins: 'MANUAL',
+            extraAdmins: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id]
+          })
+          .set('Authorization', `Bearer ${fixture.userAdmin1.accessToken}`)
+          .expect(200);
+
+        // Ensure power levels look as expected
+        await ensureMatrixRoomIdPowerLevelsAreCorrect({
+          matrixRoomId,
+          expectedAdminGitterUserIds: [fixture.userAdmin1.id, fixture.userAdminToAdd1.id],
+          denyAdminGitterUserIds: [fixture.userWhoShouldNotBeAdmin1.id]
+        });
+      }
+    );
+  });
 });

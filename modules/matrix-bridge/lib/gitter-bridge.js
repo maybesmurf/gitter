@@ -7,6 +7,7 @@ const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const appEvents = require('gitter-web-appevents');
 const userService = require('gitter-web-users');
 const chatService = require('gitter-web-chats');
+const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const policyFactory = require('gitter-web-permissions/lib/policy-factory');
 const env = require('gitter-web-env');
@@ -59,9 +60,6 @@ class GitterBridge {
         );
       }
 
-      // TODO: remove
-      console.log('onDataChange', data);
-
       if (data.type === 'chatMessage') {
         const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)\/chatMessages/) || [];
         if (gitterRoomId && data.operation === 'create') {
@@ -90,7 +88,10 @@ class GitterBridge {
       }
 
       if (data.type === 'group.sd') {
-        // TODO
+        const [, gitterGroupId] = data.url.match(/\/groups\/([a-f0-9]+)/) || [];
+        if (gitterGroupId && (data.operation === 'patch' || data.operation === 'update')) {
+          await this.handleGroupSecurityDescriptorUpdateEvent(gitterGroupId, data.model);
+        }
       }
 
       if (data.type === 'user') {
@@ -611,6 +612,32 @@ class GitterBridge {
         gitterRoomId,
         useShortcutToOnlyLookThroughExtraAdmins: onlyExtraAdminsUpdated
       });
+    }
+  }
+
+  // This is tested by `test/request-web-tests/matrix-bridging-power-level-tests.js`
+  async handleGroupSecurityDescriptorUpdateEvent(gitterGroupId /*, model*/) {
+    // If only the `sd.extraAdmins` were updated as part of a "patch", then we know the
+    // only admin changes are in this list so we can shortcut and only run through
+    // admins in that list and make sure they have the proper Matrix power levels
+    //
+    // XXX: In the future, it would be cool to factor in this shortcut to the room
+    // shortcut. But I've left it out for the sake of reduing complexity atm.
+    //
+    // const onlyExtraAdminsUpdated = Object.keys(model) === 1 && model.extraAdmins;
+
+    const roomsInGroup = await groupService.findRoomsInGroup(gitterGroupId);
+
+    for (const gitterRoom of roomsInGroup) {
+      const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+      // If the room is inheriting from the group, then we need to update the admins in the room
+      const isRoomInheritingFromGroup =
+        gitterRoom.sd && gitterRoom.sd.type === 'GROUP' && gitterRoom.sd.admins === 'GROUP_ADMIN';
+
+      if (isRoomInheritingFromGroup) {
+        await this.handleRoomSecurityDescriptorUpdateEvent(gitterRoomId, {});
+      }
     }
   }
 }

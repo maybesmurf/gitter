@@ -402,7 +402,7 @@ class MatrixUtils {
     // possible by looking at `sd.extraAdmins` and we can shortcut...
     const onlyUsingManualAdmins =
       gitterRoom.sd && gitterRoom.sd.type === null && gitterRoom.sd.admins === 'MANUAL';
-    // If the room is inheriting from the group but the group is using manual
+    // If the room is inheriting from the group and the group is using manual
     // admins, then we know all admins possible by looking at the groups
     // `sd.extraAdmins` and we can shortcut...
     const inheritingFromGroupAndGroupUsingManualAdmins =
