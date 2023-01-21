@@ -113,12 +113,18 @@ class MatrixUtils {
       matrixRoomCreateOptions.preset = 'private_chat';
     }
 
-    const newRoom = await bridgeIntent.createRoom({
+    debug(
+      `createMatrixRoomByGitterRoomId(${gitterRoomId}) attempting room creation`,
+      matrixRoomCreateOptions
+    );
+    const newMatrixRoom = await bridgeIntent.createRoom({
       createAsClient: true,
       options: matrixRoomCreateOptions
     });
+    const matrixRoomId = newMatrixRoom.room_id;
+    debug(`createMatrixRoomByGitterRoomId(${gitterRoomId}) matrixRoomId=${matrixRoomId} created`);
 
-    return newRoom.room_id;
+    return matrixRoomId;
   }
 
   // This is an internal function used for Gitter ONE_TO_ONE rooms (not to be
