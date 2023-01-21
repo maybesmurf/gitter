@@ -156,7 +156,15 @@ class MatrixEventHandler {
       return null;
     }
 
-    const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoom._id);
+    const matrixRoomId = await this.matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
+      gitterRoom._id,
+      {
+        // Prevent the infinite loop where the conflict resolution in
+        // `getOrCreateMatrixRoomByGitterRoomId` where it asks the room directory, which
+        // sends an alias query, which gets us here again and again.
+        tryToResolveConflictFromRoomDirectory: false
+      }
+    );
 
     return {
       roomId: matrixRoomId
