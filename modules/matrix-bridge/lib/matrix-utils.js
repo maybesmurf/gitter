@@ -673,7 +673,10 @@ class MatrixUtils {
     }
   }
 
-  async getOrCreateMatrixRoomByGitterRoomId(gitterRoomId) {
+  async getOrCreateMatrixRoomByGitterRoomId(
+    gitterRoomId,
+    { tryToResolveConflictFromRoomDirectory = true } = {}
+  ) {
     // Find the cached existing bridged room
     const existingMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     if (existingMatrixRoomId) {
@@ -692,7 +695,11 @@ class MatrixUtils {
       // Try to resolve the conflict by just picking up the room that is in the room
       // directory as the source of truth since we used that as the locking mechanism in
       // the first place.
-      if (err.statusCode === 400 && err.body.errcode === 'M_ROOM_IN_USE') {
+      if (
+        tryToResolveConflictFromRoomDirectory &&
+        err.statusCode === 400 &&
+        err.body.errcode === 'M_ROOM_IN_USE'
+      ) {
         logger.info(
           `Trying to resolve conflict where a Matrix Room already exists with a conflicting alias ` +
             `but we don't have it stored for the Gitter room (gitterRoomId=${gitterRoomId}). Looking it up in the Matrix room directory...`
@@ -705,8 +712,13 @@ class MatrixUtils {
             `does not exist for gitterRoomId=${gitterRoomId}`
         );
         const roomAlias = await getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
-        // Assign `matrixRoomId` so it gets stored below
-        ({ roomId: matrixRoomId } = this.lookupRoomAlias(roomAlias));
+        ({ roomId: matrixRoomId } = await this.lookupRoomAlias(roomAlias));
+
+        if (!matrixRoomId) {
+          throw new Error(
+            `Room directory unexpectedly did not have ${roomAlias} but it just gave us M_ROOM_IN_USE so it should exist or it was just deleted between our two requests. Unable to resolve conflict.`
+          );
+        }
       } else {
         throw err;
       }
@@ -1043,7 +1055,9 @@ class MatrixUtils {
     const asToken = this.matrixBridge.registration.getAppServiceToken();
     assert(asToken);
 
-    const roomDirectoryEndpoint = `${homeserverUrl}/_matrix/client/v3/directory/room/${roomAlias}`;
+    const roomDirectoryEndpoint = `${homeserverUrl}/_matrix/client/r0/directory/room/${encodeURIComponent(
+      roomAlias
+    )}`;
     const res = await request({
       method: 'GET',
       uri: roomDirectoryEndpoint,
