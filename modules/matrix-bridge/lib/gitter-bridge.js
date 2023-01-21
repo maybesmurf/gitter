@@ -98,7 +98,7 @@ class GitterBridge {
 
       stats.eventHF('gitter_bridge.event.success');
     } catch (err) {
-      let errorThingToPrint = err.stack;
+      let errorThingToPrint = err;
       // Special case from matrix-appservice-bridge/matrix-bot-sdk
       if (err.body && err.body.errcode && err.toJSON) {
         const serializedRequestAsError = err.toJSON();
