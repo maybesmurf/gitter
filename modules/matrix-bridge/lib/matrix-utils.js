@@ -693,10 +693,14 @@ class MatrixUtils {
       // directory as the source of truth since we used that as the locking mechanism in
       // the first place.
       if (err.statusCode === 400 && err.body.errcode === 'M_ROOM_IN_USE') {
+        logger.info(
+          `Trying to resolve conflict where a Matrix Room already exists with a conflicting alias ` +
+            `but we don't have it stored for the Gitter room (gitterRoomId=${gitterRoomId}). Looking it up in the Matrix room directory...`
+        );
         const gitterRoom = await troupeService.findById(gitterRoomId);
         assert(
           gitterRoom,
-          `Unable to resolve conflict where a Matrix Room already exists conflicting alias ` +
+          `Unable to resolve conflict where a Matrix Room already exists with a conflicting alias ` +
             `but we don't have it stored for the Gitter room because: the Gitter room unexpectedly ` +
             `does not exist for gitterRoomId=${gitterRoomId}`
         );
