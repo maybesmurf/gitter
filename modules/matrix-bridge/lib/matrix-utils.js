@@ -685,7 +685,28 @@ class MatrixUtils {
       `Existing Matrix room not found, creating new Matrix room for roomId=${gitterRoomId}`
     );
 
-    const matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId);
+    let matrixRoomId;
+    try {
+      matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId);
+    } catch (err) {
+      // Try to resolve the conflict by just picking up the room that is in the room
+      // directory as the source of truth since we used that as the locking mechanism in
+      // the first place.
+      if (err.statusCode === 400 && err.body.errcode === 'M_ROOM_IN_USE') {
+        const gitterRoom = await troupeService.findById(gitterRoomId);
+        assert(
+          gitterRoom,
+          `Unable to resolve conflict where a Matrix Room already exists conflicting alias ` +
+            `but we don't have it stored for the Gitter room because: the Gitter room unexpectedly ` +
+            `does not exist for gitterRoomId=${gitterRoomId}`
+        );
+        const roomAlias = await getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
+        // Assign `matrixRoomId` so it gets stored below
+        ({ roomId: matrixRoomId } = this.lookupRoomAlias(roomAlias));
+      } else {
+        throw err;
+      }
+    }
     // Store the bridged room right away!
     // If we created a bridged room, we want to make sure we store it 100% of the time
     logger.info(
@@ -1010,6 +1031,44 @@ class MatrixUtils {
     }
 
     return res.body;
+  }
+
+  async lookupRoomAlias(roomAlias) {
+    const homeserverUrl = this.matrixBridge.opts.homeserverUrl;
+    assert(homeserverUrl);
+    const asToken = this.matrixBridge.registration.getAppServiceToken();
+    assert(asToken);
+
+    const roomDirectoryEndpoint = `${homeserverUrl}/_matrix/client/v3/directory/room/${roomAlias}`;
+    const res = await request({
+      method: 'GET',
+      uri: roomDirectoryEndpoint,
+      json: true,
+      headers: {
+        Authorization: `Bearer ${asToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res.statusCode !== 200) {
+      const responseError = new StatusError(
+        res.statusCode,
+        `lookupRoomAlias({ roomAlias: ${roomAlias} }) failed ${res.statusCode}: ${JSON.stringify(
+          res.body
+        )}`
+      );
+      // Attach a little bit more of info to work from. This is a little bit hacky :shrug:
+      if (res.body && res.body.errcode) {
+        responseError.errcode = res.body.errcode;
+      }
+
+      throw responseError;
+    }
+
+    return {
+      roomId: res.body.room_id,
+      servers: res.body.servers
+    };
   }
 }
 
