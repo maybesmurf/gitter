@@ -347,12 +347,13 @@ async function importFromChatMessageStreamIterable({
         // Skip to the next message
         continue;
       }
-      const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
-      const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
 
       // Will send message and join the room if necessary
       const messageSendAndStorePromise = new Promise(async (resolve, reject) => {
         try {
+          const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
+          const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
+
           performanceMark(`request.sendEventRequestStart`);
           const eventId = await matrixUtils.sendEventAtTimestmap({
             type: 'm.room.message',
