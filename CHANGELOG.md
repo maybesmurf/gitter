@@ -23,7 +23,7 @@ Developer facing:
  - Add script to be able to dump user with backing identity information, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2318, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2319, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2330, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2349
  - Add script to be able reset deleted ghost user MXIDs to fix import process failing with ghost users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2333, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2337
  - Update `mongodb` sub-dependency in `mongoose` for hopefully stable connection (no timeout errors, timed out), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2321
- - Update Matrix bridge to remove exclusive control over the user/room/alias namespaces which don't make sense in a self-service world after the Gitter -> Matrix migration, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2335
+ - Update Matrix bridge to remove exclusive control over the user/room/alias namespaces which don't make sense in a self-service world after the Gitter -> Matrix migration, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2335, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2358
 
 
 # 21.56.0 - 2022-12-06
