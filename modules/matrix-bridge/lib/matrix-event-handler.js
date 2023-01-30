@@ -24,6 +24,8 @@ const isGitterRoomIdAllowedToBridge = require('./is-gitter-room-id-allowed-to-br
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
 const mxcUrlToHttp = require('./mxc-url-to-http');
 
+const configuredServerName = config.get('matrix:bridge:serverName');
+
 // 30 minutes in milliseconds
 const MAX_EVENT_ACCEPTANCE_WINDOW = 1000 * 60 * 30;
 
@@ -171,6 +173,7 @@ class MatrixEventHandler {
     };
   }
 
+  // eslint-disable-next-line complexity
   async onEventData(event) {
     debug('onEventData', event);
 
@@ -186,6 +189,15 @@ class MatrixEventHandler {
         matrixRoomId,
         matrixEventId
       });
+      return null;
+    }
+
+    // Supress echo
+    //
+    // Normally, this is done in `matrix-appservice-bridge` with the `suppressEcho`
+    // option by default but it only works on exclusive users so we also have to handle it here.
+    const parsedGitterMxid = parseGitterMxid(event.sender);
+    if (parsedGitterMxid && parsedGitterMxid.serverName === configuredServerName) {
       return null;
     }
 
