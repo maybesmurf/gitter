@@ -254,7 +254,7 @@ async function importThreadReplies({
   });
 }
 
-// eslint-disable-next-line max-statements
+// eslint-disable-next-line max-statements, complexity
 async function importFromChatMessageStreamIterable({
   gitterRoomId,
   matrixHistoricalRoomId,
@@ -348,8 +348,11 @@ async function importFromChatMessageStreamIterable({
         continue;
       }
 
-      // Skip messages that were deleted by clearing out the text
-      if (!message.text || message.text.length === 0) {
+      // Skip messages that were deleted by clearing out the text.
+      //
+      // We could get away with `!message.text` here but it's more obvious what were
+      // avoiding with these explicit conditions.
+      if (message.text === undefined || message.text === null || message.text.length === 0) {
         continue;
       }
 
