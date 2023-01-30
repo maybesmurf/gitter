@@ -733,6 +733,25 @@ describe('matrix-event-handler', () => {
         assert.strictEqual(messages.length, 0);
       });
 
+      it('supress echo from events sent by the Gitter bridge itself', async () => {
+        const gitterUserMxid = await matrixEventHandler.matrixUtils.getOrCreateMatrixUserByGitterUserId(
+          fixture.user1.id
+        );
+        const eventData = createEventData({
+          type: 'm.room.message',
+          content: {
+            body: 'my matrix message'
+          },
+          sender: gitterUserMxid
+        });
+        await store.storeBridgedRoom(fixture.troupe1.id, eventData.room_id);
+
+        await matrixEventHandler.onEventData(eventData);
+
+        const messages = await chatService.findChatMessagesForTroupe(fixture.troupe1.id);
+        assert.strictEqual(messages.length, 0);
+      });
+
       it('mangled event does not get processed', async () => {
         const eventData = {
           // Messages should not contain state_key
