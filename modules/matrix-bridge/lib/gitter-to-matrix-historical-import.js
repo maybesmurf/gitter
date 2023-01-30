@@ -348,6 +348,11 @@ async function importFromChatMessageStreamIterable({
         continue;
       }
 
+      // Skip messages that were deleted by clearing out the text
+      if (!message.text || message.text.length === 0) {
+        continue;
+      }
+
       // Will send message and join the room if necessary
       const messageSendAndStorePromise = new Promise(async (resolve, reject) => {
         try {
