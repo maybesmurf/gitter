@@ -281,19 +281,13 @@ class MatrixUtils {
       return;
     }
 
-    await this.ensureStateEventAsMxid(
-      // undefined will give us the bridgeIntent
-      undefined,
-      matrixRoomId,
-      'm.room.power_levels',
-      {
-        ...currentPowerLevelContent,
-        users: {
-          ...(currentPowerLevelContent.users || {}),
-          [mxid]: ROOM_ADMIN_POWER_LEVEL
-        }
+    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+      ...currentPowerLevelContent,
+      users: {
+        ...(currentPowerLevelContent.users || {}),
+        [mxid]: ROOM_ADMIN_POWER_LEVEL
       }
-    );
+    });
   }
 
   async removeAdminFromMatrixRoomId({ mxid, matrixRoomId }) {
@@ -318,16 +312,10 @@ class MatrixUtils {
     // Then delete the person that should no longer be an admin
     delete newPowerLevelUsersMap[mxid];
 
-    await this.ensureStateEventAsMxid(
-      // undefined will give us the bridgeIntent
-      undefined,
-      matrixRoomId,
-      'm.room.power_levels',
-      {
-        ...currentPowerLevelContent,
-        users: newPowerLevelUsersMap
-      }
-    );
+    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+      ...currentPowerLevelContent,
+      users: newPowerLevelUsersMap
+    });
   }
 
   // Loop through all of the room admins listed in the Matrix power levels and
