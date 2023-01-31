@@ -19,6 +19,10 @@ const urlJoin = require('url-join');
 
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
+const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
+const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
+
+const matrixUtils = new MatrixUtils(matrixBridge);
 
 const app = require('../../server/web');
 
@@ -109,12 +113,12 @@ describe('Gitter <-> Matrix bridging e2e', () => {
     } while (!matrixRoomId);
     // And wait for the initial message to be bridged which triggered this whole process
     assert(messageSendRes.body.id);
-    let matrixEventId;
+    let bridgedMessageEntry;
     do {
-      matrixEventId = await matrixStore.getBridgedMessageEntryByGitterMessageId(
+      bridgedMessageEntry = await matrixStore.getBridgedMessageEntryByGitterMessageId(
         messageSendRes.body.id
       );
-    } while (!matrixEventId);
+    } while (!bridgedMessageEntry);
 
     // Try to join the room from some Matrix user's perspective. We should be able to get in!
     const joinRes = await joinMatrixRoom(matrixRoomId, someMatrixUserAccessToken);
@@ -171,12 +175,12 @@ describe('Gitter <-> Matrix bridging e2e', () => {
     } while (!matrixRoomId);
     // And wait for the initial message to be bridged which triggered this whole process
     assert(messageSendRes.body.id);
-    let matrixEventId;
+    let bridgedMessageEntry;
     do {
-      matrixEventId = await matrixStore.getBridgedMessageEntryByGitterMessageId(
+      bridgedMessageEntry = await matrixStore.getBridgedMessageEntryByGitterMessageId(
         messageSendRes.body.id
       );
-    } while (!matrixEventId);
+    } while (!bridgedMessageEntry);
 
     // Try to join the room from some Matrix user's perspective. We shouldn't be able to get in!
     const joinRes = await joinMatrixRoom(matrixRoomId, someMatrixUserAccessToken);
@@ -208,12 +212,12 @@ describe('Gitter <-> Matrix bridging e2e', () => {
     } while (!matrixRoomId);
     // And wait for the initial message to be bridged which triggered this whole process
     assert(messageSendRes.body.id);
-    let matrixEventId;
+    let bridgedMessageEntry;
     do {
-      matrixEventId = await matrixStore.getBridgedMessageEntryByGitterMessageId(
+      bridgedMessageEntry = await matrixStore.getBridgedMessageEntryByGitterMessageId(
         messageSendRes.body.id
       );
-    } while (!matrixEventId);
+    } while (!bridgedMessageEntry);
 
     // Try to join the room from some Matrix user's perspective. We shouldn't be able to get in!
     const joinRes = await joinMatrixRoom(matrixRoomId, someMatrixUserAccessToken);
@@ -224,5 +228,35 @@ describe('Gitter <-> Matrix bridging e2e', () => {
         joinRes.body
       )}`
     );
+  });
+
+  it('Able to resolve conflict (consistency problem) when room alias exists on Matrix but we have not stored it yet', async () => {
+    // Create some Matrix room without storing it to mock a situation where our
+    // `getOrCreateMatrixRoomByGitterRoomId` creates the room but fails to store it for
+    // some reason.
+    const matrixRoomId = await matrixUtils.createMatrixRoomByGitterRoomId(fixture.troupe1.id);
+
+    const messageText = 'foo 123 baz';
+    // Send a message in a public room which should trigger the bridged Matrix
+    // room creation (resolve the conflict) and send the message in the room.
+    const messageSendRes = await request(app)
+      .post(`/api/v1/rooms/${fixture.troupe1.id}/chatMessages`)
+      .send({ text: messageText })
+      .set('Authorization', `Bearer ${fixture.user1.accessToken}`)
+      .expect(200);
+    const gitterMessageId = messageSendRes.body.id;
+
+    // And wait for the initial message to be bridged which triggered this whole process
+    assert(gitterMessageId);
+    let bridgedMessageEntry;
+    do {
+      bridgedMessageEntry = await matrixStore.getBridgedMessageEntryByGitterMessageId(
+        gitterMessageId
+      );
+    } while (!bridgedMessageEntry);
+
+    // Make sure the room was sent in the room that was initially created (we resolved
+    // the conflict as that room that existed).
+    assert.strictEqual(bridgedMessageEntry.matrixRoomId, matrixRoomId);
   });
 });

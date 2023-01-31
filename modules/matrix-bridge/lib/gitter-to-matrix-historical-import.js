@@ -254,7 +254,7 @@ async function importThreadReplies({
   });
 }
 
-// eslint-disable-next-line max-statements
+// eslint-disable-next-line max-statements, complexity
 async function importFromChatMessageStreamIterable({
   gitterRoomId,
   matrixHistoricalRoomId,
@@ -347,12 +347,21 @@ async function importFromChatMessageStreamIterable({
         // Skip to the next message
         continue;
       }
-      const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
-      const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
+
+      // Skip messages that were deleted by clearing out the text.
+      //
+      // We could get away with `!message.text` here but it's more obvious what were
+      // avoiding with these explicit conditions.
+      if (message.text === undefined || message.text === null || message.text.length === 0) {
+        continue;
+      }
 
       // Will send message and join the room if necessary
       const messageSendAndStorePromise = new Promise(async (resolve, reject) => {
         try {
+          const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
+          const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
+
           performanceMark(`request.sendEventRequestStart`);
           const eventId = await matrixUtils.sendEventAtTimestmap({
             type: 'm.room.message',
@@ -393,7 +402,24 @@ async function importFromChatMessageStreamIterable({
             return null;
           }
 
-          reject(new RethrownError(`Failed to import gitterMessageId=${gitterMessageId}`, err));
+          let errorToThrow = err;
+          // Special case from matrix-appservice-bridge/matrix-bot-sdk
+          if (!err.stack && err.body && err.body.errcode && err.toJSON) {
+            const serializedRequestAsError = err.toJSON();
+            (serializedRequestAsError.request || {}).headers = {
+              ...serializedRequestAsError.request.headers,
+              Authorization: '<redacted>'
+            };
+            errorToThrow = new Error(
+              `matrix-appservice-bridge/matrix-bot-sdk threw an error that looked more like a request object, see ${JSON.stringify(
+                serializedRequestAsError
+              )}`
+            );
+          }
+
+          reject(
+            new RethrownError(`Failed to import gitterMessageId=${gitterMessageId}`, errorToThrow)
+          );
         } finally {
           performanceClearMarks(`request.sendEventRequestStart`);
           performanceClearMarks(`request.sendEventRequestEnd`);

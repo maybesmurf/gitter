@@ -123,12 +123,18 @@ class MatrixUtils {
       matrixRoomCreateOptions.preset = 'private_chat';
     }
 
-    const newRoom = await bridgeIntent.createRoom({
+    debug(
+      `createMatrixRoomByGitterRoomId(${gitterRoomId}) attempting room creation`,
+      matrixRoomCreateOptions
+    );
+    const newMatrixRoom = await bridgeIntent.createRoom({
       createAsClient: true,
       options: matrixRoomCreateOptions
     });
+    const matrixRoomId = newMatrixRoom.room_id;
+    debug(`createMatrixRoomByGitterRoomId(${gitterRoomId}) matrixRoomId=${matrixRoomId} created`);
 
-    return newRoom.room_id;
+    return matrixRoomId;
   }
 
   // This is an internal function used for Gitter ONE_TO_ONE rooms (not to be
@@ -556,7 +562,7 @@ class MatrixUtils {
     }
   }
 
-  // eslint-disable-next-line max-statements
+  // eslint-disable-next-line max-statements, complexity
   async ensureCorrectRoomState(
     matrixRoomId,
     gitterRoomId,
@@ -604,7 +610,7 @@ class MatrixUtils {
       name: gitterRoom.uri
     });
     await this.ensureStateEvent(matrixRoomId, 'm.room.topic', {
-      topic: gitterRoom.topic
+      topic: gitterRoom.topic || ''
     });
     // We don't have to gate this off behind `shouldUpdateRoomDirectory` because this
     // won't change the room directory at all. This is just used as a hint for how
@@ -899,7 +905,10 @@ class MatrixUtils {
     }
   }
 
-  async getOrCreateMatrixRoomByGitterRoomId(gitterRoomId) {
+  async getOrCreateMatrixRoomByGitterRoomId(
+    gitterRoomId,
+    { tryToResolveConflictFromRoomDirectory = true } = {}
+  ) {
     // Find the cached existing bridged room
     const existingMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     if (existingMatrixRoomId) {
@@ -911,7 +920,41 @@ class MatrixUtils {
       `Existing Matrix room not found, creating new Matrix room for roomId=${gitterRoomId}`
     );
 
-    const matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId);
+    let matrixRoomId;
+    try {
+      matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId);
+    } catch (err) {
+      // Try to resolve the conflict by just picking up the room that is in the room
+      // directory as the source of truth since we used that as the locking mechanism in
+      // the first place.
+      if (
+        tryToResolveConflictFromRoomDirectory &&
+        err.statusCode === 400 &&
+        err.body.errcode === 'M_ROOM_IN_USE'
+      ) {
+        logger.info(
+          `Trying to resolve conflict where a Matrix Room already exists with a conflicting alias ` +
+            `but we don't have it stored for the Gitter room (gitterRoomId=${gitterRoomId}). Looking it up in the Matrix room directory...`
+        );
+        const gitterRoom = await troupeService.findById(gitterRoomId);
+        assert(
+          gitterRoom,
+          `Unable to resolve conflict where a Matrix Room already exists with a conflicting alias ` +
+            `but we don't have it stored for the Gitter room because: the Gitter room unexpectedly ` +
+            `does not exist for gitterRoomId=${gitterRoomId}`
+        );
+        const roomAlias = await getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
+        ({ roomId: matrixRoomId } = await this.lookupRoomAlias(roomAlias));
+
+        if (!matrixRoomId) {
+          throw new Error(
+            `Room directory unexpectedly did not have ${roomAlias} but it just gave us M_ROOM_IN_USE so it should exist or it was just deleted between our two requests. Unable to resolve conflict.`
+          );
+        }
+      } else {
+        throw err;
+      }
+    }
     // Store the bridged room right away!
     // If we created a bridged room, we want to make sure we store it 100% of the time
     logger.info(
@@ -1030,7 +1073,11 @@ class MatrixUtils {
 
     const desiredDisplayName = `${gitterUser.username} (${gitterUser.displayName})`;
     if (desiredDisplayName !== currentProfile.displayname) {
-      await intent.setDisplayName(desiredDisplayName);
+      await intent.setDisplayName(
+        // The max displayName length is 256 characters so trim it down as necessary.
+        // Just do a harsh cut for now (it's not critical)
+        desiredDisplayName.substring(0, 256)
+      );
     }
 
     const gitterAvatarUrl = avatars.getForUser(gitterUser);
@@ -1236,6 +1283,46 @@ class MatrixUtils {
     }
 
     return res.body;
+  }
+
+  async lookupRoomAlias(roomAlias) {
+    const homeserverUrl = this.matrixBridge.opts.homeserverUrl;
+    assert(homeserverUrl);
+    const asToken = this.matrixBridge.registration.getAppServiceToken();
+    assert(asToken);
+
+    const roomDirectoryEndpoint = `${homeserverUrl}/_matrix/client/r0/directory/room/${encodeURIComponent(
+      roomAlias
+    )}`;
+    const res = await request({
+      method: 'GET',
+      uri: roomDirectoryEndpoint,
+      json: true,
+      headers: {
+        Authorization: `Bearer ${asToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res.statusCode !== 200) {
+      const responseError = new StatusError(
+        res.statusCode,
+        `lookupRoomAlias({ roomAlias: ${roomAlias} }) failed ${res.statusCode}: ${JSON.stringify(
+          res.body
+        )}`
+      );
+      // Attach a little bit more of info to work from. This is a little bit hacky :shrug:
+      if (res.body && res.body.errcode) {
+        responseError.errcode = res.body.errcode;
+      }
+
+      throw responseError;
+    }
+
+    return {
+      roomId: res.body.room_id,
+      servers: res.body.servers
+    };
   }
 }
 

@@ -114,10 +114,23 @@ class GitterBridge {
 
       stats.eventHF('gitter_bridge.event.success');
     } catch (err) {
+      let errorThingToPrint = err;
+      // Special case from matrix-appservice-bridge/matrix-bot-sdk
+      if (err.body && err.body.errcode && err.toJSON) {
+        const serializedRequestAsError = err.toJSON();
+        (serializedRequestAsError.request || {}).headers = {
+          ...serializedRequestAsError.request.headers,
+          Authorization: '<redacted>'
+        };
+        errorThingToPrint = `matrix-appservice-bridge/matrix-bot-sdk threw an error that looked more like a request object, see ${JSON.stringify(
+          serializedRequestAsError
+        )}`;
+      }
+
       logger.error(
         `Error while processing Gitter bridge event (url=${data && data.url}, id=${data &&
           data.model &&
-          data.model.id}): ${err}`,
+          data.model.id}): ${errorThingToPrint}`,
         {
           exception: err,
           data

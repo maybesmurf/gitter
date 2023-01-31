@@ -1,3 +1,14 @@
+# 21.56.3 - 2023-01-19
+
+ - Add `/.well-known/matrix/client` for Matrix clients so you can simply enter `gitter.im` on the Element sign-in page and it all just works, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2336
+
+
+# 21.56.2 - 2023-01-18
+
+ - Update homepage latest news block to point to the [Gitter to Matrix migration pre-announcement](https://blog.gitter.im/2023/01/16/gitter-is-going-fully-native-matrix-in-feb-2023/), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2350
+    - Thanks to [@dregad](https://gitlab.com/dregad) for the contribution
+
+
 # 21.56.1 - 2023-01-16
 
  - Link and point out the [Gitter to Matrix migration pre-announcement](https://blog.gitter.im/2023/01/16/gitter-is-going-fully-native-matrix-in-feb-2023/) from the left-menu, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2340
@@ -8,11 +19,11 @@
 Developer facing:
 
  - Add script to test backfilling history to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2313
-    - Follow-ups: https://gitlab.com/gitterHQ/webapp/-/merge_requests/2315, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2316, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2317, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2322, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2323, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2325, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2326, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2327, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2328, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2329, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2332, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2333, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2334, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2338, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2339, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2344, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2345, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2346, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2347, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2348
+    - Follow-ups: https://gitlab.com/gitterHQ/webapp/-/merge_requests/2315, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2316, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2317, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2322, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2323, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2325, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2326, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2327, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2328, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2329, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2332, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2333, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2334, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2338, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2339, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2344, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2345, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2346, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2347, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2348, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2352, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2353, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2354, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2357, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2360, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2361, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2362, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2363, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2364
  - Add script to be able to dump user with backing identity information, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2318, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2319, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2330, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2349
  - Add script to be able reset deleted ghost user MXIDs to fix import process failing with ghost users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2333, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2337
  - Update `mongodb` sub-dependency in `mongoose` for hopefully stable connection (no timeout errors, timed out), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2321
-
+ - Update Matrix bridge to remove exclusive control over the user/room/alias namespaces which don't make sense in a self-service world after the Gitter -> Matrix migration, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2335, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2358
 
 # 21.56.0 - 2022-12-06
 
