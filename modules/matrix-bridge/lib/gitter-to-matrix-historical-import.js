@@ -402,7 +402,24 @@ async function importFromChatMessageStreamIterable({
             return null;
           }
 
-          reject(new RethrownError(`Failed to import gitterMessageId=${gitterMessageId}`, err));
+          let errorToThrow = err;
+          // Special case from matrix-appservice-bridge/matrix-bot-sdk
+          if (!err.stack && err.body && err.body.errcode && err.toJSON) {
+            const serializedRequestAsError = err.toJSON();
+            (serializedRequestAsError.request || {}).headers = {
+              ...serializedRequestAsError.request.headers,
+              Authorization: '<redacted>'
+            };
+            errorToThrow = new Error(
+              `matrix-appservice-bridge/matrix-bot-sdk threw an error that looked more like a request object, see ${JSON.stringify(
+                serializedRequestAsError
+              )}`
+            );
+          }
+
+          reject(
+            new RethrownError(`Failed to import gitterMessageId=${gitterMessageId}`, errorToThrow)
+          );
         } finally {
           performanceClearMarks(`request.sendEventRequestStart`);
           performanceClearMarks(`request.sendEventRequestEnd`);
