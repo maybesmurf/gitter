@@ -5,12 +5,19 @@ const assert = require('assert');
 const path = require('path');
 const urlJoin = require('url-join');
 const StatusError = require('statuserror');
-const troupeService = require('gitter-web-rooms/lib/troupe-service');
+
+const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
+const {
+  noTimeoutIterableFromMongooseCursor
+} = require('gitter-web-persistence-utils/lib/mongoose-utils');
+const persistence = require('gitter-web-persistence');
 const groupService = require('gitter-web-groups');
+const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const userService = require('gitter-web-users');
 const avatars = require('gitter-web-avatars');
 const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-troupe-name');
 const securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
+const policyFactory = require('gitter-web-permissions/lib/policy-factory');
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
@@ -22,8 +29,12 @@ const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter
 const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
 const downloadFileToBuffer = require('./download-file-to-buffer');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
+const parseGitterMxid = require('./parse-gitter-mxid');
+const { BRIDGE_USER_POWER_LEVEL, ROOM_ADMIN_POWER_LEVEL } = require('./constants');
 
 const store = require('./store');
+
+const DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP = 100;
 
 const serverName = config.get('matrix:bridge:serverName');
 // The bridge user we are using to interact with everything on the Matrix side
@@ -199,12 +210,17 @@ class MatrixUtils {
     }
   }
 
-  async ensureStateEvent(matrixRoomId, eventType, newContent) {
-    const bridgeIntent = this.matrixBridge.getIntent();
+  async ensureStateEventAsMxid(mxid, matrixRoomId, eventType, newContent) {
+    // mxid can be `undefined` to indicate the bridge intent
+    assert(matrixRoomId);
+    assert(eventType);
+    assert(newContent);
+
+    const intent = this.matrixBridge.getIntent(mxid);
 
     let currentContent;
     try {
-      currentContent = await bridgeIntent.getStateEvent(matrixRoomId, eventType);
+      currentContent = await intent.getStateEvent(matrixRoomId, eventType);
     } catch (err) {
       // no-op
     }
@@ -224,7 +240,227 @@ class MatrixUtils {
       newContent
     );
     if (!isContentSame) {
-      await bridgeIntent.sendStateEvent(matrixRoomId, eventType, '', newContent);
+      await intent.sendStateEvent(matrixRoomId, eventType, '', newContent);
+    }
+  }
+
+  async ensureStateEvent(matrixRoomId, eventType, newContent) {
+    return this.ensureStateEventAsMxid(
+      // undefined will give us the bridgeIntent
+      undefined,
+      matrixRoomId,
+      eventType,
+      newContent
+    );
+  }
+
+  async addAdminToMatrixRoomId({ mxid, matrixRoomId }) {
+    assert(mxid.startsWith('@'));
+    assert(matrixRoomId.startsWith('!'));
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+
+    // We can bail early if the mxid in question is already in the power levels as an admin
+    if ((currentPowerLevelContent.users || {})[mxid] === ROOM_ADMIN_POWER_LEVEL) {
+      return;
+    }
+
+    await this.ensureStateEventAsMxid(
+      // undefined will give us the bridgeIntent
+      undefined,
+      matrixRoomId,
+      'm.room.power_levels',
+      {
+        ...currentPowerLevelContent,
+        users: {
+          ...(currentPowerLevelContent.users || {}),
+          [mxid]: ROOM_ADMIN_POWER_LEVEL
+        }
+      }
+    );
+  }
+
+  async removeAdminFromMatrixRoomId({ mxid, matrixRoomId }) {
+    assert(mxid.startsWith('@'));
+    assert(matrixRoomId.startsWith('!'));
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+
+    // We can bail early in the mxid in question is already not in the power levels
+    if ((currentPowerLevelContent.users || {})[mxid] === undefined) {
+      return;
+    }
+
+    // Copy the power level users map
+    const newPowerLevelUsersMap = {
+      ...(currentPowerLevelContent.users || {})
+    };
+    // Then delete the person that should no longer be an admin
+    delete newPowerLevelUsersMap[mxid];
+
+    await this.ensureStateEventAsMxid(
+      // undefined will give us the bridgeIntent
+      undefined,
+      matrixRoomId,
+      'm.room.power_levels',
+      {
+        ...currentPowerLevelContent,
+        users: newPowerLevelUsersMap
+      }
+    );
+  }
+
+  // Loop through all of the room admins listed in the Matrix power levels and
+  // remove any people that don't pass the Gitter admin check.
+  async cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({ matrixRoomId, gitterRoomId }) {
+    assert(gitterRoomId);
+    assert(matrixRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
+
+    const configuredServerName = this.matrixBridge.opts.domain;
+    assert(configuredServerName);
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+
+    for (const mxid of Object.keys(currentPowerLevelContent.users || {})) {
+      // Skip any MXID's that aren't from our own server (gitter.im)
+      const { serverName } = parseGitterMxid(mxid) || {};
+      if (serverName !== configuredServerName) {
+        continue;
+      }
+
+      const currentPowerLevelOfMxid = currentPowerLevelContent.users[mxid];
+      // If the user is listed as an admin in the Matrix room power levels,
+      // check to make sure they should still be an admin
+      if (currentPowerLevelOfMxid === ROOM_ADMIN_POWER_LEVEL) {
+        const gitterUserId = await store.getGitterUserIdByMatrixUserId(mxid);
+        const gitterUser = await persistence.User.findById(gitterUserId, null, {
+          lean: true
+        }).exec();
+        const policy = await policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+        const canAdmin = await policy.canAdmin();
+
+        // If the person no longer exists on Gitter or if the person can no longer admin
+        // the Gitter room, remove their power levels from the Matrix room.
+        if (!gitterUserId || !canAdmin) {
+          await this.removeAdminFromMatrixRoomId({ mxid, matrixRoomId });
+        }
+      }
+    }
+  }
+
+  // Loop through all Gitter admins (smartly) and add power levels for anyone that
+  // passes the Gitter admin check.
+  //
+  // eslint-disable-next-line complexity
+  async addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+    matrixRoomId,
+    gitterRoomId,
+    useShortcutToOnlyLookThroughExtraAdmins = false
+  }) {
+    assert(gitterRoomId);
+    assert(matrixRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
+    // Not all rooms are in a group like ONE_TO_ONE's
+    const gitterGroup = await groupService.findById(gitterRoom.groupId);
+
+    // If the only admins in the room are specified manually, then we know that all of
+    // the admins possible by looking at `sd.extraAdmins` and we can shortcut...
+    const onlyUsingManualAdmins =
+      gitterRoom.sd && gitterRoom.sd.type === null && gitterRoom.sd.admins === 'MANUAL';
+    // If the room is inheriting from the group and the group is using manual
+    // admins, then we know all admins possible by looking at the groups
+    // `sd.extraAdmins` and we can shortcut...
+    const inheritingFromGroupAndGroupUsingManualAdmins =
+      gitterRoom.sd &&
+      gitterRoom.sd.type === 'GROUP' &&
+      gitterRoom.sd.admins === 'GROUP_ADMIN' &&
+      gitterGroup &&
+      gitterGroup.sd.type === null &&
+      gitterGroup.sd.admins === 'MANUAL';
+
+    const canGetAwayWithUsingShortcutOnly =
+      useShortcutToOnlyLookThroughExtraAdmins ||
+      onlyUsingManualAdmins ||
+      inheritingFromGroupAndGroupUsingManualAdmins;
+
+    let extraAdminsToCheck = (gitterRoom.sd && gitterRoom.sd.extraAdmins) || [];
+    // If the room is inheriting from the group, also add on the group extraAdmins
+    if (inheritingFromGroupAndGroupUsingManualAdmins) {
+      extraAdminsToCheck = extraAdminsToCheck.concat(
+        (gitterGroup.sd && gitterGroup.sd.extraAdmins) || []
+      );
+    }
+
+    // This is the shortcut method where we only have to check over the extraAdmins
+    for (const gitterExtraAdminUserId of extraAdminsToCheck) {
+      const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterExtraAdminUserId);
+
+      await this.addAdminToMatrixRoomId({
+        mxid: gitterUserMxid,
+        matrixRoomId
+      });
+    }
+
+    // Otherwise, we just have to loop through all room members and check for any admins present
+    if (!canGetAwayWithUsingShortcutOnly) {
+      const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
+        (/*{ previousIdFromCursor }*/) => {
+          const messageCursor = persistence.TroupeUser.find(
+            {
+              troupeId: gitterRoomId
+              // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
+              // `_id` index for this to be efficient. Instead, we will just get a brand new
+              // cursor starting from the beginning and try again.
+              // TODO: ^ is this actually true?
+            },
+            { _id: 0, userId: 1 }
+          )
+            // Go from oldest to most recent so everything appears in the order it was sent in
+            // the first place
+            .sort({ _id: 'asc' })
+            .lean()
+            .read(mongoReadPrefs.secondaryPreferred)
+            .batchSize(DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP)
+            .cursor();
+
+          return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP };
+        }
+      );
+
+      for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
+        const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
+        const gitterUser = await persistence.User.findById(gitterRoomMemberUserId, null, {
+          lean: true
+        }).exec();
+        const policy = await policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+        const canAdmin = await policy.canAdmin();
+
+        // If the person can admin the Gitter room, add power levels to the Matrix room.
+        if (canAdmin) {
+          const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(
+            gitterRoomMemberUserId
+          );
+
+          await this.addAdminToMatrixRoomId({ mxid: gitterUserMxid, matrixRoomId });
+        }
+      }
     }
   }
 
@@ -389,17 +625,17 @@ class MatrixUtils {
       users: {
         ...existingUserPowerLevels,
         ...extraPowerLevelUsers,
-        [bridgeMxid]: 100
+        [bridgeMxid]: BRIDGE_USER_POWER_LEVEL
       },
       events: {
         'm.room.avatar': 50,
         'm.room.canonical_alias': 50,
-        'm.room.encryption': 100,
-        'm.room.history_visibility': 100,
+        'm.room.encryption': ROOM_ADMIN_POWER_LEVEL,
+        'm.room.history_visibility': ROOM_ADMIN_POWER_LEVEL,
         'm.room.name': 50,
-        'm.room.power_levels': 100,
-        'm.room.server_acl': 100,
-        'm.room.tombstone': 100
+        'm.room.power_levels': ROOM_ADMIN_POWER_LEVEL,
+        'm.room.server_acl': ROOM_ADMIN_POWER_LEVEL,
+        'm.room.tombstone': ROOM_ADMIN_POWER_LEVEL
       },
       events_default: 0,
       state_default: 50,
@@ -408,6 +644,15 @@ class MatrixUtils {
       redact: 50,
       invite: 0
     });
+
+    // Add the Gitter room admins to the power levels to be able to self-manage later
+    await this.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      matrixRoomId,
+      gitterRoomId
+    });
+
+    // TODO: Ensure historical predecessor set correctly. This function is also used for
+    // historical rooms so be mindful
 
     // Set the room avatar
     const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);

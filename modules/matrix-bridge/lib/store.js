@@ -24,6 +24,15 @@ async function getMatrixRoomIdByGitterRoomId(gitterRoomId) {
     return bridgedRoomEntry.matrixRoomId;
   }
 }
+async function getHistoricalMatrixRoomIdByGitterRoomId(gitterRoomId) {
+  const bridgedRoomEntry = await persistence.MatrixBridgedHistoricalRoom.findOne({
+    troupeId: gitterRoomId
+  }).exec();
+
+  if (bridgedRoomEntry) {
+    return bridgedRoomEntry.matrixRoomId;
+  }
+}
 
 async function getMatrixUserIdByGitterUserId(gitterUserId) {
   const bridgedUserEntry = await persistence.MatrixBridgedUser.findOne({
@@ -31,6 +40,15 @@ async function getMatrixUserIdByGitterUserId(gitterUserId) {
   }).exec();
   if (bridgedUserEntry) {
     return bridgedUserEntry.matrixId;
+  }
+}
+
+async function getGitterUserIdByMatrixUserId(matrixId) {
+  const bridgedUserEntry = await persistence.MatrixBridgedUser.findOne({
+    matrixId
+  }).exec();
+  if (bridgedUserEntry) {
+    return bridgedUserEntry.userId;
   }
 }
 
@@ -116,9 +134,12 @@ module.exports = {
   getGitterRoomIdByMatrixRoomId,
   getMatrixRoomIdByGitterRoomId,
   storeBridgedRoom,
+  // Historical Rooms (where we import all our back catalog of messages)
+  getHistoricalMatrixRoomIdByGitterRoomId,
 
   // Users
   getMatrixUserIdByGitterUserId,
+  getGitterUserIdByMatrixUserId,
   storeBridgedUser,
 
   // Messages
