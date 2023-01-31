@@ -1,3 +1,8 @@
+# 21.56.4 - 2023-01-31
+
+ - Bridge admin power-levels to Matrix room when someone joins the Gitter room or changes the security descriptor, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2343
+
+
 # 21.56.3 - 2023-01-19
 
  - Add `/.well-known/matrix/client` for Matrix clients so you can simply enter `gitter.im` on the Element sign-in page and it all just works, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2336
