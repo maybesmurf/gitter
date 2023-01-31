@@ -115,8 +115,8 @@ async function ensureMembershipFromGitterRoom({
   );
 
   // Loop through all members of the Gitter room, and join anyone who is not already present.
-  for await (const gitterRoomMemberUserId of gitterMembershipStreamIterable) {
-    console.log('gitterRoomMemberUserId TODO: is this a user ID?', gitterRoomMemberUserId);
+  for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
+    const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
 
     const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
       gitterRoomMemberUserId
