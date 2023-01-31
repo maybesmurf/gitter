@@ -42,7 +42,10 @@ class RethrownError extends ExtendedError {
     // new line.
     const messageLines = (this.message.match(/\n/g) || []).length + 1;
 
-    const indentedOriginalError = error.stack
+    // Protect against someone giving us a non-error thing
+    const indentedOriginalError = (
+      error.stack || `Non-error thing provided to RethrownError: ${String(error)}`
+    )
       .split(/\r?\n/)
       .map(line => `    ${line}`)
       .join('\n');
