@@ -39,7 +39,7 @@ const store = require('./store');
 
 const DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP = 100;
 
-const serverName = config.get('matrix:bridge:serverName');
+const configuredServerName = config.get('matrix:bridge:serverName');
 // The bridge user we are using to interact with everything on the Matrix side
 const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLocalpart');
 // The Gitter user we are pulling profile information from to populate the Matrix bridge user profile
@@ -327,16 +327,14 @@ class MatrixUtils {
     const gitterRoom = await troupeService.findById(gitterRoomId);
     assert(gitterRoom);
 
-    const configuredServerName = this.matrixBridge.opts.domain;
-    assert(configuredServerName);
-
     const bridgeIntent = this.matrixBridge.getIntent();
     const currentPowerLevelContent = await bridgeIntent.getStateEvent(
       matrixRoomId,
       'm.room.power_levels'
     );
+    const powerLevelUserMap = (currentPowerLevelContent && currentPowerLevelContent.users) || {};
 
-    for (const mxid of Object.keys(currentPowerLevelContent.users || {})) {
+    for (const mxid of Object.keys(powerLevelUserMap)) {
       // Skip any MXID's that aren't from our own server (gitter.im)
       const { serverName } = parseGitterMxid(mxid) || {};
       if (serverName !== configuredServerName) {
@@ -543,7 +541,7 @@ class MatrixUtils {
     const roomAlias = getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
     await this.ensureRoomAlias(matrixRoomId, roomAlias);
     // Add another alias for the room ID
-    await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${serverName}`);
+    await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${configuredServerName}`);
     // Add a lowercase alias if necessary
     if (roomAlias.toLowerCase() !== roomAlias) {
       await this.ensureRoomAlias(matrixRoomId, roomAlias.toLowerCase());
@@ -1121,7 +1119,7 @@ class MatrixUtils {
   }
 
   getMxidForMatrixBridgeUser() {
-    const mxid = `@${matrixBridgeMxidLocalpart}:${serverName}`;
+    const mxid = `@${matrixBridgeMxidLocalpart}:${configuredServerName}`;
     return mxid;
   }
 
