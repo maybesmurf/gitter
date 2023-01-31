@@ -664,9 +664,9 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
   }
 
   // Find our current live Matrix room
-  let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+  const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
   // Find the historical Matrix room we should import the history into
-  let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+  const matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
     gitterRoomId
   );
   debug(

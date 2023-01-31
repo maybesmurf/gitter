@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-const assert = require('assert');
 const shutdown = require('shutdown');
 //const debug = require('debug')('gitter:scripts:reset-all-matrix-historical-room-bridging');
 const env = require('gitter-web-env');
@@ -14,21 +13,22 @@ const {
 } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const persistence = require('gitter-web-persistence');
 const groupService = require('gitter-web-groups');
-const roomMembershipService = require('gitter-web-rooms/lib/room-membership-service');
 
 const installBridge = require('gitter-web-matrix-bridge');
-const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
-const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
-const matrixStore = require('gitter-web-matrix-bridge/lib/store');
-const parseGitterMxid = require('gitter-web-matrix-bridge/lib/parse-gitter-mxid');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
-
-const configuredServerName = config.get('matrix:bridge:serverName');
-
-const matrixUtils = new MatrixUtils(matrixBridge);
+const {
+  syncMatrixRoomMembershipFromGitterRoom
+} = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-room-membership-sync');
 
 const DB_BATCH_SIZE_FOR_ROOMS = 50;
-const DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP = 100;
+// "secondary", "secondaryPreferred", etc
+// https://www.mongodb.com/docs/manual/core/read-preference/#read-preference
+//
+// This is an option because I often see it reading from the primary with
+// "secondaryPreferred" and want to try forcing it to "secondary".
+const DB_READ_PREFERENCE =
+  config.get('gitterToMatrixHistoricalImport:databaseReadPreference') ||
+  mongoReadPrefs.secondaryPreferred;
 
 const opts = require('yargs')
   .option('concurrency', {
@@ -73,121 +73,6 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   );
 }
 
-async function ensureNoExtraMembersInMatrixRoom({
-  gitterRoomId,
-  matrixRoomId,
-  alreadyJoinedGitterUserIdsToMatrixRoom
-}) {
-  // Loop through all members in the current Matrix room, remove if they are no longer
-  // present in the Gitter room.
-  const matrixMemberEvents = await matrixUtils.getRoomMembers({
-    matrixRoomId,
-    membership: 'joined'
-  });
-  for (const matrixMemberEvent of matrixMemberEvents) {
-    const mxid = matrixMemberEvent.state_key;
-    // Skip any MXID's that aren't from our own server (gitter.im)
-    const { serverName } = parseGitterMxid(mxid) || {};
-    if (serverName !== configuredServerName) {
-      continue;
-    }
-
-    const gitterUserId = await matrixStore.getGitterUserIdByMatrixUserId(mxid);
-
-    // Or `roomMembershipService.findUserMembershipInRooms`
-    const isGitterRoomMember = await roomMembershipService.checkRoomMembership(
-      gitterRoomId,
-      gitterUserId
-    );
-    // Save this look-up so we can re-use it below when we loop over
-    alreadyJoinedGitterUserIdsToMatrixRoom[gitterUserId] = isGitterRoomMember;
-
-    // Remove from Matrix room if they are no longer part of the room on Gitter
-    if (!isGitterRoomMember) {
-      const intent = matrixBridge.getIntent(mxid);
-      // XXX: Can we possibly de-duplicate some work and also leave the historical room?
-      await intent.leave(matrixRoomId);
-    }
-  }
-}
-
-async function ensureMembershipFromGitterRoom({
-  gitterRoomId,
-  matrixRoomId,
-  alreadyJoinedGitterUserIdsToMatrixRoom
-}) {
-  assert(gitterRoomId);
-  assert(matrixRoomId);
-  assert(alreadyJoinedGitterUserIdsToMatrixRoom);
-
-  const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
-    (/*{ previousIdFromCursor }*/) => {
-      const messageCursor = persistence.TroupeUser.find(
-        {
-          troupeId: gitterRoomId
-          // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
-          // `_id` index for this to be efficient. Instead, we will just get a brand new
-          // cursor starting from the beginning and try again.
-          // TODO: ^ is this actually true?
-        },
-        { userId: 1 }
-      )
-        // Go from oldest to most recent so everything appears in the order it was sent in
-        // the first place
-        .sort({ _id: 'asc' })
-        .lean()
-        .read(mongoReadPrefs.secondaryPreferred)
-        .batchSize(DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP)
-        .cursor();
-
-      return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP };
-    }
-  );
-
-  // Loop through all members of the Gitter room, and join anyone who is not already present.
-  for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
-    const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
-
-    const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
-      gitterRoomMemberUserId
-    );
-
-    // We can skip if we already know the Gitter user is joined to the Matrix room from the
-    // previous loop
-    if (alreadyJoinedGitterUserIdsToMatrixRoom[gitterRoomMemberUserId]) {
-      continue;
-    }
-
-    // Join Gitter user to the "live" room
-    const intent = matrixBridge.getIntent(gitterUserMxid);
-    // XXX: Can we possibly de-duplicate some work and also join the historical room?
-    await intent.join(matrixRoomId);
-  }
-}
-
-// eslint-disable-next-line max-statements, complexity
-async function syncMatrixRoomMembershipFromGitterRoom(gitterRoom) {
-  const gitterRoomId = gitterRoom.id || gitterRoom._id;
-  assert(gitterRoomId);
-
-  const matrixRoomId = matrixStore.getMatrixRoomIdByGitterRoomId(gitterRoomId);
-  assert(matrixRoomId);
-
-  const alreadyJoinedGitterUserIdsToMatrixRoom = {};
-
-  await ensureNoExtraMembersInMatrixRoom({
-    gitterRoomId,
-    matrixRoomId,
-    alreadyJoinedGitterUserIdsToMatrixRoom
-  });
-
-  await ensureMembershipFromGitterRoom({
-    gitterRoomId,
-    matrixRoomId,
-    alreadyJoinedGitterUserIdsToMatrixRoom
-  });
-}
-
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
   itemIdGetterFromItem: gitterRoom => {
@@ -226,7 +111,7 @@ async function exec() {
         // Just use a consistent sort and it makes ascending makes sense to use with `$gt` resuming
         .sort({ _id: 'asc' })
         .lean()
-        .read(mongoReadPrefs.secondaryPreferred)
+        .read(DB_READ_PREFERENCE)
         .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
         .cursor();
 
