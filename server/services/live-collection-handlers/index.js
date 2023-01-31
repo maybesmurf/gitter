@@ -10,6 +10,8 @@ var handlers = {
   events: './live-collection-events',
   chats: './live-collection-chats',
   rooms: './live-collection-rooms',
+  roomSecurityDescriptors: './live-collection-room-security-descriptors',
+  groupSecurityDescriptors: './live-collection-group-security-descriptors',
   roomMembers: './live-collection-room-members',
   users: './live-collection-users',
   userGroups: './live-collection-user-groups',
