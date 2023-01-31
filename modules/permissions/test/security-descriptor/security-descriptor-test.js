@@ -113,52 +113,53 @@ describe('data-access-test', function() {
     });
 
     describe('addExtraAdminForModel', function() {
-      it('should add a user not in extraAdmins', function() {
-        var groupId3 = fixture.group3.id;
-        var userId1 = fixture.user1.id;
-        return securityDescriptorService.group
-          .addExtraAdmin(groupId3, userId1)
-          .then(function(modified) {
-            assert.strictEqual(modified, true);
-            return securityDescriptorService.group.findExtraAdmins(groupId3);
-          })
-          .then(function(userIds) {
-            assert(
-              userIds.some(function(userId) {
-                return String(userId) === String(userId1);
-              })
-            );
+      it('should add a user not in extraAdmins', async function() {
+        const groupId3 = fixture.group3.id;
+        const userId1 = fixture.user1.id;
+        const ensureRowFoundAndMaybeUpdated1 = await securityDescriptorService.group.addExtraAdmin(
+          groupId3,
+          userId1
+        );
+        assert.strictEqual(ensureRowFoundAndMaybeUpdated1, true);
 
-            return securityDescriptorService.group.addExtraAdmin(groupId3, userId1);
+        const userIds = await securityDescriptorService.group.findExtraAdmins(groupId3);
+        assert(
+          userIds.some(function(userId) {
+            return String(userId) === String(userId1);
           })
-          .then(function(modified) {
-            assert.strictEqual(modified, false);
-          });
+        );
+
+        const ensureRowFoundAndMaybeUpdated2 = await securityDescriptorService.group.addExtraAdmin(
+          groupId3,
+          userId1
+        );
+        assert.strictEqual(ensureRowFoundAndMaybeUpdated2, true);
       });
     });
 
     describe('removeExtraAdmin', function() {
-      it('should remove a user in extraAdmins', function() {
-        var groupId4 = fixture.group4.id;
-        var userId1 = fixture.user1.id;
-        return securityDescriptorService.group
-          .removeExtraAdmin(groupId4, userId1)
-          .then(function(modified) {
-            assert.strictEqual(modified, true);
-            return securityDescriptorService.group.findExtraAdmins(groupId4);
-          })
-          .then(function(userIds) {
-            assert(
-              !userIds.some(function(userId) {
-                return String(userId) === String(userId1);
-              })
-            );
+      it('should remove a user in extraAdmins', async function() {
+        const groupId4 = fixture.group4.id;
+        const userId1 = fixture.user1.id;
+        const ensureRowFoundAndMaybeUpdated1 = await securityDescriptorService.group.removeExtraAdmin(
+          groupId4,
+          userId1
+        );
+        assert.strictEqual(ensureRowFoundAndMaybeUpdated1, true);
 
-            return securityDescriptorService.group.removeExtraAdmin(groupId4, userId1);
+        const userIds = await securityDescriptorService.group.findExtraAdmins(groupId4);
+
+        assert(
+          !userIds.some(function(userId) {
+            return String(userId) === String(userId1);
           })
-          .then(function(modified) {
-            assert.strictEqual(modified, false);
-          });
+        );
+
+        const ensureRowFoundAndMaybeUpdated2 = await securityDescriptorService.group.removeExtraAdmin(
+          groupId4,
+          userId1
+        );
+        assert.strictEqual(ensureRowFoundAndMaybeUpdated2, true);
       });
     });
 
