@@ -15,14 +15,12 @@ const {
 const persistence = require('gitter-web-persistence');
 const groupService = require('gitter-web-groups');
 const roomMembershipService = require('gitter-web-rooms/lib/room-membership-service');
-const policyFactory = require('gitter-web-permissions/lib/policy-factory');
 
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const parseGitterMxid = require('gitter-web-matrix-bridge/lib/parse-gitter-mxid');
-const { ROOM_ADMIN_POWER_LEVEL } = require('gitter-web-matrix-bridge/lib/constants');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 
 const configuredServerName = config.get('matrix:bridge:serverName');
@@ -75,6 +73,44 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   );
 }
 
+async function ensureNoExtraMembersInMatrixRoom({
+  gitterRoomId,
+  matrixRoomId,
+  alreadyJoinedGitterUserIdsToMatrixRoom
+}) {
+  // Loop through all members in the current Matrix room, remove if they are no longer
+  // present in the Gitter room.
+  const matrixMemberEvents = await matrixUtils.getRoomMembers({
+    matrixRoomId,
+    membership: 'joined'
+  });
+  for (const matrixMemberEvent of matrixMemberEvents) {
+    const mxid = matrixMemberEvent.state_key;
+    // Skip any MXID's that aren't from our own server (gitter.im)
+    const { serverName } = parseGitterMxid(mxid) || {};
+    if (serverName !== configuredServerName) {
+      continue;
+    }
+
+    const gitterUserId = await matrixStore.getGitterUserIdByMatrixUserId(mxid);
+
+    // Or `roomMembershipService.findUserMembershipInRooms`
+    const isGitterRoomMember = await roomMembershipService.checkRoomMembership(
+      gitterRoomId,
+      gitterUserId
+    );
+    // Save this look-up so we can re-use it below when we loop over
+    alreadyJoinedGitterUserIdsToMatrixRoom[gitterUserId] = isGitterRoomMember;
+
+    // Remove from Matrix room if they are no longer part of the room on Gitter
+    if (!isGitterRoomMember) {
+      const intent = matrixBridge.getIntent(mxid);
+      // XXX: Can we possibly de-duplicate some work and also leave the historical room?
+      await intent.leave(matrixRoomId);
+    }
+  }
+}
+
 async function ensureMembershipFromGitterRoom({
   gitterRoomId,
   matrixRoomId,
@@ -108,12 +144,6 @@ async function ensureMembershipFromGitterRoom({
     }
   );
 
-  const bridgeIntent = matrixBridge.getIntent();
-  let currentPowerLevelContent = await bridgeIntent.getStateEvent(
-    matrixRoomId,
-    'm.room.power_levels'
-  );
-
   // Loop through all members of the Gitter room, and join anyone who is not already present.
   for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
     const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
@@ -124,100 +154,14 @@ async function ensureMembershipFromGitterRoom({
 
     // We can skip if we already know the Gitter user is joined to the Matrix room from the
     // previous loop
-    if (!alreadyJoinedGitterUserIdsToMatrixRoom[gitterRoomMemberUserId]) {
-      // Join Gitter user to the "live" room
-      const intent = matrixBridge.getIntent(gitterUserMxid);
-      // XXX: Can we possibly de-duplicate some work and also join the historical room?
-      await intent.join(matrixRoomId);
-    }
-
-    // These stubs are hacks assuming how `createPolicyForRoom` works so we can save the
-    // lookup
-    const stubbedGitterUser = {
-      _id: gitterRoomMemberUserId
-    };
-    const stubbedGitterRoom = {
-      _id: gitterRoomId
-    };
-    const policy = policyFactory.createPolicyForRoom(stubbedGitterUser, stubbedGitterRoom);
-    const canAdmin = policy.canAdmin();
-    if (canAdmin) {
-      currentPowerLevelContent = await bridgeIntent.getStateEvent(
-        matrixRoomId,
-        'm.room.power_levels'
-      );
-
-      // Update power-level to allow this user to admin the room
-      await matrixUtils.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
-        ...currentPowerLevelContent,
-        users: {
-          ...(currentPowerLevelContent.users || {}),
-          [gitterUserMxid]: ROOM_ADMIN_POWER_LEVEL
-        }
-      });
-    } else {
-      // If the user is listed as an admin in the Matrix room power levels but is no
-      // longer an admin on Gitter, remove the PL's
-      if ((currentPowerLevelContent.users || {})[gitterUserMxid] === ROOM_ADMIN_POWER_LEVEL) {
-        // Even though we use the previous `currentPowerLevelContent` for the check
-        // above, before we make an update, we need to get the latest to account for any
-        // new admins we might have added in other loops.
-        currentPowerLevelContent = await bridgeIntent.getStateEvent(
-          matrixRoomId,
-          'm.room.power_levels'
-        );
-
-        // Copy the power level users map
-        const newPowerLevelUsersMap = {
-          ...(currentPowerLevelContent.users || {})
-        };
-        // Then delete the person that should no longer be an admin
-        delete newPowerLevelUsersMap[gitterUserMxid];
-
-        await matrixUtils.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
-          ...currentPowerLevelContent,
-          users: newPowerLevelUsersMap
-        });
-      }
-    }
-  }
-}
-
-async function ensureNoExtraMembersInMatrixRoom({
-  gitterRoomId,
-  matrixRoomId,
-  alreadyJoinedGitterUserIdsToMatrixRoom
-}) {
-  // Loop through all members in the current Matrix room, remove if they are no longer
-  // present in the Gitter room.
-  const matrixMemberEvents = await matrixUtils.getRoomMembers({
-    matrixRoomId,
-    membership: 'joined'
-  });
-  for (const matrixMemberEvent of matrixMemberEvents) {
-    const mxid = matrixMemberEvent.state_key;
-    // Skip any MXID's that aren't from our own server (gitter.im)
-    const { serverName } = parseGitterMxid(mxid) || {};
-    if (serverName !== configuredServerName) {
+    if (alreadyJoinedGitterUserIdsToMatrixRoom[gitterRoomMemberUserId]) {
       continue;
     }
 
-    const gitterUserId = await matrixStore.getGitterUserIdByMatrixUserId(mxid);
-
-    // Or `roomMembershipService.findUserMembershipInRooms`
-    const isGitterRoomMember = await roomMembershipService.checkRoomMembership(
-      gitterRoomId,
-      gitterUserId
-    );
-    // Save this look-up so we can re-use it below when we loop over
-    alreadyJoinedGitterUserIdsToMatrixRoom[gitterUserId] = isGitterRoomMember;
-
-    // Remove from Matrix room if they are no longer part of the room on Gitter
-    if (!isGitterRoomMember) {
-      const intent = matrixBridge.getIntent(mxid);
-      // XXX: Can we possibly de-duplicate some work and also join the historical room?
-      await intent.leave(matrixRoomId);
-    }
+    // Join Gitter user to the "live" room
+    const intent = matrixBridge.getIntent(gitterUserMxid);
+    // XXX: Can we possibly de-duplicate some work and also join the historical room?
+    await intent.join(matrixRoomId);
   }
 }
 
