@@ -57,6 +57,19 @@ const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLev
   return accumulatedPowerLevelUsers;
 }, {});
 
+const GITLAB_SD_TYPES = [
+  'GL_GROUP', // Associated with GitLab group
+  'GL_PROJECT', // Associated with GitLab project
+  'GL_USER' // Associated with GitLab user
+];
+const GITHUB_SD_TYPES = [
+  'GH_REPO', // Associated with a GitHub repo
+  'GH_ORG', // Associated with a GitHub org
+  'GH_USER' // Associated with a GitHub user
+];
+
+const SD_TYPES_WITH_EXTERNAL_ASSOCIATION = [...GITLAB_SD_TYPES, ...GITHUB_SD_TYPES];
+
 let txnCount = 0;
 function getTxnId() {
   txnCount++;
@@ -776,6 +789,32 @@ class MatrixUtils {
         }
       }
     });
+
+    // Add some meta info about what GitHub/GitLab project/org this Gitter room is
+    // associated with. This information is valuable not only to make sure the data
+    // lives on in someway but also useful in Element (Matrix client) where the
+    // integration manager could automatically suggest setting up the integration for
+    // the assocatiaton.
+    if (gitterRoom.sd && SD_TYPES_WITH_EXTERNAL_ASSOCIATION.includes(gitterRoom.sd.type)) {
+      let platform;
+      if (GITLAB_SD_TYPES.includes(gitterRoom.sd.type)) {
+        platform = 'gitlab.com';
+      }
+      if (GITHUB_SD_TYPES.includes(gitterRoom.sd.type)) {
+        platform = 'github.com';
+      }
+
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'im.gitter.project_association',
+        newContent: {
+          platform,
+          type: gitterRoom.sd.type,
+          linkPath: gitterRoom.sd.linkPath,
+          externalId: gitterRoom.sd.externalId
+        }
+      });
+    }
   }
 
   // Will make the historical Matrix room read-only and tombstone the room to point at
