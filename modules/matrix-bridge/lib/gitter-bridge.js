@@ -506,6 +506,17 @@ class GitterBridge {
           mxid: matrixId,
           matrixRoomId
         });
+
+        // Also add to the historical Matrix room
+        const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
+          gitterRoomId
+        );
+        if (matrixHistoricalRoomId) {
+          this.matrixUtils.addAdminToMatrixRoomId({
+            mxid: matrixId,
+            matrixRoomId: matrixHistoricalRoomId
+          });
+        }
       }
     } catch (err) {
       if (canAdmin) {
