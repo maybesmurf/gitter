@@ -226,6 +226,7 @@ class MatrixUtils {
     // mxid can be `undefined` to indicate the bridge intent
     assert(matrixRoomId);
     assert(eventType);
+    assert(stateKey);
     assert(newContent);
 
     const intent = this.matrixBridge.getIntent(mxid);
