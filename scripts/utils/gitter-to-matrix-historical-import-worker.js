@@ -51,6 +51,9 @@ logger.info(
 // the import function errors out.
 const CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL = 5 * 60 * 1000;
 
+// Every N milliseconds (5 minutes), we should record which rooms have failed to import so far
+const RECORD_FAILED_ROOMS_TIME_INTERVAL = 5 * 60 * 1000;
+
 const matrixUtils = new MatrixUtils(matrixBridge);
 
 const opts = require('yargs')
@@ -233,6 +236,54 @@ async function getRoomIdResumePosition() {
   }
 }
 
+const failedRoomIdsFilePath = path.join(tempDirectory, `./_failed-room-ids-${Date.now()}.json`);
+async function persistFailedRoomIds(failedRoomIds) {
+  const failedRoomIdsToPersist = failedRoomIds || [];
+
+  try {
+    logger.info(
+      `Writing failedRoomIds (${failedRoomIdsToPersist.length}) disk failedRoomIdsFilePath=${failedRoomIdsFilePath}`
+    );
+    await fs.writeFile(failedRoomIdsFilePath, JSON.stringify(failedRoomIdsToPersist));
+  } catch (err) {
+    logger.error(`Problem persisting failedRoomIds file to disk`, { exception: err });
+  }
+}
+
+let writingFailedRoomsFileLock;
+const recordFailedRoomsIntervalId = setInterval(async () => {
+  // Prevent multiple writes from building up. We only allow one write until it finishes
+  if (writingFailedRoomsFileLock) {
+    return;
+  }
+
+  try {
+    writingFailedRoomsFileLock = true;
+    const failedRoomIds = concurrentQueue.getFailedItemIds();
+    await persistFailedRoomIds(failedRoomIds);
+  } catch (err) {
+    logger.error(`Problem persisting failedRoomIds file to disk (from the interval)`, {
+      exception: err
+    });
+  } finally {
+    writingFailedRoomsFileLock = false;
+  }
+}, RECORD_FAILED_ROOMS_TIME_INTERVAL);
+
+const failedRoomInfosFilePath = path.join(tempDirectory, `./_failed-room-infos-${Date.now()}.json`);
+async function persistFailedRoomInfos(failedRoomInfos) {
+  const failedRoomInfosToPersist = failedRoomInfos || [];
+
+  try {
+    logger.info(
+      `Writing failedRoomInfos (${failedRoomInfosToPersist.length}) disk failedRoomInfosFilePath=${failedRoomInfosFilePath}`
+    );
+    await fs.writeFile(failedRoomInfosFilePath, JSON.stringify(failedRoomInfosToPersist));
+  } catch (err) {
+    logger.error(`Problem persisting failedRoomInfos file to disk`, { exception: err });
+  }
+}
+
 // eslint-disable-next-line max-statements
 async function exec() {
   logger.info('Setting up Matrix bridge');
@@ -327,7 +378,7 @@ async function exec() {
           persistence.ChatMessage,
           'toTroupeId',
           gitterRoomId,
-          { read: true }
+          { read: DB_READ_PREFERENCE }
         )) || 0;
       // Find our current live Matrix room
       let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
@@ -340,14 +391,14 @@ async function exec() {
           persistence.MatrixBridgedChatMessage,
           'matrixRoomId',
           matrixRoomId,
-          { read: true }
+          { read: DB_READ_PREFERENCE }
         )) || 0;
       const numMessagesImportedAlreadyInHistoricalRoom =
         (await mongooseUtils.getEstimatedCountForId(
           persistence.MatrixBridgedChatMessage,
           'matrixRoomId',
           matrixHistoricalRoomId,
-          { read: true }
+          { read: DB_READ_PREFERENCE }
         )) || 0;
       concurrentQueue.updateLaneStatus(laneIndex, {
         startTs: Date.now(),
@@ -370,6 +421,10 @@ async function exec() {
   );
 
   const failedRoomIds = concurrentQueue.getFailedItemIds();
+  // Persist this even if no rooms failed so it's easy to tell whether or not we
+  // succeeded in writing anything out. It's better to know nothing failed than whether
+  // or not we actually made it to the end.
+  await persistFailedRoomIds(failedRoomIds);
   if (failedRoomIds.length === 0) {
     logger.info(
       `Successfully imported all historical messages for all rooms (aprox. ${eventsImportedRunningTotal} messages)`
@@ -394,6 +449,7 @@ async function exec() {
         .join('\n'),
       `\n}`
     );
+    await persistFailedRoomInfos(failedRoomInfos);
   }
 }
 
@@ -410,6 +466,8 @@ exec()
     // Stop calculating which room to resume from as the process is stopping and we
     // don't need to keep track anymore.
     clearInterval(calculateWhichRoomToResumeFromIntervalId);
+    // Stop recording failed rooms as we're done doing anythign and the process is stopping
+    clearInterval(recordFailedRoomsIntervalId);
 
     // Stop writing the status file so we can cleanly exit
     concurrentQueue.stopPersistLaneStatusInfoToDisk();

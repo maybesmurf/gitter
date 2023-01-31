@@ -26,6 +26,7 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge/lib/generate-matrix-content-from-gitter-message');
 const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
+const RethrownError = require('./rethrown-error');
 
 // The number of chat messages we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_MESSAGES = 100;
@@ -253,7 +254,7 @@ async function importThreadReplies({
   });
 }
 
-// eslint-disable-next-line max-statements
+// eslint-disable-next-line max-statements, complexity
 async function importFromChatMessageStreamIterable({
   gitterRoomId,
   matrixHistoricalRoomId,
@@ -313,16 +314,54 @@ async function importFromChatMessageStreamIterable({
 
       performanceMark(`importMessageStart`);
       if (!message.fromUserId) {
-        throw new Error(
-          `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}`
+        // Example:
+        // ```
+        // {
+        //     "_id" : ObjectId("529f0bd24613267312000035"),
+        //     "editedAt" : null,
+        //     "fromUserId" : null,
+        //     "issues" : [ ],
+        //     "mentions" : [ ],
+        //     "meta" : {
+        //         "url" : "http://foo.bar/",
+        //         "phase" : "started",
+        //         "job" : "gitter-webapp-production",
+        //         "service" : "jenkins",
+        //         "type" : "webhook"
+        //     },
+        //     "readBy" : [
+        //         ObjectId("529c6c1fed5ab0b3bf04d813")
+        //     ],
+        //     "sent" : ISODate("2013-12-04T11:02:42.963Z"),
+        //     "skipAlerts" : true,
+        //     "text" : "[Jenkins] Job gitter-webapp-production started http://foo.bar:8080/job/gitter-webapp-production/17/",
+        //     "toTroupeId" : ObjectId("5298e324ed5ab0b3bf04c988"),
+        //     "urls" : [ ],
+        //     "lang" : "en"
+        // }
+        // ```
+        logger.warn(
+          `gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} unexpectedly did not have a fromUserId=${message.fromUserId}. This is probably a legacy webhook message in the main timeline.`
         );
+
+        // Skip to the next message
+        continue;
       }
-      const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
-      const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
+
+      // Skip messages that were deleted by clearing out the text.
+      //
+      // We could get away with `!message.text` here but it's more obvious what were
+      // avoiding with these explicit conditions.
+      if (message.text === undefined || message.text === null || message.text.length === 0) {
+        continue;
+      }
 
       // Will send message and join the room if necessary
       const messageSendAndStorePromise = new Promise(async (resolve, reject) => {
         try {
+          const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
+          const matrixContent = await generateMatrixContentFromGitterMessage(gitterRoomId, message);
+
           performanceMark(`request.sendEventRequestStart`);
           const eventId = await matrixUtils.sendEventAtTimestmap({
             type: 'm.room.message',
@@ -353,7 +392,34 @@ async function importFromChatMessageStreamIterable({
 
           resolve();
         } catch (err) {
-          reject(err);
+          if (err.status === 413 && err.errcode === 'M_TOO_LARGE') {
+            logger.warn(
+              `Skipping gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} since it was too large to send (M_TOO_LARGE).`
+            );
+
+            // Skip to the next message
+            resolve();
+            return null;
+          }
+
+          let errorToThrow = err;
+          // Special case from matrix-appservice-bridge/matrix-bot-sdk
+          if (!err.stack && err.body && err.body.errcode && err.toJSON) {
+            const serializedRequestAsError = err.toJSON();
+            (serializedRequestAsError.request || {}).headers = {
+              ...serializedRequestAsError.request.headers,
+              Authorization: '<redacted>'
+            };
+            errorToThrow = new Error(
+              `matrix-appservice-bridge/matrix-bot-sdk threw an error that looked more like a request object, see ${JSON.stringify(
+                serializedRequestAsError
+              )}`
+            );
+          }
+
+          reject(
+            new RethrownError(`Failed to import gitterMessageId=${gitterMessageId}`, errorToThrow)
+          );
         } finally {
           performanceClearMarks(`request.sendEventRequestStart`);
           performanceClearMarks(`request.sendEventRequestEnd`);

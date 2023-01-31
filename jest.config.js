@@ -6,6 +6,7 @@ module.exports = {
   moduleNameMapper: {
     '\\.(jpg|jpeg|png|svg)$': '<rootDir>/public/js/vue/__mocks__/file_mock.js'
   },
+  modulePathIgnorePatterns: ['<rootDir>/output/app/'],
   transform: {
     '^.+\\.js$': 'babel-jest',
     '^.+\\.vue$': 'vue-jest',

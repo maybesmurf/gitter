@@ -9,12 +9,18 @@ const StatusError = require('statuserror');
 const Promise = require('bluebird');
 const request = Promise.promisify(require('request'));
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
-const troupeService = require('gitter-web-rooms/lib/troupe-service');
+const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
+const {
+  noTimeoutIterableFromMongooseCursor
+} = require('gitter-web-persistence-utils/lib/mongoose-utils');
+const persistence = require('gitter-web-persistence');
 const groupService = require('gitter-web-groups');
+const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const userService = require('gitter-web-users');
 const avatars = require('gitter-web-avatars');
 const getRoomNameFromTroupeName = require('gitter-web-shared/get-room-name-from-troupe-name');
 const securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
+const policyFactory = require('gitter-web-permissions/lib/policy-factory');
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
@@ -26,11 +32,14 @@ const getGitterDmRoomUriByGitterUserIdAndOtherPersonMxid = require('./get-gitter
 const getMxidForGitterUser = require('./get-mxid-for-gitter-user');
 const downloadFileToBuffer = require('./download-file-to-buffer');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
+const parseGitterMxid = require('./parse-gitter-mxid');
 const { BRIDGE_USER_POWER_LEVEL, ROOM_ADMIN_POWER_LEVEL } = require('./constants');
 
 const store = require('./store');
 
-const serverName = config.get('matrix:bridge:serverName');
+const DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP = 100;
+
+const configuredServerName = config.get('matrix:bridge:serverName');
 // The bridge user we are using to interact with everything on the Matrix side
 const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLocalpart');
 // The Gitter user we are pulling profile information from to populate the Matrix bridge user profile
@@ -114,12 +123,18 @@ class MatrixUtils {
       matrixRoomCreateOptions.preset = 'private_chat';
     }
 
-    const newRoom = await bridgeIntent.createRoom({
+    debug(
+      `createMatrixRoomByGitterRoomId(${gitterRoomId}) attempting room creation`,
+      matrixRoomCreateOptions
+    );
+    const newMatrixRoom = await bridgeIntent.createRoom({
       createAsClient: true,
       options: matrixRoomCreateOptions
     });
+    const matrixRoomId = newMatrixRoom.room_id;
+    debug(`createMatrixRoomByGitterRoomId(${gitterRoomId}) matrixRoomId=${matrixRoomId} created`);
 
-    return newRoom.room_id;
+    return matrixRoomId;
   }
 
   // This is an internal function used for Gitter ONE_TO_ONE rooms (not to be
@@ -251,6 +266,202 @@ class MatrixUtils {
     );
   }
 
+  async addAdminToMatrixRoomId({ mxid, matrixRoomId }) {
+    assert(mxid.startsWith('@'));
+    assert(matrixRoomId.startsWith('!'));
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+
+    // We can bail early if the mxid in question is already in the power levels as an admin
+    if ((currentPowerLevelContent.users || {})[mxid] === ROOM_ADMIN_POWER_LEVEL) {
+      return;
+    }
+
+    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+      ...currentPowerLevelContent,
+      users: {
+        ...(currentPowerLevelContent.users || {}),
+        [mxid]: ROOM_ADMIN_POWER_LEVEL
+      }
+    });
+  }
+
+  async removeAdminFromMatrixRoomId({ mxid, matrixRoomId }) {
+    assert(mxid.startsWith('@'));
+    assert(matrixRoomId.startsWith('!'));
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+
+    // We can bail early in the mxid in question is already not in the power levels
+    if ((currentPowerLevelContent.users || {})[mxid] === undefined) {
+      return;
+    }
+
+    // Copy the power level users map
+    const newPowerLevelUsersMap = {
+      ...(currentPowerLevelContent.users || {})
+    };
+    // Then delete the person that should no longer be an admin
+    delete newPowerLevelUsersMap[mxid];
+
+    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
+      ...currentPowerLevelContent,
+      users: newPowerLevelUsersMap
+    });
+  }
+
+  // Loop through all of the room admins listed in the Matrix power levels and
+  // remove any people that don't pass the Gitter admin check.
+  async cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({ matrixRoomId, gitterRoomId }) {
+    assert(gitterRoomId);
+    assert(matrixRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
+
+    const bridgeIntent = this.matrixBridge.getIntent();
+    const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+      matrixRoomId,
+      'm.room.power_levels'
+    );
+    const powerLevelUserMap = (currentPowerLevelContent && currentPowerLevelContent.users) || {};
+
+    for (const mxid of Object.keys(powerLevelUserMap)) {
+      // Skip any MXID's that aren't from our own server (gitter.im)
+      const { serverName } = parseGitterMxid(mxid) || {};
+      if (serverName !== configuredServerName) {
+        continue;
+      }
+
+      const currentPowerLevelOfMxid = currentPowerLevelContent.users[mxid];
+      // If the user is listed as an admin in the Matrix room power levels,
+      // check to make sure they should still be an admin
+      if (currentPowerLevelOfMxid === ROOM_ADMIN_POWER_LEVEL) {
+        const gitterUserId = await store.getGitterUserIdByMatrixUserId(mxid);
+        const gitterUser = await persistence.User.findById(gitterUserId, null, {
+          lean: true
+        }).exec();
+        const policy = await policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+        const canAdmin = await policy.canAdmin();
+
+        // If the person no longer exists on Gitter or if the person can no longer admin
+        // the Gitter room, remove their power levels from the Matrix room.
+        if (!gitterUserId || !canAdmin) {
+          await this.removeAdminFromMatrixRoomId({ mxid, matrixRoomId });
+        }
+      }
+    }
+  }
+
+  // Loop through all Gitter admins (smartly) and add power levels for anyone that
+  // passes the Gitter admin check.
+  //
+  // eslint-disable-next-line complexity
+  async addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+    matrixRoomId,
+    gitterRoomId,
+    useShortcutToOnlyLookThroughExtraAdmins = false
+  }) {
+    assert(gitterRoomId);
+    assert(matrixRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
+    // Not all rooms are in a group like ONE_TO_ONE's
+    const gitterGroup = await groupService.findById(gitterRoom.groupId);
+
+    // If the only admins in the room are specified manually, then we know that all of
+    // the admins possible by looking at `sd.extraAdmins` and we can shortcut...
+    const onlyUsingManualAdmins =
+      gitterRoom.sd && gitterRoom.sd.type === null && gitterRoom.sd.admins === 'MANUAL';
+    // If the room is inheriting from the group and the group is using manual
+    // admins, then we know all admins possible by looking at the groups
+    // `sd.extraAdmins` and we can shortcut...
+    const inheritingFromGroupAndGroupUsingManualAdmins =
+      gitterRoom.sd &&
+      gitterRoom.sd.type === 'GROUP' &&
+      gitterRoom.sd.admins === 'GROUP_ADMIN' &&
+      gitterGroup &&
+      gitterGroup.sd.type === null &&
+      gitterGroup.sd.admins === 'MANUAL';
+
+    const canGetAwayWithUsingShortcutOnly =
+      useShortcutToOnlyLookThroughExtraAdmins ||
+      onlyUsingManualAdmins ||
+      inheritingFromGroupAndGroupUsingManualAdmins;
+
+    let extraAdminsToCheck = (gitterRoom.sd && gitterRoom.sd.extraAdmins) || [];
+    // If the room is inheriting from the group, also add on the group extraAdmins
+    if (inheritingFromGroupAndGroupUsingManualAdmins) {
+      extraAdminsToCheck = extraAdminsToCheck.concat(
+        (gitterGroup.sd && gitterGroup.sd.extraAdmins) || []
+      );
+    }
+
+    // This is the shortcut method where we only have to check over the extraAdmins
+    for (const gitterExtraAdminUserId of extraAdminsToCheck) {
+      const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(gitterExtraAdminUserId);
+
+      await this.addAdminToMatrixRoomId({
+        mxid: gitterUserMxid,
+        matrixRoomId
+      });
+    }
+
+    // Otherwise, we just have to loop through all room members and check for any admins present
+    if (!canGetAwayWithUsingShortcutOnly) {
+      const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
+        (/*{ previousIdFromCursor }*/) => {
+          const messageCursor = persistence.TroupeUser.find(
+            {
+              troupeId: gitterRoomId
+              // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
+              // `_id` index for this to be efficient. Instead, we will just get a brand new
+              // cursor starting from the beginning and try again.
+              // TODO: ^ is this actually true?
+            },
+            { _id: 0, userId: 1 }
+          )
+            // Go from oldest to most recent so everything appears in the order it was sent in
+            // the first place
+            .sort({ _id: 'asc' })
+            .lean()
+            .read(mongoReadPrefs.secondaryPreferred)
+            .batchSize(DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP)
+            .cursor();
+
+          return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP };
+        }
+      );
+
+      for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
+        const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
+        const gitterUser = await persistence.User.findById(gitterRoomMemberUserId, null, {
+          lean: true
+        }).exec();
+        const policy = await policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+        const canAdmin = await policy.canAdmin();
+
+        // If the person can admin the Gitter room, add power levels to the Matrix room.
+        if (canAdmin) {
+          const gitterUserMxid = await this.getOrCreateMatrixUserByGitterUserId(
+            gitterRoomMemberUserId
+          );
+
+          await this.addAdminToMatrixRoomId({ mxid: gitterUserMxid, matrixRoomId });
+        }
+      }
+    }
+  }
+
   async ensureRoomAlias(matrixRoomId, alias) {
     const bridgeIntent = this.matrixBridge.getIntent();
 
@@ -330,14 +541,14 @@ class MatrixUtils {
     const roomAlias = getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
     await this.ensureRoomAlias(matrixRoomId, roomAlias);
     // Add another alias for the room ID
-    await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${serverName}`);
+    await this.ensureRoomAlias(matrixRoomId, `#${gitterRoomId}:${configuredServerName}`);
     // Add a lowercase alias if necessary
     if (roomAlias.toLowerCase() !== roomAlias) {
       await this.ensureRoomAlias(matrixRoomId, roomAlias.toLowerCase());
     }
   }
 
-  // eslint-disable-next-line max-statements
+  // eslint-disable-next-line max-statements, complexity
   async ensureCorrectRoomState(
     matrixRoomId,
     gitterRoomId,
@@ -356,18 +567,12 @@ class MatrixUtils {
     } = {}
   ) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
-    const gitterGroup = await groupService.findById(gitterRoom.groupId);
 
     // Protect from accidentally running this on a ONE_TO_ONE room.
     assert.notStrictEqual(
       gitterRoom.sd.type,
       'ONE_TO_ONE',
       `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
-    );
-
-    assert(
-      gitterGroup,
-      `groupId=${gitterRoom.groupId} unexpectedly does not exist for gitterRoomId=${gitterRoomId}`
     );
 
     // Protect from accidentally running this on a Matrix DM room.
@@ -391,7 +596,7 @@ class MatrixUtils {
       name: gitterRoom.uri
     });
     await this.ensureStateEvent(matrixRoomId, 'm.room.topic', {
-      topic: gitterRoom.topic
+      topic: gitterRoom.topic || ''
     });
     // We don't have to gate this off behind `shouldUpdateRoomDirectory` because this
     // won't change the room directory at all. This is just used as a hint for how
@@ -478,6 +683,16 @@ class MatrixUtils {
       invite: 0
     });
 
+    // Add the Gitter room admins to the power levels to be able to self-manage later
+    await this.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      matrixRoomId,
+      gitterRoomId
+    });
+    await this.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      matrixRoomId,
+      gitterRoomId
+    });
+
     // TODO: Ensure historical predecessor set correctly. This function is also used for
     // historical rooms so be mindful
 
@@ -488,6 +703,17 @@ class MatrixUtils {
       await this.ensureStateEvent(matrixRoomId, 'm.room.avatar', {
         url: roomMxcUrl
       });
+    }
+
+    let roomDisplayName;
+    const gitterGroup = await groupService.findById(gitterRoom.groupId);
+    if (gitterGroup) {
+      // We do this because it's more correct for how the full name is displayed in
+      // Gitter. The name of a group doesn't have to match the URI and often people have
+      // nice display names with spaces so it appears like 'The Big Ocean/Fish'
+      roomDisplayName = `${gitterGroup.name}/${getRoomNameFromTroupeName(gitterRoom.uri)}`;
+    } else {
+      roomDisplayName = gitterRoom.uri;
     }
 
     // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter
@@ -501,7 +727,7 @@ class MatrixUtils {
       },
       channel: {
         id: gitterRoom.id,
-        displayname: `${gitterGroup.name}/${getRoomNameFromTroupeName(gitterRoom.uri)}`,
+        displayname: roomDisplayName,
         avatar_url: roomMxcUrl,
         external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
       }
@@ -670,7 +896,10 @@ class MatrixUtils {
     }
   }
 
-  async getOrCreateMatrixRoomByGitterRoomId(gitterRoomId) {
+  async getOrCreateMatrixRoomByGitterRoomId(
+    gitterRoomId,
+    { tryToResolveConflictFromRoomDirectory = true } = {}
+  ) {
     // Find the cached existing bridged room
     const existingMatrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     if (existingMatrixRoomId) {
@@ -682,7 +911,41 @@ class MatrixUtils {
       `Existing Matrix room not found, creating new Matrix room for roomId=${gitterRoomId}`
     );
 
-    const matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId);
+    let matrixRoomId;
+    try {
+      matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId);
+    } catch (err) {
+      // Try to resolve the conflict by just picking up the room that is in the room
+      // directory as the source of truth since we used that as the locking mechanism in
+      // the first place.
+      if (
+        tryToResolveConflictFromRoomDirectory &&
+        err.statusCode === 400 &&
+        err.body.errcode === 'M_ROOM_IN_USE'
+      ) {
+        logger.info(
+          `Trying to resolve conflict where a Matrix Room already exists with a conflicting alias ` +
+            `but we don't have it stored for the Gitter room (gitterRoomId=${gitterRoomId}). Looking it up in the Matrix room directory...`
+        );
+        const gitterRoom = await troupeService.findById(gitterRoomId);
+        assert(
+          gitterRoom,
+          `Unable to resolve conflict where a Matrix Room already exists with a conflicting alias ` +
+            `but we don't have it stored for the Gitter room because: the Gitter room unexpectedly ` +
+            `does not exist for gitterRoomId=${gitterRoomId}`
+        );
+        const roomAlias = await getCanonicalAliasForGitterRoomUri(gitterRoom.uri);
+        ({ roomId: matrixRoomId } = await this.lookupRoomAlias(roomAlias));
+
+        if (!matrixRoomId) {
+          throw new Error(
+            `Room directory unexpectedly did not have ${roomAlias} but it just gave us M_ROOM_IN_USE so it should exist or it was just deleted between our two requests. Unable to resolve conflict.`
+          );
+        }
+      } else {
+        throw err;
+      }
+    }
     // Store the bridged room right away!
     // If we created a bridged room, we want to make sure we store it 100% of the time
     logger.info(
@@ -801,7 +1064,11 @@ class MatrixUtils {
 
     const desiredDisplayName = `${gitterUser.username} (${gitterUser.displayName})`;
     if (desiredDisplayName !== currentProfile.displayname) {
-      await intent.setDisplayName(desiredDisplayName);
+      await intent.setDisplayName(
+        // The max displayName length is 256 characters so trim it down as necessary.
+        // Just do a harsh cut for now (it's not critical)
+        desiredDisplayName.substring(0, 256)
+      );
     }
 
     const gitterAvatarUrl = avatars.getForUser(gitterUser);
@@ -853,7 +1120,7 @@ class MatrixUtils {
   }
 
   getMxidForMatrixBridgeUser() {
-    const mxid = `@${matrixBridgeMxidLocalpart}:${serverName}`;
+    const mxid = `@${matrixBridgeMxidLocalpart}:${configuredServerName}`;
     return mxid;
   }
 
@@ -896,12 +1163,18 @@ class MatrixUtils {
       });
 
       if (res.statusCode !== 200) {
-        throw new StatusError(
+        const responseError = new StatusError(
           res.statusCode,
           `sendEventAtTimestmap({ matrixRoomId: ${matrixRoomId} }) failed ${
             res.statusCode
           }: ${JSON.stringify(res.body)}`
         );
+        // Attach a little bit more of info to work from. This is a little bit hacky :shrug:
+        if (res.body && res.body.errcode) {
+          responseError.errcode = res.body.errcode;
+        }
+
+        throw responseError;
       }
 
       const eventId = res.body.event_id;
@@ -1066,6 +1339,46 @@ class MatrixUtils {
     }
 
     return res.body.chunk;
+  }
+
+  async lookupRoomAlias(roomAlias) {
+    const homeserverUrl = this.matrixBridge.opts.homeserverUrl;
+    assert(homeserverUrl);
+    const asToken = this.matrixBridge.registration.getAppServiceToken();
+    assert(asToken);
+
+    const roomDirectoryEndpoint = `${homeserverUrl}/_matrix/client/r0/directory/room/${encodeURIComponent(
+      roomAlias
+    )}`;
+    const res = await request({
+      method: 'GET',
+      uri: roomDirectoryEndpoint,
+      json: true,
+      headers: {
+        Authorization: `Bearer ${asToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res.statusCode !== 200) {
+      const responseError = new StatusError(
+        res.statusCode,
+        `lookupRoomAlias({ roomAlias: ${roomAlias} }) failed ${res.statusCode}: ${JSON.stringify(
+          res.body
+        )}`
+      );
+      // Attach a little bit more of info to work from. This is a little bit hacky :shrug:
+      if (res.body && res.body.errcode) {
+        responseError.errcode = res.body.errcode;
+      }
+
+      throw responseError;
+    }
+
+    return {
+      roomId: res.body.room_id,
+      servers: res.body.servers
+    };
   }
 }
 

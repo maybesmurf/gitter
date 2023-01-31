@@ -30,7 +30,8 @@ class GhOrgPolicyDelegate extends PolicyDelegateBase {
     try {
       const ghOrg = new GitHubOrgService(user);
       const uri = this._securityDescriptor.linkPath;
-      return await ghOrg.member(uri, user.username);
+      const isMember = await ghOrg.member(uri, user.username);
+      return isMember;
     } catch (err) {
       if ((err.errno && err.syscall) || err.statusCode >= 500) {
         // GitHub call failed and may be down.
