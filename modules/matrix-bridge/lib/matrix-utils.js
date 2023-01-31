@@ -847,7 +847,11 @@ class MatrixUtils {
 
     const desiredDisplayName = `${gitterUser.username} (${gitterUser.displayName})`;
     if (desiredDisplayName !== currentProfile.displayname) {
-      await intent.setDisplayName(desiredDisplayName);
+      await intent.setDisplayName(
+        // The max displayName length is 256 characters so trim it down as necessary.
+        // Just do a harsh cut for now (it's not critical)
+        desiredDisplayName.substring(0, 256)
+      );
     }
 
     const gitterAvatarUrl = avatars.getForUser(gitterUser);
