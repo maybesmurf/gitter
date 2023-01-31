@@ -342,7 +342,7 @@ class MatrixUtils {
     }
   }
 
-  // eslint-disable-next-line max-statements
+  // eslint-disable-next-line max-statements, complexity
   async ensureCorrectRoomState(
     matrixRoomId,
     gitterRoomId,
@@ -390,7 +390,7 @@ class MatrixUtils {
       name: gitterRoom.uri
     });
     await this.ensureStateEvent(matrixRoomId, 'm.room.topic', {
-      topic: gitterRoom.topic
+      topic: gitterRoom.topic || ''
     });
     // We don't have to gate this off behind `shouldUpdateRoomDirectory` because this
     // won't change the room directory at all. This is just used as a hint for how
