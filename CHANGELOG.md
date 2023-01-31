@@ -1,6 +1,7 @@
 # 21.56.4 - 2023-01-31
 
  - Bridge admin power-levels to Matrix room when someone joins the Gitter room or changes the security descriptor, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2343
+ - Update from Terms of Service (ToS) to End User License Agreement (EULA) and Acceptable Use Policy, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2359
 
 
 # 21.56.3 - 2023-01-19
