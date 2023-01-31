@@ -685,6 +685,10 @@ class MatrixUtils {
     });
 
     // Add the Gitter room admins to the power levels to be able to self-manage later
+    await this.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      matrixRoomId,
+      gitterRoomId
+    });
     await this.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
       matrixRoomId,
       gitterRoomId
