@@ -799,8 +799,7 @@ class MatrixUtils {
       let platform;
       if (GITLAB_SD_TYPES.includes(gitterRoom.sd.type)) {
         platform = 'gitlab.com';
-      }
-      if (GITHUB_SD_TYPES.includes(gitterRoom.sd.type)) {
+      } else if (GITHUB_SD_TYPES.includes(gitterRoom.sd.type)) {
         platform = 'github.com';
       }
 
