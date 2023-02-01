@@ -580,7 +580,7 @@ class MatrixUtils {
 
     // Protect from accidentally running this on a ONE_TO_ONE room.
     assert.notStrictEqual(
-      gitterRoom.sd.type,
+      gitterRoom.sd && gitterRoom.sd.type,
       'ONE_TO_ONE',
       `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
     );
@@ -732,19 +732,6 @@ class MatrixUtils {
     // TODO: Ensure historical predecessor set correctly. This function is also used for
     // historical rooms so be mindful
 
-    // Set the room avatar
-    const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
-    const roomMxcUrl = await this.uploadAvatarUrlToMatrix(roomAvatarUrl);
-    if (roomMxcUrl) {
-      await this.ensureStateEvent({
-        matrixRoomId,
-        eventType: 'm.room.avatar',
-        newContent: {
-          url: roomMxcUrl
-        }
-      });
-    }
-
     let roomDisplayName;
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
     if (gitterGroup) {
@@ -776,6 +763,20 @@ class MatrixUtils {
         }
       }
     });
+
+    // Set the room avatar.
+    // (set this last as it doesn't matter as much to the functionality if it fails)
+    const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
+    const roomMxcUrl = await this.uploadAvatarUrlToMatrix(roomAvatarUrl);
+    if (roomMxcUrl) {
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'm.room.avatar',
+        newContent: {
+          url: roomMxcUrl
+        }
+      });
+    }
   }
 
   // Will make the historical Matrix room read-only and tombstone the room to point at
