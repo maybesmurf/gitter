@@ -29,6 +29,11 @@ const opts = require('yargs')
     default: true,
     description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
   })
+  .option('historical', {
+    type: 'boolean',
+    default: true,
+    description: '[0|1] Whether to work on the historical Matrix rooms (vs the "live" one).'
+  })
   .help('help')
   .alias('help', 'h').argv;
 
@@ -39,6 +44,11 @@ if (opts.keepExistingUserPowerLevels) {
 }
 
 async function run() {
+  let targetBridgedRoomModel = persistence.MatrixBridgedRoom;
+  if (opts.historical) {
+    targetBridgedRoomModel = persistence.MatrixBridgedHistoricalRoom;
+  }
+
   try {
     console.log('Setting up Matrix bridge');
     await installBridge();
@@ -46,9 +56,11 @@ async function run() {
     try {
       const room = await troupeService.findByUri(opts.uri);
 
-      const bridgedRoomEntry = await persistence.MatrixBridgedRoom.findOne({
-        troupeId: room._id
-      }).exec();
+      const bridgedRoomEntry = await targetBridgedRoomModel
+        .findOne({
+          troupeId: room._id
+        })
+        .exec();
 
       console.log(
         `Updating matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`

@@ -69,6 +69,11 @@ const opts = require('yargs')
     default: true,
     description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
   })
+  .option('historical', {
+    type: 'boolean',
+    default: true,
+    description: '[0|1] Whether to work on the historical Matrix rooms (vs the "live" one).'
+  })
   .help('help')
   .alias('help', 'h').argv;
 
@@ -99,13 +104,19 @@ const concurrentQueue = new ConcurrentQueue({
 });
 
 async function updateAllRooms() {
+  let targetBridgedRoomModel = persistence.MatrixBridgedRoom;
+  if (opts.historical) {
+    targetBridgedRoomModel = persistence.MatrixBridgedHistoricalRoom;
+  }
+
   const bridgedRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
     (/*{ previousIdFromCursor }*/) => {
       // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
       // `_id` index for this to be efficient. Instead, we will just get a brand new
       // cursor starting from the beginning and try again.
       // TODO: ^ is this actually true?
-      const cursor = persistence.MatrixBridgedRoom.find()
+      const cursor = targetBridgedRoomModel
+        .find()
         .lean()
         .read(DB_READ_PREFERENCE)
         .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
