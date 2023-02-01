@@ -703,7 +703,7 @@ class MatrixUtils {
         matrixRoomId,
         'm.room.power_levels'
       );
-      existingUserPowerLevels = currentPowerLevelContent.users;
+      existingUserPowerLevels = (currentPowerLevelContent && currentPowerLevelContent.users) || {};
     }
 
     const bridgeMxid = this.getMxidForMatrixBridgeUser();
