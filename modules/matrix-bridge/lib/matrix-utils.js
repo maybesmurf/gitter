@@ -756,27 +756,6 @@ class MatrixUtils {
       roomDisplayName = gitterRoom.uri;
     }
 
-    // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter
-    await this.ensureStateEvent({
-      matrixRoomId,
-      eventType: 'uk.half-shot.bridge',
-      newContent: {
-        bridgebot: this.getMxidForMatrixBridgeUser(),
-        protocol: {
-          id: 'gitter',
-          displayname: 'Gitter',
-          avatar_url: gitterLogoMxc,
-          external_url: 'https://gitter.im/'
-        },
-        channel: {
-          id: gitterRoom.id,
-          displayname: roomDisplayName,
-          avatar_url: roomMxcUrl,
-          external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
-        }
-      }
-    });
-
     // Add some meta info about what GitHub/GitLab project/org this Gitter room is
     // associated with. This information is valuable not only to make sure the data
     // lives on in someway but also useful in Element (Matrix client) where the
@@ -815,6 +794,28 @@ class MatrixUtils {
         }
       });
     }
+
+    // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter.
+    // (this has to be last-last because it uses the avatar uploaded from before)
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'uk.half-shot.bridge',
+      newContent: {
+        bridgebot: this.getMxidForMatrixBridgeUser(),
+        protocol: {
+          id: 'gitter',
+          displayname: 'Gitter',
+          avatar_url: gitterLogoMxc,
+          external_url: 'https://gitter.im/'
+        },
+        channel: {
+          id: gitterRoom.id,
+          displayname: roomDisplayName,
+          avatar_url: roomMxcUrl,
+          external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
+        }
+      }
+    });
   }
 
   // Will make the historical Matrix room read-only and tombstone the room to point at
