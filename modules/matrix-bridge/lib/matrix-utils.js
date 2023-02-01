@@ -88,7 +88,7 @@ class MatrixUtils {
       // into. We want to leave the current room in place and have a separate room where
       // the history (because we're bound to mess up the import and not be happy later on)
       // will live that we can point to.
-      shouldUpdateRoomDirectory = true
+      shouldBeInRoomDirectory = true
     } = {}
   ) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
@@ -119,7 +119,7 @@ class MatrixUtils {
       name: gitterRoom.uri
     };
 
-    if (shouldUpdateRoomDirectory) {
+    if (shouldBeInRoomDirectory) {
       // We use this as a locking mechanism.
       //
       // The bridge will return an error: `M_ROOM_IN_USE: Room alias already taken`
@@ -584,7 +584,7 @@ class MatrixUtils {
       // into. We want to leave the current room in place and have a separate room where
       // the history (because we're bound to mess up the import and not be happy later on)
       // will live that we can point to.
-      shouldUpdateRoomDirectory = true,
+      shouldBeInRoomDirectory = true,
       // People should be able to chat in rooms by default. We only use this for historical Matrix rooms
       readOnly = false
     } = {}
@@ -608,7 +608,7 @@ class MatrixUtils {
 
     const bridgeIntent = this.matrixBridge.getIntent();
 
-    if (shouldUpdateRoomDirectory) {
+    if (shouldBeInRoomDirectory) {
       // Set the aliases first because we can always change our own `#*:gitter.im`
       // namespaced aliases but we will not always be able to control the room itself to
       // update the name/topic, etc
@@ -629,7 +629,7 @@ class MatrixUtils {
         topic: gitterRoom.topic || ''
       }
     });
-    // We don't have to gate this off behind `shouldUpdateRoomDirectory` because this
+    // We don't have to gate this off behind `shouldBeInRoomDirectory` because this
     // won't change the room directory at all. This is just used as a hint for how
     // clients will display this room after it is tombstoned.
     //
@@ -644,8 +644,13 @@ class MatrixUtils {
     const roomDirectoryVisibility = await bridgeIntent.matrixClient.getDirectoryVisibility(
       matrixRoomId
     );
+    // Make sure the room is not in the room directory if *NOT* shouldBeInRoomDirectory
+    if (!shouldBeInRoomDirectory && roomDirectoryVisibility !== 'private') {
+      await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
+    }
+
     if (isGitterRoomPublic) {
-      if (shouldUpdateRoomDirectory && roomDirectoryVisibility !== 'public') {
+      if (shouldBeInRoomDirectory && roomDirectoryVisibility !== 'public') {
         await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'public');
       }
       await this.ensureStateEvent({
@@ -665,7 +670,8 @@ class MatrixUtils {
     }
     // Private
     else {
-      if (shouldUpdateRoomDirectory && roomDirectoryVisibility !== 'private') {
+      // Private rooms should always *NOT* be in the room directory
+      if (roomDirectoryVisibility !== 'private') {
         await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
       }
       await this.ensureStateEvent({
@@ -848,7 +854,7 @@ class MatrixUtils {
       await this.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
         // We don't want this historical room to show up in the room directory. It will
         // only be pointed back to by the current room in its predecessor.
-        shouldUpdateRoomDirectory: false,
+        shouldBeInRoomDirectory: false,
         // Make the room read-only so no one can mess up the history
         readOnly: true
       });
@@ -1077,7 +1083,7 @@ class MatrixUtils {
     const matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId, {
       // We don't want this historical room to show up in the room directory. It will
       // only be pointed back to by the current room in its predecessor.
-      shouldUpdateRoomDirectory: false
+      shouldBeInRoomDirectory: false
     });
     // Store the bridged room right away!
     // If we created a bridged room, we want to make sure we store it 100% of the time
@@ -1098,7 +1104,7 @@ class MatrixUtils {
       await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
         // We don't want this historical room to show up in the room directory. It will
         // only be pointed back to by the current room in its predecessor.
-        shouldUpdateRoomDirectory: false,
+        shouldBeInRoomDirectory: false,
         // In the end, we want to make the room read-only so no one can mess up the
         // history. But we leave it so people can send messages in the room for now so
         // we can import everything first.
