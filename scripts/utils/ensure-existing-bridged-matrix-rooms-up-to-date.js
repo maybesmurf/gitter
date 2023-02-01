@@ -6,6 +6,7 @@
 //
 'use strict';
 
+const debug = require('debug')('gitter:scripts:ensure-existing-bridged-matrix-rooms-up-to-date');
 const shutdown = require('shutdown');
 const env = require('gitter-web-env');
 const logger = env.logger;
@@ -22,6 +23,9 @@ const installBridge = require('gitter-web-matrix-bridge');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
+const {
+  isGitterRoomIdDoneImporting
+} = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 
 require('../../server/event-listeners').install();
 
@@ -56,6 +60,9 @@ const opts = require('yargs')
     description:
       'The total number of workers. We will partition based on this number `(id % workerTotal) === workerIndex ? doWork : pass`'
   })
+  .option('resume-from-gitter-room-id', {
+    description: 'The Gitter room ID to resume the update process from'
+  })
   .option('delay', {
     alias: 'd',
     type: 'number',
@@ -69,11 +76,16 @@ const opts = require('yargs')
     default: true,
     description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
   })
+  .option('skip-room-avatar-if-exists', {
+    type: 'boolean',
+    default: true,
+    description: `[0|1] Whether to skip the avatar updating step (this option is pretty safe since we only skip if an avatar is already set so it's defaulted to true).`
+  })
   .help('help')
   .alias('help', 'h').argv;
 
-let numberOfRoomsUpdated = 0;
-const failedRoomUpdates = [];
+let numberOfRoomsAttemptedToUpdate = 0;
+let numberOfRoomsUpdatedSuccessfully = 0;
 
 if (opts.keepExistingUserPowerLevels) {
   logger.info(
@@ -99,25 +111,50 @@ const concurrentQueue = new ConcurrentQueue({
 });
 
 async function updateAllRooms() {
-  const bridgedRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
-    (/*{ previousIdFromCursor }*/) => {
-      // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
-      // `_id` index for this to be efficient. Instead, we will just get a brand new
-      // cursor starting from the beginning and try again.
-      // TODO: ^ is this actually true?
-      const cursor = persistence.MatrixBridgedRoom.find()
+  const resumeFromGitterRoomId = opts.resumeFromGitterRoomId;
+  if (resumeFromGitterRoomId) {
+    logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
+  }
+
+  const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
+    ({ previousIdFromCursor }) => {
+      const gitterRoomCursor = persistence.Troupe.find({
+        _id: (() => {
+          const idQuery = {};
+
+          if (previousIdFromCursor) {
+            idQuery['$gt'] = previousIdFromCursor;
+          } else if (resumeFromGitterRoomId) {
+            idQuery['$gte'] = resumeFromGitterRoomId;
+          } else {
+            idQuery['$exists'] = true;
+          }
+
+          return idQuery;
+        })()
+      })
+        // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
+        .sort({ _id: 'asc' })
         .lean()
         .read(DB_READ_PREFERENCE)
         .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
         .cursor();
 
-      return { cursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
+      return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
     }
   );
+
   await concurrentQueue.processFromGenerator(
-    bridgedRoomStreamIterable,
-    bridgedRoomEntry => {
-      const bridgedRoomEntryId = bridgedRoomEntry.id || bridgedRoomEntry._id;
+    gitterRoomStreamIterable,
+    // Room filter
+    gitterRoom => {
+      const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+      // Skip any ONE_TO_ONE rooms because one to one rooms are setup correctly from the
+      // beginning and never need updates
+      if (gitterRoom.sd.type === 'ONE_TO_ONE') {
+        return false;
+      }
 
       // If we're in worker mode, only process a sub-section of the roomID's.
       // We partition based on part of the Mongo ObjectID.
@@ -125,7 +162,7 @@ async function updateAllRooms() {
         // Partition based on the incrementing value part of the Mongo ObjectID. We
         // can't just `parseInt(objectId, 16)` because the number is bigger than 64-bit
         // (12 bytes is 96 bits) and we will lose precision
-        const { incrementingValue } = mongoUtils.splitMongoObjectIdIntoPieces(bridgedRoomEntryId);
+        const { incrementingValue } = mongoUtils.splitMongoObjectIdIntoPieces(gitterRoomId);
 
         const shouldBeProcessedByThisWorker =
           incrementingValue % opts.workerTotal === opts.workerIndex - 1;
@@ -134,33 +171,61 @@ async function updateAllRooms() {
 
       return true;
     },
-    async ({ value: bridgedRoomEntry /*, laneIndex*/ }) => {
+    // Process function
+    async ({ value: gitterRoom /*, laneIndex*/ }) => {
+      numberOfRoomsAttemptedToUpdate += 1;
+      const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+      // Find our current live Matrix room
+      let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+      // Find the historical Matrix room we should import the history into
+      let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+        gitterRoomId
+      );
+      debug(
+        `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
+      );
+
       try {
         logger.info(
-          `Updating matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`
+          `Updating matrixRoomId=${matrixRoomId} and matrixHistoricalRoomId=${matrixHistoricalRoomId} for gitterRoomId=${gitterRoomId} (${gitterRoom.uri})`
         );
-        await matrixUtils.ensureCorrectRoomState(
-          bridgedRoomEntry.matrixRoomId,
-          bridgedRoomEntry.troupeId,
-          {
-            keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels
+        await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
+          keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
+          skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
+        });
+        if (matrixHistoricalRoomId) {
+          const isDoneImporting = await isGitterRoomIdDoneImporting(gitterRoomId);
+          if (isDoneImporting) {
+            await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
+              matrixRoomId,
+              matrixHistoricalRoomId,
+              gitterRoomId,
+              skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
+            });
+          } else {
+            await matrixUtils.ensureCorrectHistoricalMatrixRoomStateBeforeImport({
+              matrixHistoricalRoomId,
+              gitterRoomId,
+              skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
+            });
           }
-        );
-        numberOfRoomsUpdated += 1;
+        }
+        numberOfRoomsUpdatedSuccessfully += 1;
       } catch (err) {
         logger.error(
-          `Failed to update matrixRoomId=${bridgedRoomEntry.matrixRoomId}, gitterRoomId=${bridgedRoomEntry.troupeId}`,
+          `Failed to update matrixRoomId=${matrixRoomId} or matrixHistoricalRoomId=${matrixHistoricalRoomId} from gitterRoomId=${gitterRoomId}`,
           { exception: err }
         );
-        failedRoomUpdates.push(bridgedRoomEntry);
-      }
-
-      // Put a delay between each time we process and update a bridged room
-      // to avoid overwhelming and hitting the rate-limits on the Matrix homeserver
-      if (opts.delay > 0) {
-        await new Promise(resolve => {
-          setTimeout(resolve, opts.delay);
-        });
+        throw err;
+      } finally {
+        // Put a delay between each time we process and update a bridged room
+        // to avoid overwhelming and hitting the rate-limits on the Matrix homeserver
+        if (opts.delay > 0) {
+          await new Promise(resolve => {
+            setTimeout(resolve, opts.delay);
+          });
+        }
       }
     }
   );
@@ -173,19 +238,22 @@ async function run() {
 
     logger.info('Starting to update all bridged rooms');
     await updateAllRooms();
-    logger.info(`All bridged matrix rooms(${numberOfRoomsUpdated}) updated!`);
+    logger.info(
+      `${numberOfRoomsUpdatedSuccessfully}/${numberOfRoomsAttemptedToUpdate} bridged matrix rooms updated successfully!`
+    );
 
-    if (failedRoomUpdates.length) {
-      logger.warn(
-        `But some rooms failed to update (${failedRoomUpdates.length})`,
-        failedRoomUpdates
+    const failedRoomIds = concurrentQueue.getFailedItemIds();
+    if (failedRoomIds.length === 0) {
+      logger.info(
+        `Successfully updated all rooms ${numberOfRoomsUpdatedSuccessfully}/${numberOfRoomsAttemptedToUpdate}`
       );
-
-      const failedRoomIds = failedRoomUpdates.map(failedRoomUpdate => {
-        return failedRoomUpdate.troupeId;
-      });
+    } else {
+      logger.info(
+        `Done updating rooms (${numberOfRoomsAttemptedToUpdate} rooms) but failed to process ${failedRoomIds.length} rooms`
+      );
+      logger.info(`failedRoomIds`, failedRoomIds);
       const failedRoomInfos = await troupeService.findByIdsLean(failedRoomIds, { uri: 1 });
-      logger.warn(
+      logger.info(
         `failedRoomInfos`,
         // A poor-mans `JSON.stringify` that compacts the output of each item to a single
         // line
