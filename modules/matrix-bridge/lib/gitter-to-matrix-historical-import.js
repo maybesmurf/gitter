@@ -686,7 +686,70 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
   });
 }
 
+// Given a `gitterRoomId`, figure out if we're done importing messages into the historical Matrix room
+async function isGitterRoomIdDoneImporting(gitterRoomId) {
+  assert(mongoUtils.isLikeObjectId(gitterRoomId));
+
+  // Find our current live Matrix room
+  let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+  // Find the historical Matrix room we should import the history into
+  let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+    gitterRoomId
+  );
+
+  // If there is no historical room, then we know we haven't even tried importing in this room
+  // although we should have created a room with the call just before
+  if (!matrixHistoricalRoomId) {
+    return false;
+  }
+
+  const lastBridgedMessageEntryInHistoricalRoom = await findLatestBridgedMessageInRoom(
+    matrixHistoricalRoomId
+  );
+  const lastGitterMessageIdThatWasImported =
+    lastBridgedMessageEntryInHistoricalRoom &&
+    lastBridgedMessageEntryInHistoricalRoom.gitterMessageId;
+
+  // Where we should stop importing at because the live room will pick up from this point.
+  const firstBridgedMessageEntryInLiveRoom = await findEarliestBridgedMessageInRoom(matrixRoomId);
+  const gitterMessageIdToStopImportingAt =
+    firstBridgedMessageEntryInLiveRoom && firstBridgedMessageEntryInLiveRoom.gitterMessageId;
+
+  const numberOfMessagesRemainingToImport = await persistence.ChatMessage.count({
+    _id: (() => {
+      const idQuery = {};
+
+      if (lastGitterMessageIdThatWasImported) {
+        idQuery['$gt'] = lastGitterMessageIdThatWasImported;
+      }
+
+      if (gitterMessageIdToStopImportingAt) {
+        idQuery['$lt'] = gitterMessageIdToStopImportingAt;
+      }
+
+      if (!lastGitterMessageIdThatWasImported && !gitterMessageIdToStopImportingAt) {
+        idQuery['$exists'] = true;
+      }
+
+      return idQuery;
+    })(),
+    toTroupeId: gitterRoomId
+  })
+    // Go from oldest to most recent so everything appears in the order it was sent in
+    // the first place
+    .sort({ _id: 'asc' })
+    .read(DB_READ_PREFERENCE)
+    .exec();
+
+  debug(
+    `isGitterRoomIdDoneImporting(gitterRoomId=${gitterRoomId}) -> numberOfMessagesRemainingToImport=${numberOfMessagesRemainingToImport} (lastBridgedMessageEntryInHistoricalRoom=${lastBridgedMessageEntryInHistoricalRoom}, gitterMessageIdToStopImportingAt=${gitterMessageIdToStopImportingAt})`
+  );
+
+  return numberOfMessagesRemainingToImport === 0;
+}
+
 module.exports = {
   gitterToMatrixHistoricalImport,
+  isGitterRoomIdDoneImporting,
   matrixHistoricalImportEventEmitter
 };
