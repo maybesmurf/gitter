@@ -6,6 +6,7 @@
 //
 'use strict';
 
+const assert = require('assert');
 const shutdown = require('shutdown');
 const persistence = require('gitter-web-persistence');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
@@ -31,7 +32,7 @@ const opts = require('yargs')
   })
   .option('historical', {
     type: 'boolean',
-    default: true,
+    default: false,
     description: '[0|1] Whether to work on the historical Matrix rooms (vs the "live" one).'
   })
   .help('help')
@@ -48,6 +49,7 @@ async function run() {
   if (opts.historical) {
     targetBridgedRoomModel = persistence.MatrixBridgedHistoricalRoom;
   }
+  assert(targetBridgedRoomModel);
 
   try {
     console.log('Setting up Matrix bridge');

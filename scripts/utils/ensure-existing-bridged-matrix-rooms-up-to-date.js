@@ -6,6 +6,7 @@
 //
 'use strict';
 
+const assert = require('assert');
 const shutdown = require('shutdown');
 const env = require('gitter-web-env');
 const logger = env.logger;
@@ -71,7 +72,7 @@ const opts = require('yargs')
   })
   .option('historical', {
     type: 'boolean',
-    default: true,
+    default: false,
     description: '[0|1] Whether to work on the historical Matrix rooms (vs the "live" one).'
   })
   .help('help')
@@ -108,6 +109,7 @@ async function updateAllRooms() {
   if (opts.historical) {
     targetBridgedRoomModel = persistence.MatrixBridgedHistoricalRoom;
   }
+  assert(targetBridgedRoomModel);
 
   const bridgedRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
     (/*{ previousIdFromCursor }*/) => {
