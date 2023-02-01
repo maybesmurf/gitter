@@ -57,6 +57,19 @@ const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLev
   return accumulatedPowerLevelUsers;
 }, {});
 
+const GITLAB_SD_TYPES = [
+  'GL_GROUP', // Associated with GitLab group
+  'GL_PROJECT', // Associated with GitLab project
+  'GL_USER' // Associated with GitLab user
+];
+const GITHUB_SD_TYPES = [
+  'GH_REPO', // Associated with a GitHub repo
+  'GH_ORG', // Associated with a GitHub org
+  'GH_USER' // Associated with a GitHub user
+];
+
+const SD_TYPES_WITH_EXTERNAL_ASSOCIATION = [...GITLAB_SD_TYPES, ...GITHUB_SD_TYPES];
+
 let txnCount = 0;
 function getTxnId() {
   txnCount++;
@@ -75,7 +88,7 @@ class MatrixUtils {
       // into. We want to leave the current room in place and have a separate room where
       // the history (because we're bound to mess up the import and not be happy later on)
       // will live that we can point to.
-      shouldUpdateRoomDirectory = true
+      shouldBeInRoomDirectory = true
     } = {}
   ) {
     const gitterRoom = await troupeService.findById(gitterRoomId);
@@ -106,7 +119,7 @@ class MatrixUtils {
       name: gitterRoom.uri
     };
 
-    if (shouldUpdateRoomDirectory) {
+    if (shouldBeInRoomDirectory) {
       // We use this as a locking mechanism.
       //
       // The bridge will return an error: `M_ROOM_IN_USE: Room alias already taken`
@@ -222,17 +235,18 @@ class MatrixUtils {
     }
   }
 
-  async ensureStateEventAsMxid(mxid, matrixRoomId, eventType, newContent) {
+  async ensureStateEventAsMxid({ mxid, matrixRoomId, eventType, stateKey = '', newContent }) {
     // mxid can be `undefined` to indicate the bridge intent
     assert(matrixRoomId);
     assert(eventType);
+    assert(stateKey !== null && stateKey !== undefined);
     assert(newContent);
 
     const intent = this.matrixBridge.getIntent(mxid);
 
     let currentContent;
     try {
-      currentContent = await intent.getStateEvent(matrixRoomId, eventType);
+      currentContent = await intent.getStateEvent(matrixRoomId, eventType, stateKey);
     } catch (err) {
       // no-op
     }
@@ -246,24 +260,25 @@ class MatrixUtils {
     }
 
     debug(
-      `ensureStateEvent(${matrixRoomId}, ${eventType}): isContentSame=${isContentSame} currentContent`,
+      `ensureStateEventAsMxid(${mxid}, ${matrixRoomId}, ${eventType}): isContentSame=${isContentSame} currentContent`,
       currentContent,
       'newContent',
       newContent
     );
     if (!isContentSame) {
-      await intent.sendStateEvent(matrixRoomId, eventType, '', newContent);
+      await intent.sendStateEvent(matrixRoomId, eventType, stateKey, newContent);
     }
   }
 
-  async ensureStateEvent(matrixRoomId, eventType, newContent) {
-    return this.ensureStateEventAsMxid(
+  async ensureStateEvent({ matrixRoomId, eventType, stateKey = '', newContent }) {
+    return this.ensureStateEventAsMxid({
       // undefined will give us the bridgeIntent
-      undefined,
+      mxid: undefined,
       matrixRoomId,
       eventType,
+      stateKey,
       newContent
-    );
+    });
   }
 
   async addAdminToMatrixRoomId({ mxid, matrixRoomId }) {
@@ -281,11 +296,15 @@ class MatrixUtils {
       return;
     }
 
-    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
-      ...currentPowerLevelContent,
-      users: {
-        ...(currentPowerLevelContent.users || {}),
-        [mxid]: ROOM_ADMIN_POWER_LEVEL
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'm.room.power_levels',
+      newContent: {
+        ...currentPowerLevelContent,
+        users: {
+          ...(currentPowerLevelContent.users || {}),
+          [mxid]: ROOM_ADMIN_POWER_LEVEL
+        }
       }
     });
   }
@@ -312,9 +331,13 @@ class MatrixUtils {
     // Then delete the person that should no longer be an admin
     delete newPowerLevelUsersMap[mxid];
 
-    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
-      ...currentPowerLevelContent,
-      users: newPowerLevelUsersMap
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'm.room.power_levels',
+      newContent: {
+        ...currentPowerLevelContent,
+        users: newPowerLevelUsersMap
+      }
     });
   }
 
@@ -553,6 +576,10 @@ class MatrixUtils {
     matrixRoomId,
     gitterRoomId,
     {
+      // If the room already has an avatar, we can probably skip the whole avatar
+      // download/upload process for now. Feel free to set this in utility scripts for
+      // example.
+      skipRoomAvatarIfExists = false,
       // We have some snowflake Matrix room permissions setup for some particular
       // communities to be able to self-manage and moderate. Avoid regressing them back
       // to defaults.
@@ -561,7 +588,7 @@ class MatrixUtils {
       // into. We want to leave the current room in place and have a separate room where
       // the history (because we're bound to mess up the import and not be happy later on)
       // will live that we can point to.
-      shouldUpdateRoomDirectory = true,
+      shouldBeInRoomDirectory = true,
       // People should be able to chat in rooms by default. We only use this for historical Matrix rooms
       readOnly = false
     } = {}
@@ -570,7 +597,7 @@ class MatrixUtils {
 
     // Protect from accidentally running this on a ONE_TO_ONE room.
     assert.notStrictEqual(
-      gitterRoom.sd.type,
+      gitterRoom.sd && gitterRoom.sd.type,
       'ONE_TO_ONE',
       `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
     );
@@ -580,25 +607,33 @@ class MatrixUtils {
     assert.strictEqual(
       isMatrixDmRoom,
       false,
-      `ensureCorrectRoomState should not be sued on DM rooms with Matrix users. gitterRoomId=${gitterRoomId}`
+      `ensureCorrectRoomState should not be used on DM rooms with Matrix users. gitterRoomId=${gitterRoomId}`
     );
 
     const bridgeIntent = this.matrixBridge.getIntent();
 
-    if (shouldUpdateRoomDirectory) {
+    if (shouldBeInRoomDirectory) {
       // Set the aliases first because we can always change our own `#*:gitter.im`
       // namespaced aliases but we will not always be able to control the room itself to
       // update the name/topic, etc
       await this.ensureRoomAliasesForGitterRoom(matrixRoomId, gitterRoom);
     }
 
-    await this.ensureStateEvent(matrixRoomId, 'm.room.name', {
-      name: gitterRoom.uri
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'm.room.name',
+      newContent: {
+        name: gitterRoom.uri
+      }
     });
-    await this.ensureStateEvent(matrixRoomId, 'm.room.topic', {
-      topic: gitterRoom.topic || ''
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'm.room.topic',
+      newContent: {
+        topic: gitterRoom.topic || ''
+      }
     });
-    // We don't have to gate this off behind `shouldUpdateRoomDirectory` because this
+    // We don't have to gate this off behind `shouldBeInRoomDirectory` because this
     // won't change the room directory at all. This is just used as a hint for how
     // clients will display this room after it is tombstoned.
     //
@@ -606,35 +641,56 @@ class MatrixUtils {
     // #xxx:server does not point to the room`. TODO: Update Synapse not to be so strict
     // as multiple rooms have `m.room.canonical_alias` all the time with room upgrades
     // const roomAlias = getCanonicalAliasForGitterRoomUri(gitterRoom.uri); await
-    // this.ensureStateEvent(matrixRoomId, 'm.room.canonical_alias', { alias: roomAlias
-    // });
+    // this.ensureStateEvent({ matrixRoomId, eventType: 'm.room.canonical_alias', newContent: { alias: roomAlias } });
 
     const isGitterRoomPublic = securityDescriptorUtils.isPublic(gitterRoom);
 
     const roomDirectoryVisibility = await bridgeIntent.matrixClient.getDirectoryVisibility(
       matrixRoomId
     );
+    // Make sure the room is not in the room directory if *NOT* shouldBeInRoomDirectory
+    if (!shouldBeInRoomDirectory && roomDirectoryVisibility !== 'private') {
+      await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
+    }
+
     if (isGitterRoomPublic) {
-      if (shouldUpdateRoomDirectory && roomDirectoryVisibility !== 'public') {
+      if (shouldBeInRoomDirectory && roomDirectoryVisibility !== 'public') {
         await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'public');
       }
-      await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
-        history_visibility: 'world_readable'
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'm.room.history_visibility',
+        newContent: {
+          history_visibility: 'world_readable'
+        }
       });
-      await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
-        join_rule: 'public'
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'm.room.join_rules',
+        newContent: {
+          join_rule: 'public'
+        }
       });
     }
     // Private
     else {
-      if (shouldUpdateRoomDirectory && roomDirectoryVisibility !== 'private') {
+      // Private rooms should always *NOT* be in the room directory
+      if (roomDirectoryVisibility !== 'private') {
         await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
       }
-      await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
-        history_visibility: 'shared'
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'm.room.history_visibility',
+        newContent: {
+          history_visibility: 'shared'
+        }
       });
-      await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
-        join_rule: 'invite'
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'm.room.join_rules',
+        newContent: {
+          join_rule: 'invite'
+        }
       });
     }
 
@@ -643,44 +699,42 @@ class MatrixUtils {
     // to defaults.
     let existingUserPowerLevels = {};
     if (keepExistingUserPowerLevels) {
-      let currentPowerLevelContent;
-      try {
-        currentPowerLevelContent = await bridgeIntent.getStateEvent(
-          matrixRoomId,
-          'm.room.power_levels'
-        );
-        existingUserPowerLevels = currentPowerLevelContent.users;
-      } catch (err) {
-        // no-op
-        // TODO: Why do we no-op here?
-      }
+      const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+        matrixRoomId,
+        'm.room.power_levels'
+      );
+      existingUserPowerLevels = (currentPowerLevelContent && currentPowerLevelContent.users) || {};
     }
 
     const bridgeMxid = this.getMxidForMatrixBridgeUser();
     // https://matrix.org/docs/spec/client_server/r0.2.0#m-room-power-levels
-    await this.ensureStateEvent(matrixRoomId, 'm.room.power_levels', {
-      users_default: 0,
-      users: {
-        ...existingUserPowerLevels,
-        ...extraPowerLevelUsers,
-        [bridgeMxid]: BRIDGE_USER_POWER_LEVEL
-      },
-      events: {
-        'm.room.avatar': 50,
-        'm.room.canonical_alias': 50,
-        'm.room.encryption': ROOM_ADMIN_POWER_LEVEL,
-        'm.room.history_visibility': ROOM_ADMIN_POWER_LEVEL,
-        'm.room.name': 50,
-        'm.room.power_levels': ROOM_ADMIN_POWER_LEVEL,
-        'm.room.server_acl': ROOM_ADMIN_POWER_LEVEL,
-        'm.room.tombstone': ROOM_ADMIN_POWER_LEVEL
-      },
-      events_default: readOnly ? 50 : 0,
-      state_default: 50,
-      ban: 50,
-      kick: 50,
-      redact: 50,
-      invite: 0
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'm.room.power_levels',
+      newContent: {
+        users_default: 0,
+        users: {
+          ...existingUserPowerLevels,
+          ...extraPowerLevelUsers,
+          [bridgeMxid]: BRIDGE_USER_POWER_LEVEL
+        },
+        events: {
+          'm.room.avatar': 50,
+          'm.room.canonical_alias': 50,
+          'm.room.encryption': ROOM_ADMIN_POWER_LEVEL,
+          'm.room.history_visibility': ROOM_ADMIN_POWER_LEVEL,
+          'm.room.name': 50,
+          'm.room.power_levels': ROOM_ADMIN_POWER_LEVEL,
+          'm.room.server_acl': ROOM_ADMIN_POWER_LEVEL,
+          'm.room.tombstone': ROOM_ADMIN_POWER_LEVEL
+        },
+        events_default: readOnly ? 50 : 0,
+        state_default: 50,
+        ban: 50,
+        kick: 50,
+        redact: 50,
+        invite: 0
+      }
     });
 
     // Add the Gitter room admins to the power levels to be able to self-manage later
@@ -696,15 +750,6 @@ class MatrixUtils {
     // TODO: Ensure historical predecessor set correctly. This function is also used for
     // historical rooms so be mindful
 
-    // Set the room avatar
-    const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
-    const roomMxcUrl = await this.uploadAvatarUrlToMatrix(roomAvatarUrl);
-    if (roomMxcUrl) {
-      await this.ensureStateEvent(matrixRoomId, 'm.room.avatar', {
-        url: roomMxcUrl
-      });
-    }
-
     let roomDisplayName;
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
     if (gitterGroup) {
@@ -716,22 +761,122 @@ class MatrixUtils {
       roomDisplayName = gitterRoom.uri;
     }
 
-    // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter
-    await this.ensureStateEvent(matrixRoomId, 'uk.half-shot.bridge', {
-      bridgebot: this.getMxidForMatrixBridgeUser(),
-      protocol: {
-        id: 'gitter',
-        displayname: 'Gitter',
-        avatar_url: gitterLogoMxc,
-        external_url: 'https://gitter.im/'
-      },
-      channel: {
-        id: gitterRoom.id,
-        displayname: roomDisplayName,
-        avatar_url: roomMxcUrl,
-        external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
+    // Add some meta info about what GitHub/GitLab project/org this Gitter room is
+    // associated with. This information is valuable not only to make sure the data
+    // lives on in someway but also useful in Element (Matrix client) where the
+    // integration manager could automatically suggest setting up the integration for
+    // the assocatiaton.
+    if (gitterRoom.sd && SD_TYPES_WITH_EXTERNAL_ASSOCIATION.includes(gitterRoom.sd.type)) {
+      let platform;
+      if (GITLAB_SD_TYPES.includes(gitterRoom.sd.type)) {
+        platform = 'gitlab.com';
+      } else if (GITHUB_SD_TYPES.includes(gitterRoom.sd.type)) {
+        platform = 'github.com';
+      }
+
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'im.gitter.project_association',
+        newContent: {
+          platform,
+          type: gitterRoom.sd.type,
+          linkPath: gitterRoom.sd.linkPath,
+          externalId: gitterRoom.sd.externalId
+        }
+      });
+    }
+
+    // Set the room avatar.
+    // (set this last as it doesn't matter as much to the functionality if it fails)
+    let currentRoomAvatarMxcUrl;
+    try {
+      const currentRoomAvatarContent = await bridgeIntent.getStateEvent(
+        matrixRoomId,
+        'm.room.avatar'
+      );
+      currentRoomAvatarMxcUrl = currentRoomAvatarContent && currentRoomAvatarContent.url;
+    } catch (err) {
+      // no-op when `M_NOT_FOUND: Event not found` because it's ok for not every room to
+      // have an avatar set
+    }
+    let roomMxcUrl = currentRoomAvatarMxcUrl;
+    if (!skipRoomAvatarIfExists || (skipRoomAvatarIfExists && !currentRoomAvatarMxcUrl)) {
+      const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
+      roomMxcUrl = await this.uploadAvatarUrlToMatrix(roomAvatarUrl);
+      if (roomMxcUrl) {
+        await this.ensureStateEvent({
+          matrixRoomId,
+          eventType: 'm.room.avatar',
+          newContent: {
+            url: roomMxcUrl
+          }
+        });
+      }
+    }
+
+    // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter.
+    // (this has to be last-last because it uses the avatar uploaded from before)
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'uk.half-shot.bridge',
+      newContent: {
+        bridgebot: this.getMxidForMatrixBridgeUser(),
+        protocol: {
+          id: 'gitter',
+          displayname: 'Gitter',
+          avatar_url: gitterLogoMxc,
+          external_url: 'https://gitter.im/'
+        },
+        channel: {
+          id: gitterRoom.id,
+          displayname: roomDisplayName,
+          avatar_url: roomMxcUrl,
+          external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
+        }
       }
     });
+  }
+
+  async ensureCorrectHistoricalMatrixRoomStateBeforeImport({
+    // The historical room to ensure correct state in
+    matrixHistoricalRoomId,
+    gitterRoomId,
+    // Just pass this along to `ensureCorrectRoomState(...)`
+    skipRoomAvatarIfExists
+  }) {
+    assert(matrixHistoricalRoomId);
+    assert(gitterRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `ensureCorrectHistoricalMatrixRoomStateBeforeImport: gitterRoomId=${gitterRoomId} unexpectedly does not exist`
+    );
+
+    // One to one rooms are setup correctly from the beginning and never need updates
+    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      // Propagate all of the room details over to Matrix like the room topic and avatar
+      await this.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
+        // Just pass this along
+        skipRoomAvatarIfExists,
+        // We don't want this historical room to show up in the room directory. It will
+        // only be pointed back to by the current room in its predecessor.
+        shouldBeInRoomDirectory: false,
+        // In the end, we want to make the room read-only so no one can mess up the
+        // history. But we leave it so people can send messages in the room for now so
+        // we can import everything first.
+        //
+        // XXX: It's important to call
+        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` after you're done
+        // importing! The reason we don't call
+        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` here when the room is
+        // created is because we need power-levels for the bridge to import and be able
+        // to send messages as all of the `gitter.im` homeserver users. And we only want
+        // to send the tombstone event at the end after all of the history for maximum
+        // semantics (history continues after this point at the end).
+        readOnly: false
+      });
+    }
   }
 
   // Will make the historical Matrix room read-only and tombstone the room to point at
@@ -747,7 +892,9 @@ class MatrixUtils {
     matrixRoomId,
     // The historical room to ensure correct state in
     matrixHistoricalRoomId,
-    gitterRoomId
+    gitterRoomId,
+    // Just pass this along to `ensureCorrectRoomState(...)`
+    skipRoomAvatarIfExists
   }) {
     assert(matrixRoomId);
     assert(matrixHistoricalRoomId);
@@ -755,16 +902,18 @@ class MatrixUtils {
     const gitterRoom = await troupeService.findById(gitterRoomId);
     assert(
       gitterRoom,
-      `ensureCorrectHistoricalMatrixRoomStateAfterImport: gitterRoomId=${gitterRoomId} does not exist`
+      `ensureCorrectHistoricalMatrixRoomStateAfterImport: gitterRoomId=${gitterRoomId} unexpectedly does not exist`
     );
 
     // One to one rooms are setup correctly from the beginning and never need updates
     if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
       // Propagate all of the room details over to Matrix like the room topic and avatar
       await this.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
+        // Just pass this along
+        skipRoomAvatarIfExists,
         // We don't want this historical room to show up in the room directory. It will
         // only be pointed back to by the current room in its predecessor.
-        shouldUpdateRoomDirectory: false,
+        shouldBeInRoomDirectory: false,
         // Make the room read-only so no one can mess up the history
         readOnly: true
       });
@@ -779,18 +928,22 @@ class MatrixUtils {
       );
 
       // Ensure tombstone event pointing to the main live room
-      await this.ensureStateEventAsMxid(
-        gitterUserCreatorMxid,
-        matrixHistoricalRoomId,
-        'm.room.tombstone',
-        {
+      await this.ensureStateEventAsMxid({
+        mxid: gitterUserCreatorMxid,
+        matrixRoomId: matrixHistoricalRoomId,
+        eventType: 'm.room.tombstone',
+        newContent: {
           replacement_room: matrixRoomId
         }
-      );
+      });
     } else {
       // Ensure tombstone event pointing to the main live room
-      await this.ensureStateEvent(matrixHistoricalRoomId, 'm.room.tombstone', {
-        replacement_room: matrixRoomId
+      await this.ensureStateEvent({
+        matrixRoomId: matrixHistoricalRoomId,
+        eventType: 'm.room.tombstone',
+        newContent: {
+          replacement_room: matrixRoomId
+        }
       });
     }
   }
@@ -859,8 +1012,12 @@ class MatrixUtils {
     debug(
       `shutdownMatrixRoom(${matrixRoomId}): Changing history visibility so the history isn't visible if anyone is able to join again`
     );
-    await this.ensureStateEvent(matrixRoomId, 'm.room.history_visibility', {
-      history_visibility: 'joined'
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'm.room.history_visibility',
+      newContent: {
+        history_visibility: 'joined'
+      }
     });
 
     const bridgeIntent = this.matrixBridge.getIntent();
@@ -873,8 +1030,12 @@ class MatrixUtils {
     debug(
       `shutdownMatrixRoom(${matrixRoomId}): Changing the join_rules to invite-only so people can't join back`
     );
-    await this.ensureStateEvent(matrixRoomId, 'm.room.join_rules', {
-      join_rule: 'invite'
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'm.room.join_rules',
+      newContent: {
+        join_rule: 'invite'
+      }
     });
 
     // Kick everyone out
@@ -978,48 +1139,24 @@ class MatrixUtils {
       `Existing historical Matrix room not found, creating new historical Matrix room for roomId=${gitterRoomId}`
     );
 
-    const matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId, {
+    const matrixHistoricalRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId, {
       // We don't want this historical room to show up in the room directory. It will
       // only be pointed back to by the current room in its predecessor.
-      shouldUpdateRoomDirectory: false
+      shouldBeInRoomDirectory: false
     });
     // Store the bridged room right away!
     // If we created a bridged room, we want to make sure we store it 100% of the time
     logger.info(
-      `Storing bridged historical room (Gitter room id=${gitterRoomId} -> Matrix room_id=${matrixRoomId})`
+      `Storing bridged historical room (Gitter room id=${gitterRoomId} -> Matrix room_id=${matrixHistoricalRoomId})`
     );
-    await store.storeBridgedHistoricalRoom(gitterRoomId, matrixRoomId);
+    await store.storeBridgedHistoricalRoom(gitterRoomId, matrixHistoricalRoomId);
 
-    const gitterRoom = await troupeService.findById(gitterRoomId);
-    assert(
-      gitterRoom,
-      `ensureCorrectRoomStateForHistoricalMatrixRoom: gitterRoomId=${gitterRoomId} unexpectedly does not exist after we just created a Matrix room for it. We are unable to determine whether we need to ensureCorrectRoomState for it.`
-    );
+    await this.ensureCorrectHistoricalMatrixRoomStateBeforeImport({
+      matrixHistoricalRoomId,
+      gitterRoomId
+    });
 
-    // One to one rooms are setup correctly from the beginning and never need updates
-    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
-      // Propagate all of the room details over to Matrix like the room topic and avatar
-      await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
-        // We don't want this historical room to show up in the room directory. It will
-        // only be pointed back to by the current room in its predecessor.
-        shouldUpdateRoomDirectory: false,
-        // In the end, we want to make the room read-only so no one can mess up the
-        // history. But we leave it so people can send messages in the room for now so
-        // we can import everything first.
-        //
-        // XXX: It's important to call
-        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` after you're done
-        // importing! The reason we don't call
-        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` here when the room is
-        // created is because we need power-levels for the bridge to import and be able
-        // to send messages as all of the `gitter.im` homeserver users. And we only want
-        // to send the tombstone event at the end after all of the history for maximum
-        // semantics (history continues after this point at the end).
-        readOnly: false
-      });
-    }
-
-    return matrixRoomId;
+    return matrixHistoricalRoomId;
   }
 
   async getOrCreateMatrixDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
