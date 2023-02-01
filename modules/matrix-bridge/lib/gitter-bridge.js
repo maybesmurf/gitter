@@ -7,7 +7,9 @@ const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const appEvents = require('gitter-web-appevents');
 const userService = require('gitter-web-users');
 const chatService = require('gitter-web-chats');
+const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
+const policyFactory = require('gitter-web-permissions/lib/policy-factory');
 const env = require('gitter-web-env');
 const logger = env.logger;
 const stats = env.stats;
@@ -75,6 +77,20 @@ class GitterBridge {
           await this.handleRoomUpdateEvent(gitterRoomId, data.model);
         } else if (gitterRoomId && data.operation === 'remove') {
           await this.handleRoomRemoveEvent(gitterRoomId, data.model);
+        }
+      }
+
+      if (data.type === 'room.sd') {
+        const [, gitterRoomId] = data.url.match(/\/rooms\/([a-f0-9]+)/) || [];
+        if (gitterRoomId && (data.operation === 'patch' || data.operation === 'update')) {
+          await this.handleRoomSecurityDescriptorUpdateEvent(gitterRoomId, data.model);
+        }
+      }
+
+      if (data.type === 'group.sd') {
+        const [, gitterGroupId] = data.url.match(/\/groups\/([a-f0-9]+)/) || [];
+        if (gitterGroupId && (data.operation === 'patch' || data.operation === 'update')) {
+          await this.handleGroupSecurityDescriptorUpdateEvent(gitterGroupId, data.model);
         }
       }
 
@@ -445,13 +461,30 @@ class GitterBridge {
     if (matrixRoomId) {
       await this.matrixUtils.shutdownMatrixRoom(matrixRoomId);
     }
+
+    // Also remove the historical Matrix room
+    const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
+      gitterRoomId
+    );
+    if (matrixHistoricalRoomId) {
+      await this.matrixUtils.shutdownMatrixRoom(matrixHistoricalRoomId, {
+        // The Gitter room has been removed by this point so we can't reference it. We
+        // can force-remove safely because we never have to deal with ONE_TO_ONE rooms
+        // which this option is protecting against
+        forceRemoveIfNoGitterRoom: true
+      });
+    }
   }
 
+  // eslint-disable-next-line max-statements
   async handleUserJoiningRoom(gitterRoomId, model) {
     const allowedToBridge = await isGitterRoomIdAllowedToBridge(gitterRoomId);
     if (!allowedToBridge) {
       return null;
     }
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(gitterRoom);
 
     const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
     // Just ignore the bridging join if the Matrix room hasn't been created yet
@@ -470,9 +503,6 @@ class GitterBridge {
     } catch (err) {
       // Create a new DM room on Matrix if the user is no longer able to join the old again
       if (err.message === 'Failed to join room') {
-        const gitterRoom = await troupeService.findById(gitterRoomId);
-        assert(gitterRoom);
-
         const matrixDm = discoverMatrixDmUri(gitterRoom.lcUri);
         if (!matrixDm) {
           // If it's not a DM, just throw the error that happened
@@ -496,12 +526,49 @@ class GitterBridge {
         );
 
         logger.info(
-          `Storing new bridged DM room (Gitter room id=${gitterRoom._id} -> Matrix room_id=${newMatrixRoomId}): ${gitterRoom.lcUri}`
+          `Storing new bridged DM room (Gitter gitterRoomId=${gitterRoomId} -> Matrix room_id=${newMatrixRoomId}): ${gitterRoom.lcUri}`
         );
-        await store.storeBridgedRoom(gitterRoom._id, newMatrixRoomId);
+        await store.storeBridgedRoom(gitterRoomId, newMatrixRoomId);
       } else {
         throw err;
       }
+    }
+
+    // When someone joins the room, check if they are an admin and add power levels if necessary
+    let canAdmin;
+    try {
+      const gitterUser = await userService.findById(gitterUserId);
+      assert(gitterUser);
+      const policy = await policyFactory.createPolicyForRoom(gitterUser, gitterRoom);
+      canAdmin = await policy.canAdmin();
+      if (canAdmin) {
+        this.matrixUtils.addAdminToMatrixRoomId({
+          mxid: matrixId,
+          matrixRoomId
+        });
+
+        // Also add to the historical Matrix room
+        const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
+          gitterRoomId
+        );
+        if (matrixHistoricalRoomId) {
+          this.matrixUtils.addAdminToMatrixRoomId({
+            mxid: matrixId,
+            matrixRoomId: matrixHistoricalRoomId
+          });
+        }
+      }
+    } catch (err) {
+      if (canAdmin) {
+        logger.error(
+          `User (gitterUserId=${gitterUserId}) joined gitterRoomId=${gitterRoomId} but we failed to add their mxid=${matrixId} as an admin of ${matrixRoomId}. This will result in desynced power-levels in the Matrix room. Hopefully another action will update things.`,
+          {
+            exception: err
+          }
+        );
+      }
+
+      throw err;
     }
   }
 
@@ -563,6 +630,78 @@ class GitterBridge {
     } else if (operation === 'remove') {
       logger.info(`Unbanning ${bannedMxid} from ${matrixRoomId}`);
       await bridgeIntent.unban(matrixRoomId, bannedMxid);
+    }
+  }
+
+  // This is tested by `test/request-web-tests/matrix-bridging-power-level-tests.js`
+  async handleRoomSecurityDescriptorUpdateEvent(gitterRoomId, model) {
+    const matrixRoomId = await store.getMatrixRoomIdByGitterRoomId(gitterRoomId);
+    if (!matrixRoomId) {
+      return null;
+    }
+
+    // A historical room is optional as it might not have been created yet.
+    const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
+      gitterRoomId
+    );
+
+    // Loop through all of the room admins listed in the Matrix power levels and
+    // remove any people that don't pass the Gitter admin check.
+    await this.matrixUtils.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      matrixRoomId,
+      gitterRoomId
+    });
+    if (matrixHistoricalRoomId) {
+      await this.matrixUtils.cleanupAdminsInMatrixRoomIdAccordingToGitterRoomId({
+        matrixRoomId: matrixHistoricalRoomId,
+        gitterRoomId
+      });
+    }
+
+    // If only the `sd.extraAdmins` were updated as part of a "patch", then we know that
+    // the only admin changes are in this list so we can shortcut and only run through
+    // admins in that list and make sure they have the proper Matrix power levels
+    const onlyExtraAdminsUpdated = Object.keys(model) === 1 && model.extraAdmins;
+
+    // Loop through all Gitter admins (smartly) and add power levels for anyone that
+    // passes the Gitter admin check.
+    await this.matrixUtils.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+      matrixRoomId,
+      gitterRoomId,
+      useShortcutToOnlyLookThroughExtraAdmins: onlyExtraAdminsUpdated
+    });
+    if (matrixHistoricalRoomId) {
+      await this.matrixUtils.addAdminsInMatrixRoomIdAccordingToGitterRoomId({
+        matrixRoomId: matrixHistoricalRoomId,
+        gitterRoomId,
+        useShortcutToOnlyLookThroughExtraAdmins: onlyExtraAdminsUpdated
+      });
+    }
+  }
+
+  // This is tested by `test/request-web-tests/matrix-bridging-power-level-tests.js`
+  async handleGroupSecurityDescriptorUpdateEvent(gitterGroupId /*, model*/) {
+    // If only the `sd.extraAdmins` were updated as part of a "patch", then we know that
+    // the only admin changes are in this list so we can shortcut and only run through
+    // admins in that list and make sure they have the proper Matrix power levels
+    //
+    // XXX: In the future, it would be cool to factor in this shortcut to the room
+    // shortcut. But I've left it out for the sake of reduing complexity atm.
+    //
+    // const onlyExtraAdminsUpdated = Object.keys(model) === 1 && model.extraAdmins;
+
+    const roomsInGroup = await groupService.findRoomsInGroup(gitterGroupId);
+
+    for (const gitterRoom of roomsInGroup) {
+      const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+      // If the room is inheriting from the group, then we need to update the admins in the room
+      const isRoomInheritingFromGroup =
+        gitterRoom.sd && gitterRoom.sd.type === 'GROUP' && gitterRoom.sd.admins === 'GROUP_ADMIN';
+
+      if (isRoomInheritingFromGroup) {
+        await this.handleRoomSecurityDescriptorUpdateEvent(gitterRoomId, {});
+      }
     }
   }
 }

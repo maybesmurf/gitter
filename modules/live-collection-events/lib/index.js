@@ -6,6 +6,8 @@ module.exports = {
   events: new EventEmitter(),
   chats: new EventEmitter(),
   rooms: new EventEmitter(),
+  roomSecurityDescriptors: new EventEmitter(),
+  groupSecurityDescriptors: new EventEmitter(),
   roomMembers: new EventEmitter(),
   users: new EventEmitter(),
   userGroups: new EventEmitter(),

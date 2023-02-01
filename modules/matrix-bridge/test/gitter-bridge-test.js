@@ -10,6 +10,7 @@ const GitterUtils = require('../lib/gitter-utils');
 const store = require('../lib/store');
 const getMxidForGitterUser = require('../lib/get-mxid-for-gitter-user');
 const { getCanonicalAliasLocalpartForGitterRoomUri } = require('../lib/matrix-alias-utils');
+const { ROOM_ADMIN_POWER_LEVEL } = require('../lib/constants');
 
 const strategy = new restSerializer.ChatStrategy();
 
@@ -1043,7 +1044,19 @@ describe('gitter-bridge', () => {
     describe('handleUserJoiningRoom', () => {
       const fixture = fixtureLoader.setupEach({
         user1: {},
-        troupe1: {}
+        troupe1: {},
+
+        userAdmin1: {},
+        troupeWithAdmin1: {
+          users: ['user1'],
+          securityDescriptor: {
+            type: null,
+            members: 'PUBLIC',
+            admins: 'MANUAL',
+            public: true,
+            extraAdmins: ['userAdmin1']
+          }
+        }
       });
 
       it('user join membership syncs to Matrix', async () => {
@@ -1058,7 +1071,15 @@ describe('gitter-bridge', () => {
           model: { id: fixture.user1.id }
         });
 
-        assert.strictEqual(matrixBridge.getIntent.callCount, 3);
+        assert.strictEqual(
+          matrixBridge.getIntent.callCount,
+          3,
+          `Expected callCount does not match actual:\n` +
+            matrixBridge.getIntent
+              .getCalls()
+              .map((call, index) => `${index}: getIntent(${call.args.join(', ')})`)
+              .join('\n')
+        );
         assert.strictEqual(matrixBridge.getIntent.getCall(2).args[0], mxidForGitterUser);
         assert.strictEqual(matrixBridge.getIntent().join.callCount, 1);
         assert.strictEqual(matrixBridge.getIntent().join.getCall(0).args[0], matrixRoomId);
@@ -1131,6 +1152,72 @@ describe('gitter-bridge', () => {
             invite: [otherPersonMxid]
           }
         });
+      });
+
+      it('admin joining room syncs power levels to Matrix', async () => {
+        const matrixRoomId = `!${fixtureLoader.generateGithubId()}:localhost`;
+        await store.storeBridgedRoom(fixture.troupeWithAdmin1.id, matrixRoomId);
+        const mxidForGitterUser = getMxidForGitterUser(fixture.userAdmin1);
+
+        // Stub the some power levels
+        matrixBridge.getIntent().getStateEvent = (targetRoomId, type, stateKey) => {
+          if (
+            targetRoomId === matrixRoomId &&
+            type === 'm.room.power_levels' &&
+            stateKey === undefined
+          ) {
+            return {
+              // events_default: 0,
+              // users_default: 0,
+              // state_default: 50,
+              users: {}
+            };
+          }
+        };
+
+        await gitterBridge.onDataChange({
+          type: 'user',
+          url: `/rooms/${fixture.troupeWithAdmin1.id}/users`,
+          operation: 'create',
+          model: { id: fixture.userAdmin1.id }
+        });
+
+        // Make sure we're only working with the bridge intent or the user in question
+        const expectedMxidsWithIntent = [
+          // bridge intent
+          undefined,
+          // MXID for the user in question
+          mxidForGitterUser
+        ];
+        const actualMxidsWithIntent = matrixBridge.getIntent.getCalls().map(call => call.args[0]);
+        assert(
+          actualMxidsWithIntent.every(mxidWeGotIntentFor => {
+            return expectedMxidsWithIntent.includes(mxidWeGotIntentFor);
+          }),
+          `Expected to only call \`getIntent(...)\` with one of these MXIDs=${JSON.stringify(
+            expectedMxidsWithIntent
+          )} but received these calls where at least one does not match:\n${actualMxidsWithIntent
+            .map((mxid, index) => `${index}: ${mxid}`)
+            .join('\n')}`
+        );
+
+        // Assert that the user is joined to the room on Matrix
+        assert.strictEqual(matrixBridge.getIntent().join.callCount, 1);
+        assert.strictEqual(matrixBridge.getIntent().join.getCall(0).args[0], matrixRoomId);
+        // Assert that the admin power level is sent
+        assert.strictEqual(matrixBridge.getIntent().sendStateEvent.callCount, 1);
+        const sendPowerLevelStateEventCall = matrixBridge.getIntent().sendStateEvent.getCall(0);
+        assert(sendPowerLevelStateEventCall);
+        assert.deepEqual(sendPowerLevelStateEventCall.args, [
+          matrixRoomId,
+          'm.room.power_levels',
+          '',
+          {
+            users: {
+              [mxidForGitterUser]: ROOM_ADMIN_POWER_LEVEL
+            }
+          }
+        ]);
       });
     });
 
