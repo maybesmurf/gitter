@@ -593,7 +593,7 @@ class MatrixUtils {
 
     // Protect from accidentally running this on a ONE_TO_ONE room.
     assert.notStrictEqual(
-      gitterRoom.sd.type,
+      gitterRoom.sd && gitterRoom.sd.type,
       'ONE_TO_ONE',
       `ensureCorrectRoomState should not be used on ONE_TO_ONE rooms. gitterRoomId=${gitterRoomId}`
     );
@@ -745,19 +745,6 @@ class MatrixUtils {
     // TODO: Ensure historical predecessor set correctly. This function is also used for
     // historical rooms so be mindful
 
-    // Set the room avatar
-    const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
-    const roomMxcUrl = await this.uploadAvatarUrlToMatrix(roomAvatarUrl);
-    if (roomMxcUrl) {
-      await this.ensureStateEvent({
-        matrixRoomId,
-        eventType: 'm.room.avatar',
-        newContent: {
-          url: roomMxcUrl
-        }
-      });
-    }
-
     let roomDisplayName;
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
     if (gitterGroup) {
@@ -768,27 +755,6 @@ class MatrixUtils {
     } else {
       roomDisplayName = gitterRoom.uri;
     }
-
-    // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter
-    await this.ensureStateEvent({
-      matrixRoomId,
-      eventType: 'uk.half-shot.bridge',
-      newContent: {
-        bridgebot: this.getMxidForMatrixBridgeUser(),
-        protocol: {
-          id: 'gitter',
-          displayname: 'Gitter',
-          avatar_url: gitterLogoMxc,
-          external_url: 'https://gitter.im/'
-        },
-        channel: {
-          id: gitterRoom.id,
-          displayname: roomDisplayName,
-          avatar_url: roomMxcUrl,
-          external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
-        }
-      }
-    });
 
     // Add some meta info about what GitHub/GitLab project/org this Gitter room is
     // associated with. This information is valuable not only to make sure the data
@@ -814,6 +780,42 @@ class MatrixUtils {
         }
       });
     }
+
+    // Set the room avatar.
+    // (set this last as it doesn't matter as much to the functionality if it fails)
+    const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
+    const roomMxcUrl = await this.uploadAvatarUrlToMatrix(roomAvatarUrl);
+    if (roomMxcUrl) {
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'm.room.avatar',
+        newContent: {
+          url: roomMxcUrl
+        }
+      });
+    }
+
+    // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter.
+    // (this has to be last-last because it uses the avatar uploaded from before)
+    await this.ensureStateEvent({
+      matrixRoomId,
+      eventType: 'uk.half-shot.bridge',
+      newContent: {
+        bridgebot: this.getMxidForMatrixBridgeUser(),
+        protocol: {
+          id: 'gitter',
+          displayname: 'Gitter',
+          avatar_url: gitterLogoMxc,
+          external_url: 'https://gitter.im/'
+        },
+        channel: {
+          id: gitterRoom.id,
+          displayname: roomDisplayName,
+          avatar_url: roomMxcUrl,
+          external_url: urlJoin(config.get('web:basepath'), gitterRoom.uri)
+        }
+      }
+    });
   }
 
   // Will make the historical Matrix room read-only and tombstone the room to point at
