@@ -644,6 +644,8 @@ class MatrixUtils {
     const roomDirectoryVisibility = await bridgeIntent.matrixClient.getDirectoryVisibility(
       matrixRoomId
     );
+    console.log('roomDirectoryVisibility', roomDirectoryVisibility);
+    console.log('shouldBeInRoomDirectory', shouldBeInRoomDirectory);
     // Make sure the room is not in the room directory if *NOT* shouldBeInRoomDirectory
     if (!shouldBeInRoomDirectory && roomDirectoryVisibility !== 'private') {
       await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
@@ -824,6 +826,44 @@ class MatrixUtils {
     });
   }
 
+  async ensureCorrectHistoricalMatrixRoomStateBeforeImport({
+    // The historical room to ensure correct state in
+    matrixHistoricalRoomId,
+    gitterRoomId
+  }) {
+    assert(matrixHistoricalRoomId);
+    assert(gitterRoomId);
+
+    const gitterRoom = await troupeService.findById(gitterRoomId);
+    assert(
+      gitterRoom,
+      `ensureCorrectHistoricalMatrixRoomStateBeforeImport: gitterRoomId=${gitterRoomId} unexpectedly does not exist`
+    );
+
+    // One to one rooms are setup correctly from the beginning and never need updates
+    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      // Propagate all of the room details over to Matrix like the room topic and avatar
+      await this.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
+        // We don't want this historical room to show up in the room directory. It will
+        // only be pointed back to by the current room in its predecessor.
+        shouldBeInRoomDirectory: false,
+        // In the end, we want to make the room read-only so no one can mess up the
+        // history. But we leave it so people can send messages in the room for now so
+        // we can import everything first.
+        //
+        // XXX: It's important to call
+        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` after you're done
+        // importing! The reason we don't call
+        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` here when the room is
+        // created is because we need power-levels for the bridge to import and be able
+        // to send messages as all of the `gitter.im` homeserver users. And we only want
+        // to send the tombstone event at the end after all of the history for maximum
+        // semantics (history continues after this point at the end).
+        readOnly: false
+      });
+    }
+  }
+
   // Will make the historical Matrix room read-only and tombstone the room to point at
   // the current one.
   //
@@ -845,7 +885,7 @@ class MatrixUtils {
     const gitterRoom = await troupeService.findById(gitterRoomId);
     assert(
       gitterRoom,
-      `ensureCorrectHistoricalMatrixRoomStateAfterImport: gitterRoomId=${gitterRoomId} does not exist`
+      `ensureCorrectHistoricalMatrixRoomStateAfterImport: gitterRoomId=${gitterRoomId} unexpectedly does not exist`
     );
 
     // One to one rooms are setup correctly from the beginning and never need updates
@@ -1080,7 +1120,7 @@ class MatrixUtils {
       `Existing historical Matrix room not found, creating new historical Matrix room for roomId=${gitterRoomId}`
     );
 
-    const matrixRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId, {
+    const matrixHistoricalRoomId = await this.createMatrixRoomByGitterRoomId(gitterRoomId, {
       // We don't want this historical room to show up in the room directory. It will
       // only be pointed back to by the current room in its predecessor.
       shouldBeInRoomDirectory: false
@@ -1088,40 +1128,16 @@ class MatrixUtils {
     // Store the bridged room right away!
     // If we created a bridged room, we want to make sure we store it 100% of the time
     logger.info(
-      `Storing bridged historical room (Gitter room id=${gitterRoomId} -> Matrix room_id=${matrixRoomId})`
+      `Storing bridged historical room (Gitter room id=${gitterRoomId} -> Matrix room_id=${matrixHistoricalRoomId})`
     );
-    await store.storeBridgedHistoricalRoom(gitterRoomId, matrixRoomId);
+    await store.storeBridgedHistoricalRoom(gitterRoomId, matrixHistoricalRoomId);
 
-    const gitterRoom = await troupeService.findById(gitterRoomId);
-    assert(
-      gitterRoom,
-      `ensureCorrectRoomStateForHistoricalMatrixRoom: gitterRoomId=${gitterRoomId} unexpectedly does not exist after we just created a Matrix room for it. We are unable to determine whether we need to ensureCorrectRoomState for it.`
-    );
+    await this.ensureCorrectHistoricalMatrixRoomStateBeforeImport({
+      matrixHistoricalRoomId,
+      gitterRoomId
+    });
 
-    // One to one rooms are setup correctly from the beginning and never need updates
-    if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
-      // Propagate all of the room details over to Matrix like the room topic and avatar
-      await this.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
-        // We don't want this historical room to show up in the room directory. It will
-        // only be pointed back to by the current room in its predecessor.
-        shouldBeInRoomDirectory: false,
-        // In the end, we want to make the room read-only so no one can mess up the
-        // history. But we leave it so people can send messages in the room for now so
-        // we can import everything first.
-        //
-        // XXX: It's important to call
-        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` after you're done
-        // importing! The reason we don't call
-        // `ensureCorrectHistoricalMatrixRoomStateAfterImport` here when the room is
-        // created is because we need power-levels for the bridge to import and be able
-        // to send messages as all of the `gitter.im` homeserver users. And we only want
-        // to send the tombstone event at the end after all of the history for maximum
-        // semantics (history continues after this point at the end).
-        readOnly: false
-      });
-    }
-
-    return matrixRoomId;
+    return matrixHistoricalRoomId;
   }
 
   async getOrCreateMatrixDmRoomByGitterUserAndOtherPersonMxid(gitterUser, otherPersonMxid) {
