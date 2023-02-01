@@ -30,6 +30,8 @@ Developer facing:
  - Add script to be able reset deleted ghost user MXIDs to fix import process failing with ghost users, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2333, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2337
  - Update `mongodb` sub-dependency in `mongoose` for hopefully stable connection (no timeout errors, timed out), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2321
  - Update Matrix bridge to remove exclusive control over the user/room/alias namespaces which don't make sense in a self-service world after the Gitter -> Matrix migration, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2335, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2358
+ - Include project association meta information in Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2368
+
 
 # 21.56.0 - 2022-12-06
 
