@@ -576,6 +576,10 @@ class MatrixUtils {
     matrixRoomId,
     gitterRoomId,
     {
+      // If the room already has an avatar, we can probably skip the whole avatar
+      // download/upload process for now. Feel free to set this in utility scripts for
+      // example.
+      skipRoomAvatarIfExists = false,
       // We have some snowflake Matrix room permissions setup for some particular
       // communities to be able to self-manage and moderate. Avoid regressing them back
       // to defaults.
@@ -603,7 +607,7 @@ class MatrixUtils {
     assert.strictEqual(
       isMatrixDmRoom,
       false,
-      `ensureCorrectRoomState should not be sued on DM rooms with Matrix users. gitterRoomId=${gitterRoomId}`
+      `ensureCorrectRoomState should not be used on DM rooms with Matrix users. gitterRoomId=${gitterRoomId}`
     );
 
     const bridgeIntent = this.matrixBridge.getIntent();
@@ -784,16 +788,30 @@ class MatrixUtils {
 
     // Set the room avatar.
     // (set this last as it doesn't matter as much to the functionality if it fails)
-    const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
-    const roomMxcUrl = await this.uploadAvatarUrlToMatrix(roomAvatarUrl);
-    if (roomMxcUrl) {
-      await this.ensureStateEvent({
+    let currentRoomAvatarMxcUrl;
+    try {
+      const currentRoomAvatarContent = await bridgeIntent.getStateEvent(
         matrixRoomId,
-        eventType: 'm.room.avatar',
-        newContent: {
-          url: roomMxcUrl
-        }
-      });
+        'm.room.avatar'
+      );
+      currentRoomAvatarMxcUrl = currentRoomAvatarContent && currentRoomAvatarContent.url;
+    } catch (err) {
+      // no-op when `M_NOT_FOUND: Event not found` because it's ok for not every room to
+      // have an avatar set
+    }
+    let roomMxcUrl = currentRoomAvatarMxcUrl;
+    if (!skipRoomAvatarIfExists || (skipRoomAvatarIfExists && !currentRoomAvatarMxcUrl)) {
+      const roomAvatarUrl = avatars.getForGroupId(gitterRoom.groupId);
+      roomMxcUrl = await this.uploadAvatarUrlToMatrix(roomAvatarUrl);
+      if (roomMxcUrl) {
+        await this.ensureStateEvent({
+          matrixRoomId,
+          eventType: 'm.room.avatar',
+          newContent: {
+            url: roomMxcUrl
+          }
+        });
+      }
     }
 
     // Add some meta info to cross-link and show that the Matrix room is bridged over to Gitter.
@@ -822,7 +840,9 @@ class MatrixUtils {
   async ensureCorrectHistoricalMatrixRoomStateBeforeImport({
     // The historical room to ensure correct state in
     matrixHistoricalRoomId,
-    gitterRoomId
+    gitterRoomId,
+    // Just pass this along to `ensureCorrectRoomState(...)`
+    skipRoomAvatarIfExists
   }) {
     assert(matrixHistoricalRoomId);
     assert(gitterRoomId);
@@ -837,6 +857,8 @@ class MatrixUtils {
     if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
       // Propagate all of the room details over to Matrix like the room topic and avatar
       await this.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
+        // Just pass this along
+        skipRoomAvatarIfExists,
         // We don't want this historical room to show up in the room directory. It will
         // only be pointed back to by the current room in its predecessor.
         shouldBeInRoomDirectory: false,
@@ -870,7 +892,9 @@ class MatrixUtils {
     matrixRoomId,
     // The historical room to ensure correct state in
     matrixHistoricalRoomId,
-    gitterRoomId
+    gitterRoomId,
+    // Just pass this along to `ensureCorrectRoomState(...)`
+    skipRoomAvatarIfExists
   }) {
     assert(matrixRoomId);
     assert(matrixHistoricalRoomId);
@@ -885,6 +909,8 @@ class MatrixUtils {
     if (gitterRoom.sd.type !== 'ONE_TO_ONE') {
       // Propagate all of the room details over to Matrix like the room topic and avatar
       await this.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
+        // Just pass this along
+        skipRoomAvatarIfExists,
         // We don't want this historical room to show up in the room directory. It will
         // only be pointed back to by the current room in its predecessor.
         shouldBeInRoomDirectory: false,

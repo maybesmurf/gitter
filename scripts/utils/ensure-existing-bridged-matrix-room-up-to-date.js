@@ -34,6 +34,11 @@ const opts = require('yargs')
     default: true,
     description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
   })
+  .option('skip-room-avatar-if-exists', {
+    type: 'boolean',
+    default: true,
+    description: `[0|1] Whether to skip the avatar updating step (this option is pretty safe since we only skip if an avatar is already set so it's defaulted to true).`
+  })
   .help('help')
   .alias('help', 'h').argv;
 
@@ -66,7 +71,8 @@ async function run() {
         `Updating matrixRoomId=${matrixRoomId} and matrixHistoricalRoomId=${matrixHistoricalRoomId} for gitterRoomId=${gitterRoomId}`
       );
       await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
-        keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels
+        keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
+        skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
       });
       if (matrixHistoricalRoomId) {
         const isDoneImporting = await isGitterRoomIdDoneImporting(gitterRoomId);
@@ -74,12 +80,14 @@ async function run() {
           await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
             matrixRoomId,
             matrixHistoricalRoomId,
-            gitterRoomId
+            gitterRoomId,
+            skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
           });
         } else {
           await matrixUtils.ensureCorrectHistoricalMatrixRoomStateBeforeImport({
             matrixHistoricalRoomId,
-            gitterRoomId
+            gitterRoomId,
+            skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
           });
         }
       }
