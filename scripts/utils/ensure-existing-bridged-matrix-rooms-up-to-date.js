@@ -119,11 +119,6 @@ async function updateAllRooms() {
     bridgedRoomEntry => {
       const bridgedRoomEntryId = bridgedRoomEntry.id || bridgedRoomEntry._id;
 
-      // TODO: Just for easier running locally while debuggin
-      if (bridgedRoomEntry.matrixRoomId.endsWith(':localhost')) {
-        return false;
-      }
-
       // If we're in worker mode, only process a sub-section of the roomID's.
       // We partition based on part of the Mongo ObjectID.
       if (opts.workerIndex && opts.workerTotal) {
