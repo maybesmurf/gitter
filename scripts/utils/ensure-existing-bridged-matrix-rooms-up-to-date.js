@@ -76,11 +76,6 @@ const opts = require('yargs')
     default: true,
     description: '[0|1] Whether to keep snowflake user power that may already be set on the room.'
   })
-  .option('historical', {
-    type: 'boolean',
-    default: false,
-    description: '[0|1] Whether to work on the historical Matrix rooms (vs the "live" one).'
-  })
   .help('help')
   .alias('help', 'h').argv;
 
