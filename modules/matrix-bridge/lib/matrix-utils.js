@@ -644,8 +644,6 @@ class MatrixUtils {
     const roomDirectoryVisibility = await bridgeIntent.matrixClient.getDirectoryVisibility(
       matrixRoomId
     );
-    console.log('roomDirectoryVisibility', roomDirectoryVisibility);
-    console.log('shouldBeInRoomDirectory', shouldBeInRoomDirectory);
     // Make sure the room is not in the room directory if *NOT* shouldBeInRoomDirectory
     if (!shouldBeInRoomDirectory && roomDirectoryVisibility !== 'private') {
       await bridgeIntent.matrixClient.setDirectoryVisibility(matrixRoomId, 'private');
@@ -697,16 +695,11 @@ class MatrixUtils {
     // to defaults.
     let existingUserPowerLevels = {};
     if (keepExistingUserPowerLevels) {
-      let currentPowerLevelContent;
-      try {
-        currentPowerLevelContent = await bridgeIntent.getStateEvent(
-          matrixRoomId,
-          'm.room.power_levels'
-        );
-        existingUserPowerLevels = currentPowerLevelContent.users;
-      } catch (err) {
-        // no-op
-      }
+      const currentPowerLevelContent = await bridgeIntent.getStateEvent(
+        matrixRoomId,
+        'm.room.power_levels'
+      );
+      existingUserPowerLevels = currentPowerLevelContent.users;
     }
 
     const bridgeMxid = this.getMxidForMatrixBridgeUser();

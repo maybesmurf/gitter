@@ -23,6 +23,9 @@ const installBridge = require('gitter-web-matrix-bridge');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
+const {
+  isGitterRoomIdDoneImporting
+} = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 
 require('../../server/event-listeners').install();
 
@@ -191,11 +194,19 @@ async function updateAllRooms() {
           keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels
         });
         if (matrixHistoricalRoomId) {
-          await matrixUtils.ensureCorrectRoomState(matrixHistoricalRoomId, gitterRoomId, {
-            // We don't want this historical room to show up in the room directory. It will
-            // only be pointed back to by the current room in its predecessor.
-            shouldBeInRoomDirectory: false
-          });
+          const isDoneImporting = await isGitterRoomIdDoneImporting(gitterRoomId);
+          if (isDoneImporting) {
+            await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
+              matrixRoomId,
+              matrixHistoricalRoomId,
+              gitterRoomId
+            });
+          } else {
+            await matrixUtils.ensureCorrectHistoricalMatrixRoomStateBeforeImport({
+              matrixHistoricalRoomId,
+              gitterRoomId
+            });
+          }
         }
         numberOfRoomsUpdatedSuccessfully += 1;
       } catch (err) {
