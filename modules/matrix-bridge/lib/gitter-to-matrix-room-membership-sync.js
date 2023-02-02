@@ -17,6 +17,7 @@ const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const extraPowerLevelUsers = require('gitter-web-matrix-bridge/lib/extra-power-level-users-from-config');
+const parseGitterMxid = require('gitter-web-matrix-bridge/lib/parse-gitter-mxid');
 
 const configuredServerName = config.get('matrix:bridge:serverName');
 
@@ -51,7 +52,7 @@ async function ensureNoExtraMembersInMatrixRoom({
   for (const matrixMemberEvent of matrixMemberEvents) {
     const mxid = matrixMemberEvent.state_key;
     // Skip any MXID's that aren't from our own server (gitter.im)
-    const [, serverName] = mxid.split(':');
+    const { serverName } = parseGitterMxid(mxid) || {};
     if (serverName !== configuredServerName) {
       continue;
     }
@@ -102,7 +103,7 @@ async function ensureMembershipFromGitterRoom({
 
   const gitterMembershipStreamIterable = noTimeoutIterableFromMongooseCursor(
     (/*{ previousIdFromCursor }*/) => {
-      const messageCursor = persistence.TroupeUser.find(
+      const roomMemberCursor = persistence.TroupeUser.find(
         {
           troupeId: gitterRoomId
           // Ideally, we would factor in `previousIdFromCursor` here but there isn't an
@@ -120,7 +121,7 @@ async function ensureMembershipFromGitterRoom({
         .batchSize(DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP)
         .cursor();
 
-      return { cursor: messageCursor, batchSize: DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP };
+      return { cursor: roomMemberCursor, batchSize: DB_BATCH_SIZE_FOR_ROOM_MEMBERSHIP };
     }
   );
 
