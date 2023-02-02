@@ -9,6 +9,7 @@ const {
   noTimeoutIterableFromMongooseCursor
 } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const persistence = require('gitter-web-persistence');
+const userService = require('gitter-web-users');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 const roomMembershipService = require('gitter-web-rooms/lib/room-membership-service');
 const securityDescriptorUtils = require('gitter-web-permissions/lib/security-descriptor-utils');
@@ -129,17 +130,31 @@ async function ensureMembershipFromGitterRoom({
   for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
     const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
 
-    const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
-      gitterRoomMemberUserId
-    );
-
     // We can skip if we already know the Gitter user is joined to the Matrix room from the
     // previous loop
     if (alreadyJoinedGitterUserIdsToMatrixRoom[gitterRoomMemberUserId]) {
       continue;
     }
 
-    // Join Gitter user to the "live" room
+    let gitterUserMxid;
+    try {
+      gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+        gitterRoomMemberUserId
+      );
+    } catch (err) {
+      const gitterUser = await userService.findById(gitterRoomMemberUserId);
+      if (gitterUser) {
+        throw err;
+      } else {
+        logger.warn(
+          `gitterUserId=${gitterRoomMemberUserId} was in gitterRoomId=${gitterRoomId} but the Gitter user does not exist so ignoring`
+        );
+        // Skip to the next room member
+        continue;
+      }
+    }
+
+    // Join Gitter user to the Matrix room
     const intent = matrixBridge.getIntent(gitterUserMxid);
     await intent.join(matrixRoomId);
   }
