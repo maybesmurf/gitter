@@ -1006,7 +1006,7 @@ class MatrixUtils {
       matrixRoomId,
       eventType: 'm.room.history_visibility',
       newContent: {
-        history_visibility: 'join'
+        history_visibility: 'joined'
       }
     });
 
