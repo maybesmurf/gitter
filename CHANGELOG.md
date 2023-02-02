@@ -1,3 +1,8 @@
+# 21.56.5 - 2023-02-02
+
+ - Update Gitter -> Matrix migration date: 2023-02-13 (pushing back another week), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2377
+
+
 # 21.56.4 - 2023-01-31
 
  - Bridge admin power-levels to Matrix room when someone joins the Gitter room or changes the security descriptor, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2343, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2366
