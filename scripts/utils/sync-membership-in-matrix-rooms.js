@@ -119,6 +119,7 @@ async function exec() {
     }
   );
 
+  let numberOfRoomsProcessed = 0;
   await concurrentQueue.processFromGenerator(
     bridgedMatrixRoomStreamIterable,
     gitterRoom => {
@@ -169,6 +170,13 @@ async function exec() {
       return true;
     },
     async ({ value: gitterRoom /*, laneIndex*/ }) => {
+      const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+      numberOfRoomsProcessed++;
+      if (numberOfRoomsProcessed % 100 === 0) {
+        logger.info(`Working on gitterRoomId=${gitterRoomId} (${gitterRoom.uri})`);
+      }
+
       await syncMatrixRoomMembershipFromGitterRoom(gitterRoom);
     }
   );
