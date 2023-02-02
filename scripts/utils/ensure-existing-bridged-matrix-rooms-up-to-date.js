@@ -152,7 +152,13 @@ async function updateAllRooms() {
 
       // Skip any ONE_TO_ONE rooms because one to one rooms are setup correctly from the
       // beginning and never need updates
-      if (gitterRoom.sd.type === 'ONE_TO_ONE') {
+      if (!gitterRoom.sd) {
+        logger.warn(
+          `gitterRoomId=${gitterRoomId} unexpectedly did not have security descriptor (sd)`
+        );
+        return false;
+      }
+      if (gitterRoom.sd && gitterRoom.sd.type === 'ONE_TO_ONE') {
         return false;
       }
 

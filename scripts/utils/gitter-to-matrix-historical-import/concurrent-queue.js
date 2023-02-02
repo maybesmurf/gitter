@@ -119,8 +119,18 @@ class ConcurrentQueue {
     );
 
     const itemId = this.itemIdGetterFromItem(item);
+    let shouldProcessItem = false;
+    try {
+      shouldProcessItem = filterItemFunc(item);
+    } catch (err) {
+      // Log that we failed to filter something
+      logger.error(`concurrentQueue: Failed to to run filterItemFunc over itemId=${itemId}`, {
+        exception: err
+      });
+      this._failedItemIds.push(itemId);
+    }
     // Filter out items first
-    if (filterItemFunc(item)) {
+    if (shouldProcessItem) {
       // Add an easy way to make a lookup from item ID to laneIndex
       this.itemKeyToLaneIndexMap.set(itemId, laneIndex);
 
