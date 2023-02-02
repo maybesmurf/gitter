@@ -2,7 +2,11 @@
 'use strict';
 
 const shutdown = require('shutdown');
+const path = require('path');
+const os = require('os');
+const mkdirp = require('mkdirp');
 //const debug = require('debug')('gitter:scripts:reset-all-matrix-historical-room-bridging');
+
 const env = require('gitter-web-env');
 const logger = env.logger;
 const config = env.config;
@@ -17,6 +21,10 @@ const groupService = require('gitter-web-groups');
 const installBridge = require('gitter-web-matrix-bridge');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 const {
+  getRoomIdResumePositionFromFile,
+  occasionallyPersistRoomResumePositionCheckpointFileToDisk
+} = require('./gitter-to-matrix-historical-import/resume-position-utils');
+const {
   syncMatrixRoomMembershipFromGitterRoom
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-room-membership-sync');
 
@@ -30,16 +38,15 @@ const DB_READ_PREFERENCE =
   config.get('gitterToMatrixHistoricalImport:databaseReadPreference') ||
   mongoReadPrefs.secondaryPreferred;
 
+// Every N milliseconds (5 minutes), we should track which room we should resume from if
+// the import function errors out.
+const CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL = 5 * 60 * 1000;
+
 const opts = require('yargs')
   .option('concurrency', {
     type: 'number',
     required: true,
     description: 'Number of rooms to process at once'
-  })
-  .option('resume-from-gitter-room-id', {
-    type: 'string',
-    description:
-      'The Gitter room ID to start the sync from. Otherwise will sync everything available in the database.'
   })
   // Worker index option to only process rooms which evenly divide against that index
   // (partition) (make sure to update the `laneStatusFilePath` to be unique from other
@@ -81,6 +88,24 @@ const concurrentQueue = new ConcurrentQueue({
   }
 });
 
+const tempDirectory = path.join(os.tmpdir(), 'gitter-to-matrix-membership-sync');
+mkdirp.sync(tempDirectory);
+
+const roomResumePositionCheckpointFilePath = path.join(
+  tempDirectory,
+  `./_room-resume-position-checkpoint-${opts.workerIndex || ''}-${opts.workerTotal || ''}.json`
+);
+logger.info(
+  `Writing to roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}`
+);
+const calculateWhichRoomToResumeFromIntervalId = occasionallyPersistRoomResumePositionCheckpointFileToDisk(
+  {
+    concurrentQueue,
+    roomResumePositionCheckpointFilePath,
+    persistToDiskIntervalMs: CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL
+  }
+);
+
 // eslint-disable-next-line max-statements
 async function exec() {
   logger.info('Setting up Matrix bridge');
@@ -89,18 +114,23 @@ async function exec() {
   const matrixDmGroupUri = 'matrix';
   const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
 
+  const resumeFromGitterRoomId = await getRoomIdResumePositionFromFile(
+    roomResumePositionCheckpointFilePath
+  );
+  if (resumeFromGitterRoomId) {
+    logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
+  }
+
   const bridgedMatrixRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
     ({ previousIdFromCursor }) => {
       const gitterRoomCursor = persistence.Troupe.find({
         _id: (() => {
           const idQuery = {};
 
-          const lastIdThatWasProcessed =
-            previousIdFromCursor ||
-            // Resume position to sync from
-            opts.resumeFromGitterRoomId;
-          if (lastIdThatWasProcessed) {
-            idQuery['$gt'] = lastIdThatWasProcessed;
+          if (previousIdFromCursor) {
+            idQuery['$gt'] = previousIdFromCursor;
+          } else if (resumeFromGitterRoomId) {
+            idQuery['$gte'] = resumeFromGitterRoomId;
           } else {
             idQuery['$exists'] = true;
           }
@@ -205,5 +235,9 @@ exec()
     );
   })
   .then(() => {
+    // Stop calculating which room to resume from as the process is stopping and we
+    // don't need to keep track anymore.
+    clearInterval(calculateWhichRoomToResumeFromIntervalId);
+
     shutdown.shutdownGracefully();
   });

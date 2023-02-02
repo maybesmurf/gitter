@@ -29,6 +29,10 @@ const {
   matrixHistoricalImportEventEmitter
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
+const {
+  getRoomIdResumePositionFromFile,
+  occasionallyPersistRoomResumePositionCheckpointFileToDisk
+} = require('./gitter-to-matrix-historical-import/resume-position-utils');
 // Setup stat logging
 require('./gitter-to-matrix-historical-import/performance-observer-stats');
 
@@ -164,77 +168,13 @@ const roomResumePositionCheckpointFilePath = path.join(
   tempDirectory,
   `./_room-resume-position-checkpoint-${opts.workerIndex || ''}-${opts.workerTotal || ''}.json`
 );
-let writingCheckpointFileLock;
-// Loop through all of the lanes and find the oldest room ID
-const calculateWhichRoomToResumeFromIntervalId = setInterval(async () => {
-  // Get a list of room ID's that the queue is currently working on
-  const roomIds = [];
-  for (let i = 0; i < opts.concurrency; i++) {
-    const laneStatusInfo = concurrentQueue.getLaneStatus(i);
-    const laneWorkingOnGitterRoomId = laneStatusInfo.gitterRoom && laneStatusInfo.gitterRoom.id;
-    if (laneWorkingOnGitterRoomId) {
-      roomIds.push(laneWorkingOnGitterRoomId);
-    }
+const calculateWhichRoomToResumeFromIntervalId = occasionallyPersistRoomResumePositionCheckpointFileToDisk(
+  {
+    concurrentQueue,
+    roomResumePositionCheckpointFilePath,
+    persistToDiskIntervalMs: CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL
   }
-
-  // Sort the list so the oldest room is sorted first
-  const chronologicalSortedRoomIds = roomIds.sort((a, b) => {
-    const aTimestamp = mongoUtils.getDateFromObjectId(a);
-    const bTimestamp = mongoUtils.getDateFromObjectId(b);
-    return aTimestamp - bTimestamp;
-  });
-
-  // Take the oldest room in the list. We have to be careful and keep this as the oldest
-  // room currently being imported. When we resume, we want to make sure we don't skip
-  // over a room that has many many messages just because we imported a bunch of small
-  // rooms after in other lanes.
-  const trackingResumeFromRoomId = chronologicalSortedRoomIds[0];
-
-  // Nothing to resume at yet, skip
-  if (!trackingResumeFromRoomId) {
-    return;
-  }
-
-  // Prevent multiple writes from building up. We only allow one write until it finishes
-  if (writingCheckpointFileLock) {
-    return;
-  }
-
-  const checkpointData = {
-    resumeFromRoomId: trackingResumeFromRoomId
-  };
-
-  try {
-    logger.info(
-      `Writing room checkpoint file to disk roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}`,
-      checkpointData
-    );
-    writingCheckpointFileLock = true;
-    await fs.writeFile(roomResumePositionCheckpointFilePath, JSON.stringify(checkpointData));
-  } catch (err) {
-    logger.error(`Problem persisting room checkpoint file to disk`, { exception: err });
-  } finally {
-    writingCheckpointFileLock = false;
-  }
-}, CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL);
-
-async function getRoomIdResumePosition() {
-  try {
-    logger.info(
-      `Trying to read resume information from roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}`
-    );
-    const fileContents = await fs.readFile(roomResumePositionCheckpointFilePath);
-    const checkpointData = JSON.parse(fileContents);
-    return checkpointData.resumeFromRoomId;
-  } catch (err) {
-    logger.error(
-      `Unable to read roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}`,
-      {
-        exception: err
-      }
-    );
-  }
-}
+);
 
 const failedRoomIdsFilePath = path.join(tempDirectory, `./_failed-room-ids-${Date.now()}.json`);
 async function persistFailedRoomIds(failedRoomIds) {
@@ -292,7 +232,9 @@ async function exec() {
   const matrixDmGroupUri = 'matrix';
   const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
 
-  const resumeFromGitterRoomId = await getRoomIdResumePosition();
+  const resumeFromGitterRoomId = await getRoomIdResumePositionFromFile(
+    roomResumePositionCheckpointFilePath
+  );
   if (resumeFromGitterRoomId) {
     logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
   }

@@ -11,7 +11,7 @@ class ConcurrentQueue {
   constructor(opts = {}) {
     const { concurrency, itemIdGetterFromItem } = opts;
     assert(concurrency);
-    this.concurrency = concurrency;
+    this._concurrency = concurrency;
     assert(itemIdGetterFromItem);
     this.itemIdGetterFromItem = itemIdGetterFromItem;
 
@@ -28,7 +28,7 @@ class ConcurrentQueue {
         // 1: { ... }
       }
     };
-    for (let laneIndex = 0; laneIndex < this.concurrency; laneIndex++) {
+    for (let laneIndex = 0; laneIndex < this._concurrency; laneIndex++) {
       this._laneStatusInfo.lanes[laneIndex] = {
         laneDone: false,
         laneStartWaitingForNextItemTs: null,
@@ -43,6 +43,10 @@ class ConcurrentQueue {
     this._failedItemIds = [];
   }
 
+  get concurrency() {
+    return this._concurrency;
+  }
+
   async processFromGenerator(itemGenerator, filterItemFunc, asyncProcesssorTask) {
     assert(itemGenerator);
     assert(asyncProcesssorTask);
@@ -51,7 +55,7 @@ class ConcurrentQueue {
     this._laneStatusInfo.startTs = Date.now();
 
     // There will be N lanes to process things in
-    const lanes = Array.from(Array(this.concurrency));
+    const lanes = Array.from(Array(this._concurrency));
 
     const laneDonePromises = lanes.map(async (_, laneIndex) => {
       let isGeneratorDone = false;
