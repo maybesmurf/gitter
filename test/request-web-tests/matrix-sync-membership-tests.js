@@ -43,7 +43,6 @@ async function setupMatrixRoomWithFakeMembershipForGitterRoomId({
   return { matrixRoomId, matrixHistoricalRoomId };
 }
 
-// Use the wrapping `ensureMatrixRoomIdPowerLevelsAreCorrect` function in your tests instead
 async function ensureMatrixRoomMembershipIsCorrect({
   matrixRoomId,
   roomDescriptor,
@@ -160,7 +159,7 @@ describe('Gitter -> Matrix syncing room membership e2e', () => {
     // Sync room memberhip to historical and "live" Matrix rooms
     await syncMatrixRoomMembershipFromGitterRoom(fixtureRoom);
 
-    // Ensure power levels look as expected
+    // Ensure membership look as expected
     await ensureMatrixRoomMembershipIsCorrect({
       matrixRoomId,
       roomDescriptor: '"live"',
@@ -201,7 +200,7 @@ describe('Gitter -> Matrix syncing room membership e2e', () => {
     // Sync room memberhip to historical and "live" Matrix rooms
     await syncMatrixRoomMembershipFromGitterRoom(fixtureRoom);
 
-    // Ensure power levels look as expected
+    // Ensure membership look as expected
     await ensureMatrixRoomMembershipIsCorrect({
       matrixRoomId,
       roomDescriptor: '"live"',
