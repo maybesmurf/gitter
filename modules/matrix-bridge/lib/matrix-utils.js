@@ -34,6 +34,7 @@ const downloadFileToBuffer = require('./download-file-to-buffer');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
 const parseGitterMxid = require('./parse-gitter-mxid');
 const { BRIDGE_USER_POWER_LEVEL, ROOM_ADMIN_POWER_LEVEL } = require('./constants');
+const extraPowerLevelUsers = require('./extra-power-level-users-from-config');
 
 const store = require('./store');
 
@@ -45,17 +46,6 @@ const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLoca
 // The Gitter user we are pulling profile information from to populate the Matrix bridge user profile
 const gitterBridgeProfileUsername = config.get('matrix:bridge:gitterBridgeProfileUsername');
 const gitterLogoMxc = config.get('matrix:bridge:gitterLogoMxc');
-
-const extraPowerLevelUserList = config.get('matrix:bridge:extraPowerLevelUserList') || [];
-// Workaround the fact that we can't have a direct map from MXID to power levels because
-// nconf doesn't like when we put colons (`:`) in keys (see
-// https://gitlab.com/gitterHQ/env/-/merge_requests/34). So instead we have  list of
-// object entries to re-interprete into a object.
-const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLevelUsers, entry) => {
-  const [key, value] = entry;
-  accumulatedPowerLevelUsers[key] = value;
-  return accumulatedPowerLevelUsers;
-}, {});
 
 const GITLAB_SD_TYPES = [
   'GL_GROUP', // Associated with GitLab group
@@ -1411,6 +1401,72 @@ class MatrixUtils {
     }
 
     return res.body;
+  }
+
+  async getRoomMembers({ matrixRoomId, membership }) {
+    assert(matrixRoomId);
+    assert(['invite', 'join', 'leave', 'knock', 'ban'].includes(membership));
+
+    const _getRoomMembersWrapper = async () => {
+      const homeserverUrl = this.matrixBridge.opts.homeserverUrl;
+      assert(homeserverUrl);
+      const asToken = this.matrixBridge.registration.getAppServiceToken();
+      assert(asToken);
+
+      let qs = new URLSearchParams();
+      qs.append('membership', membership);
+
+      const membersEndpoint = `${homeserverUrl}/_matrix/client/r0/rooms/${matrixRoomId}/members?${qs.toString()}`;
+      const res = await request({
+        method: 'GET',
+        uri: membersEndpoint,
+        json: true,
+        headers: {
+          Authorization: `Bearer ${asToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (res.statusCode !== 200) {
+        throw new StatusError(
+          res.statusCode,
+          `getRoomMembers({ matrixRoomId: ${matrixRoomId}, membership: ${membership} }) failed ${
+            res.statusCode
+          }: ${JSON.stringify(res.body)}`
+        );
+      }
+
+      return res;
+    };
+
+    let res;
+    try {
+      // Try the happy-path first and assume we're joined to the room
+      res = await _getRoomMembersWrapper();
+    } catch (err) {
+      // If we get a 403 forbidden indicating we're not in the room yet, let's try to join
+      if (err.status === 403) {
+        const intent = this.matrixBridge.getIntent();
+        await intent._ensureJoined(matrixRoomId);
+      } else {
+        // We don't know how to recover from an arbitrary error that isn't about joining
+        throw err;
+      }
+
+      // Now that we're joined, try again
+      res = await _getRoomMembersWrapper();
+    }
+
+    if (res.body.chunk === undefined) {
+      throw new StatusError(
+        res.statusCode,
+        `getRoomMembers({ matrixRoomId: ${matrixRoomId}, membership: ${membership} }) did not return the response body we expected (wanted \`res.body.chunk\`) ${
+          res.statusCode
+        }: ${JSON.stringify(res.body)}`
+      );
+    }
+
+    return res.body.chunk;
   }
 
   async lookupRoomAlias(roomAlias) {
