@@ -199,13 +199,22 @@ async function exec() {
 
       return true;
     },
-    async ({ value: gitterRoom /*, laneIndex*/ }) => {
+    async ({ value: gitterRoom, laneIndex }) => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
       numberOfRoomsProcessed++;
       if (numberOfRoomsProcessed % 100 === 0) {
         logger.info(`Working on gitterRoomId=${gitterRoomId} (${gitterRoom.uri})`);
       }
+
+      concurrentQueue.updateLaneStatus(laneIndex, {
+        startTs: Date.now(),
+        gitterRoom: {
+          id: gitterRoomId,
+          uri: gitterRoom.uri,
+          lcUri: gitterRoom.lcUri
+        }
+      });
 
       await syncMatrixRoomMembershipFromGitterRoom(gitterRoom);
     }
