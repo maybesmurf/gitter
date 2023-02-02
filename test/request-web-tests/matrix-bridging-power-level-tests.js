@@ -265,17 +265,12 @@ describe('Gitter -> Matrix briding power-levels e2e', () => {
   beforeEach(async () => {
     stopBridge = await installBridge(bridgePortFromConfig + 1);
 
-    const userFixtures = Object.keys(fixture).filter(fixtureKey => fixtureKey.startsWith('user'));
-
-    const userFixtureDebugStrings = userFixtures.map(fixtureKey => {
-      return `${fixtureKey}: ${fixture[fixtureKey].username} (${fixture[fixtureKey].id})`;
-    });
-    debug(`Fixture map of users:\n${userFixtureDebugStrings.join('\n - ')}`);
-
-    for (const userFixture of userFixtures) {
-      // Created some bridged user entries for all of these users
-      await matrixUtils.getOrCreateMatrixUserByGitterUserId(userFixture.id);
-    }
+    const userFixtureDebugStrings = Object.keys(fixture)
+      .filter(fixtureKey => fixtureKey.startsWith('user'))
+      .map(fixtureKey => {
+        return `\n - ${fixtureKey}: ${fixture[fixtureKey].username} (${fixture[fixtureKey].id})`;
+      });
+    debug(`Fixture map of users:${userFixtureDebugStrings.join('')}`);
   });
 
   afterEach(async () => {
