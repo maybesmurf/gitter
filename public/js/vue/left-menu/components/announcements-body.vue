@@ -12,7 +12,7 @@ export default {
   <div class="announcements-body-root">
     <h2 class="announcements-body-title">Announcement</h2>
     <p>
-      Heads-up that on February 6th, you will be signed out and required to sign-in via
+      Heads-up that on February 13th, you will be signed out and required to sign-in via
       app.gitter.im. This is part of the Gitter migration process to switch to a fully Matrix setup.
       Don't worry, all of your rooms and messages will still be available!
     </p>
