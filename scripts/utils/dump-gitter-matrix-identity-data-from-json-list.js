@@ -12,6 +12,7 @@ const env = require('gitter-web-env');
 const logger = env.logger;
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const userService = require('gitter-web-users');
+const identityService = require('gitter-web-identity');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
@@ -74,13 +75,26 @@ async function exec() {
       // some MXID for us to insert the Synapse `user_external_ids` data for.
       const gitterUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(gitterUserId);
 
+      // XXX: This function because it is flawed for a small handful of
+      // users that accidentally went through the GitHub repo scope OAuth upgrade flow
+      // before it was patched in https://gitlab.com/gitterHQ/webapp/-/issues/2328. This
+      // means that those affected Twitter/GitLab users also have
+      // `githubToken`/`githubScopes` defined which triggers some of our simplistic
+      // logic (`isGitHubUser`) to assume they are a GitHub user and choose GitHub as
+      // the identity wrongly. This flaw in the data was noticed by @clokep,
+      // https://gitlab.com/gitterHQ/webapp/-/issues/2856#note_1243268761
+      const primaryIdentity = await identityService.findPrimaryIdentityForUser(gitterUser);
+      // So let's just pull the identity directly from the user object if it exists,
+      // otherwise fallback to the flawed primary identity. This should cover all cases.
+      const identityToUse = gitterUser.identities[0] || primaryIdentity;
+
       // Append info to ndjson file
       const data = {
         gitterUserId,
         mxid: gitterUserMxid,
         // This is flawed with #multiple-identity-user so make sure to update this when that happens
-        provider: gitterUser.identities[0].provider,
-        providerKey: gitterUser.identities[0].providerKey
+        provider: identityToUse.provider,
+        providerKey: identityToUse.providerKey
       };
       runningDataList.push(data);
     } catch (err) {
