@@ -34,6 +34,7 @@ const downloadFileToBuffer = require('./download-file-to-buffer');
 const discoverMatrixDmUri = require('./discover-matrix-dm-uri');
 const parseGitterMxid = require('./parse-gitter-mxid');
 const { BRIDGE_USER_POWER_LEVEL, ROOM_ADMIN_POWER_LEVEL } = require('./constants');
+const extraPowerLevelUsers = require('./extra-power-level-users-from-config');
 
 const store = require('./store');
 
@@ -45,17 +46,6 @@ const matrixBridgeMxidLocalpart = config.get('matrix:bridge:matrixBridgeMxidLoca
 // The Gitter user we are pulling profile information from to populate the Matrix bridge user profile
 const gitterBridgeProfileUsername = config.get('matrix:bridge:gitterBridgeProfileUsername');
 const gitterLogoMxc = config.get('matrix:bridge:gitterLogoMxc');
-
-const extraPowerLevelUserList = config.get('matrix:bridge:extraPowerLevelUserList') || [];
-// Workaround the fact that we can't have a direct map from MXID to power levels because
-// nconf doesn't like when we put colons (`:`) in keys (see
-// https://gitlab.com/gitterHQ/env/-/merge_requests/34). So instead we have  list of
-// object entries to re-interprete into a object.
-const extraPowerLevelUsers = extraPowerLevelUserList.reduce((accumulatedPowerLevelUsers, entry) => {
-  const [key, value] = entry;
-  accumulatedPowerLevelUsers[key] = value;
-  return accumulatedPowerLevelUsers;
-}, {});
 
 const GITLAB_SD_TYPES = [
   'GL_GROUP', // Associated with GitLab group
@@ -1016,7 +1006,7 @@ class MatrixUtils {
       matrixRoomId,
       eventType: 'm.room.history_visibility',
       newContent: {
-        history_visibility: 'joined'
+        history_visibility: 'join'
       }
     });
 
@@ -1415,7 +1405,8 @@ class MatrixUtils {
 
   async getRoomMembers({ matrixRoomId, membership }) {
     assert(matrixRoomId);
-    assert(membership);
+    assert(['invite', 'join', 'leave', 'knock', 'ban'].includes(membership));
+
     const _getRoomMembersWrapper = async () => {
       const homeserverUrl = this.matrixBridge.opts.homeserverUrl;
       assert(homeserverUrl);

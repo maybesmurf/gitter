@@ -3,6 +3,7 @@
 const assert = require('assert');
 const env = require('gitter-web-env');
 const config = env.config;
+const logger = env.logger;
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const {
   noTimeoutIterableFromMongooseCursor
@@ -15,7 +16,7 @@ const securityDescriptorUtils = require('gitter-web-permissions/lib/security-des
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
-const parseGitterMxid = require('gitter-web-matrix-bridge/lib/parse-gitter-mxid');
+const extraPowerLevelUsers = require('gitter-web-matrix-bridge/lib/extra-power-level-users-from-config');
 
 const configuredServerName = config.get('matrix:bridge:serverName');
 
@@ -31,6 +32,11 @@ const DB_READ_PREFERENCE =
   config.get('gitterToMatrixHistoricalImport:databaseReadPreference') ||
   mongoReadPrefs.secondaryPreferred;
 
+const MXIDS_TO_NEVER_REMOVE = [
+  matrixUtils.getMxidForMatrixBridgeUser(),
+  ...Object.keys(extraPowerLevelUsers)
+];
+
 async function ensureNoExtraMembersInMatrixRoom({
   gitterRoomId,
   matrixRoomId,
@@ -40,17 +46,34 @@ async function ensureNoExtraMembersInMatrixRoom({
   // present in the Gitter room.
   const matrixMemberEvents = await matrixUtils.getRoomMembers({
     matrixRoomId,
-    membership: 'joined'
+    membership: 'join'
   });
   for (const matrixMemberEvent of matrixMemberEvents) {
     const mxid = matrixMemberEvent.state_key;
     // Skip any MXID's that aren't from our own server (gitter.im)
-    const { serverName } = parseGitterMxid(mxid) || {};
+    const [, serverName] = mxid.split(':');
     if (serverName !== configuredServerName) {
       continue;
     }
 
+    // We don't want to ever remove the bridge user or other special users (like the
+    // Mjolnir moderation user) from the room
+    if (MXIDS_TO_NEVER_REMOVE.includes(mxid)) {
+      continue;
+    }
+
     const gitterUserId = await matrixStore.getGitterUserIdByMatrixUserId(mxid);
+    // Remove the user if they aren't tracked by us as bridged. This really shouldn't
+    // happen because if they're in the room, by its nature, we bridged something before
+    // but somehow lost track now.
+    if (!gitterUserId) {
+      logger.warn(
+        `mxid=${mxid} was in ${matrixRoomId} but we don't have a corresponding bridged user entry for it so we can't find the gitterUserId associated. It's probably obvious from the MXID itself but we're just removing the user to be safe`
+      );
+      const intent = matrixBridge.getIntent(mxid);
+      await intent.leave(matrixRoomId);
+      continue;
+    }
 
     // Or `roomMembershipService.findUserMembershipInRooms`
     const isGitterRoomMember = await roomMembershipService.checkRoomMembership(
@@ -148,7 +171,7 @@ async function syncMatrixRoomMembershipFromGitterRoom(gitterRoom) {
   const gitterRoomId = gitterRoom.id || gitterRoom._id;
   assert(gitterRoomId);
 
-  const matrixRoomId = matrixStore.getMatrixRoomIdByGitterRoomId(gitterRoomId);
+  const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
   assert(matrixRoomId);
 
   // Sync membership so they see the same rooms on Matrix that they were in on Gitter.
@@ -159,14 +182,24 @@ async function syncMatrixRoomMembershipFromGitterRoom(gitterRoom) {
     gitterRoomId
   );
   if (matrixHistoricalRoomId) {
-    // People can always join a historical room on their own if it's public so we only
-    // need to worry about non-public rooms (private, ONE_TO_ONE) here.
+    const alreadyJoinedGitterUserIdsToMatrixRoom = {};
+    // Always clean-up extra members in historical room
+    await ensureNoExtraMembersInMatrixRoom({
+      gitterRoomId,
+      matrixRoomId: matrixHistoricalRoomId,
+      alreadyJoinedGitterUserIdsToMatrixRoom
+    });
+
     const gitterRoom = await troupeService.findById(gitterRoomId);
     const isGitterRoomPublic = securityDescriptorUtils.isPublic(gitterRoom);
+    // But since people can always join a historical room on their own if it's public,
+    // we only need to worry about giving people access in non-public rooms (private,
+    // ONE_TO_ONE).
     if (!isGitterRoomPublic) {
-      await syncMatrixRoomMembershipFromGitterRoomIdToMatrixRoomId({
+      await ensureMembershipFromGitterRoom({
         gitterRoomId,
-        matrixRoomId: matrixHistoricalRoomId
+        matrixRoomId: matrixHistoricalRoomId,
+        alreadyJoinedGitterUserIdsToMatrixRoom
       });
     }
   }
