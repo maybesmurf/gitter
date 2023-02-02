@@ -84,9 +84,9 @@ async function appendToDataDumpFile(dataList) {
 
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
-  itemIdGetterFromItem: gitterRoom => {
-    const gitterRoomId = gitterRoom.id || gitterRoom._id;
-    return String(gitterRoomId);
+  itemIdGetterFromItem: gitterUser => {
+    const gitterUserId = gitterUser.id || gitterUser._id;
+    return String(gitterUserId);
   }
 });
 

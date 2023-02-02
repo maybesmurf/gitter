@@ -268,9 +268,9 @@ describe('Gitter -> Matrix briding power-levels e2e', () => {
     const userFixtureDebugStrings = Object.keys(fixture)
       .filter(fixtureKey => fixtureKey.startsWith('user'))
       .map(fixtureKey => {
-        return `${fixtureKey}: ${fixture[fixtureKey].username} (${fixture[fixtureKey].id})`;
+        return `\n - ${fixtureKey}: ${fixture[fixtureKey].username} (${fixture[fixtureKey].id})`;
       });
-    debug(`Fixture map of users:\n${userFixtureDebugStrings.join('\n - ')}`);
+    debug(`Fixture map of users:${userFixtureDebugStrings.join('')}`);
   });
 
   afterEach(async () => {
