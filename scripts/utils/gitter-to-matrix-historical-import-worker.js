@@ -408,7 +408,7 @@ exec()
     // Stop calculating which room to resume from as the process is stopping and we
     // don't need to keep track anymore.
     clearInterval(calculateWhichRoomToResumeFromIntervalId);
-    // Stop recording failed rooms as we're done doing anythign and the process is stopping
+    // Stop recording failed rooms as we're done doing anything and the process is stopping
     clearInterval(recordFailedRoomsIntervalId);
 
     // Stop writing the status file so we can cleanly exit
