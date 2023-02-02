@@ -32,6 +32,7 @@ Developer facing:
  - Update Matrix bridge to remove exclusive control over the user/room/alias namespaces which don't make sense in a self-service world after the Gitter -> Matrix migration, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2335, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2358
  - Include project association meta information in Matrix room, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2368
  - Update `scripts/utils/ensure-existing-bridged-matrix-rooms-up-to-date.js` to run fast and concurrently, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2369, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2371, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2372
+ - Add utility script to backfill room membership to Matrix, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2331
 
 
 # 21.56.0 - 2022-12-06
