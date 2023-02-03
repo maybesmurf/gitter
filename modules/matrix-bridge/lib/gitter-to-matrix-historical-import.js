@@ -28,6 +28,8 @@ const generateMatrixContentFromGitterMessage = require('gitter-web-matrix-bridge
 const formatDurationInMsToPrettyString = require('gitter-web-matrix-bridge/lib/format-duration-in-ms-to-pretty-string');
 const RethrownError = require('./rethrown-error');
 
+const configuredServerName = config.get('matrix:bridge:serverName');
+
 // The number of chat messages we pull out at once to reduce database roundtrips
 const DB_BATCH_SIZE_FOR_MESSAGES = 100;
 // "secondary", "secondaryPreferred", etc
@@ -673,11 +675,39 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
     `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
   );
 
-  await importMessagesFromGitterRoomToHistoricalMatrixRoom({
-    gitterRoom,
-    matrixRoomId,
-    matrixHistoricalRoomId
-  });
+  try {
+    await importMessagesFromGitterRoomToHistoricalMatrixRoom({
+      gitterRoom,
+      matrixRoomId,
+      matrixHistoricalRoomId
+    });
+  } catch (err) {
+    const [, serverName] = matrixRoomId.split(':') || [];
+
+    // If we see a `E11000 duplicate key error collection:
+    // gitter.matricesbridgedchatmessage index: gitterMessageId_1 dup key: { :
+    // ObjectId('...') }`, then we know that this is a room where we were initially
+    // bridging to a `gitter.im` "live" room and that community asked us to bridge to
+    // their own Matrix room (custom plumb).
+    //
+    // The reason this error occurs is because our `stopAtMessageId` point is
+    // wrong because we are looking at the first bridged message to their custom Matrix
+    // room instead of our initial `gitter.im` "live" room which we no longer track.
+    //
+    // This error means the historical room reached the point where the old `gitter.im`
+    // "live" room so technically we're done importing anyway (the messages exist on
+    // Matrix somewhere but they will have to manage that chain themselves).
+    if (serverName !== configuredServerName && mongoUtils.mongoErrorWithCode(11000)(err)) {
+      logger.warn(
+        `Done importing custom plumbed room because we ran into the collision point where the historical room ran into our old \`gitter.im\` "live" room which is now a custom plumb to ${matrixRoomId}. All of the history is on Matrix somewhere so we're considering this good enough.`,
+        {
+          exception: err
+        }
+      );
+    } else {
+      throw err;
+    }
+  }
 
   await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
     matrixRoomId,
