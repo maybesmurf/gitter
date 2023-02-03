@@ -125,7 +125,7 @@ async function run() {
         const [, serverName] = matrixRoomId.split(':') || [];
         if (serverName !== configuredServerName && err.errcode === 'M_FORBIDDEN') {
           logger.warning(
-            `Unable to update matrixRoomId=${matrixRoomId} because we don't have permission in that room. Since this room is bridged to a non-gitter.im room, we can't do anything more to help it.`,
+            `Unable to update matrixRoomId=${matrixRoomId} (bridged to gitterRoomId=${gitterRoomId}) because we don't have permission in that room. Since this room is bridged to a non-gitter.im room, we can't do anything more to help it.`,
             {
               exception: err
             }
