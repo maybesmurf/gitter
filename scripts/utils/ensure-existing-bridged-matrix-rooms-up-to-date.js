@@ -6,8 +6,13 @@
 //
 'use strict';
 
-const debug = require('debug')('gitter:scripts:ensure-existing-bridged-matrix-rooms-up-to-date');
 const shutdown = require('shutdown');
+const path = require('path');
+const os = require('os');
+const mkdirp = require('mkdirp');
+const fs = require('fs').promises;
+const debug = require('debug')('gitter:scripts:ensure-existing-bridged-matrix-rooms-up-to-date');
+
 const env = require('gitter-web-env');
 const logger = env.logger;
 const config = env.config;
@@ -17,10 +22,15 @@ const {
 } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 
 const installBridge = require('gitter-web-matrix-bridge');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
+const {
+  getRoomIdResumePositionFromFile,
+  occasionallyPersistRoomResumePositionCheckpointFileToDisk
+} = require('./gitter-to-matrix-historical-import/resume-position-utils');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const {
@@ -41,6 +51,13 @@ const DB_READ_PREFERENCE =
   config.get('gitterToMatrixHistoricalImport:databaseReadPreference') ||
   mongoReadPrefs.secondaryPreferred;
 
+// Every N milliseconds (5 minutes), we should track which room we should resume from if
+// the import function errors out.
+const CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL = 5 * 60 * 1000;
+
+// Every N milliseconds (5 minutes), we should record which rooms have failed to import so far
+const RECORD_FAILED_ROOMS_TIME_INTERVAL = 5 * 60 * 1000;
+
 const opts = require('yargs')
   .option('concurrency', {
     type: 'number',
@@ -60,8 +77,12 @@ const opts = require('yargs')
     description:
       'The total number of workers. We will partition based on this number `(id % workerTotal) === workerIndex ? doWork : pass`'
   })
-  .option('resume-from-gitter-room-id', {
-    description: 'The Gitter room ID to resume the update process from'
+  .option('room-ids-from-json-list-file-path', {
+    type: 'string',
+    description:
+      'The optional path where to read the JSON list of Gitter room IDs from ' +
+      '(array of strings or array of objects with "id" property). ' +
+      'When this option is not provided, will loop through all rooms'
   })
   .option('delay', {
     alias: 'd',
@@ -102,6 +123,35 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   );
 }
 
+let manualGitterRoomIdsToProcess;
+if (opts.roomIdsFromJsonListFilePath) {
+  const jsonContentFromFile = require(opts.roomIdsFromJsonListFilePath);
+  if (!Array.isArray(jsonContentFromFile)) {
+    throw new Error(
+      `opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} was unexpectedly not a JSON array`
+    );
+  }
+
+  if (jsonContentFromFile.length === 0) {
+    logger.warn(
+      `Nothing to process from opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} since it was an empty array`
+    );
+    return;
+  }
+
+  if (typeof jsonContentFromFile[0] === 'string') {
+    manualGitterRoomIdsToProcess = jsonContentFromFile;
+  } else if (typeof jsonContentFromFile[0] === 'object') {
+    manualGitterRoomIdsToProcess = jsonContentFromFile.map(entry => {
+      return entry.id;
+    });
+  } else {
+    throw new Error(
+      `opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} must be an array of strings or an array of objects with an "id" property`
+    );
+  }
+}
+
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
   itemIdGetterFromItem: gitterRoom => {
@@ -110,45 +160,120 @@ const concurrentQueue = new ConcurrentQueue({
   }
 });
 
+const tempDirectory = path.join(os.tmpdir(), 'gitter-to-matrix-ensure-rooms-up-to-date');
+mkdirp.sync(tempDirectory);
+
+const roomResumePositionCheckpointFilePath = path.join(
+  tempDirectory,
+  `./_room-resume-position-checkpoint-${opts.workerIndex || ''}-${opts.workerTotal || ''}.json`
+);
+logger.info(
+  `Writing to roomResumePositionCheckpointFilePath=${roomResumePositionCheckpointFilePath}`
+);
+const calculateWhichRoomToResumeFromIntervalId = occasionallyPersistRoomResumePositionCheckpointFileToDisk(
+  {
+    concurrentQueue,
+    roomResumePositionCheckpointFilePath,
+    persistToDiskIntervalMs: CALCULATE_ROOM_RESUME_POSITION_TIME_INTERVAL
+  }
+);
+
+const failedRoomIdsFilePath = path.join(tempDirectory, `./_failed-room-ids-${Date.now()}.json`);
+async function persistFailedRoomIds(failedRoomIds) {
+  const failedRoomIdsToPersist = failedRoomIds || [];
+
+  try {
+    logger.info(
+      `Writing failedRoomIds (${failedRoomIdsToPersist.length}) disk failedRoomIdsFilePath=${failedRoomIdsFilePath}`
+    );
+    await fs.writeFile(failedRoomIdsFilePath, JSON.stringify(failedRoomIdsToPersist));
+  } catch (err) {
+    logger.error(`Problem persisting failedRoomIds file to disk`, { exception: err });
+  }
+}
+
+let writingFailedRoomsFileLock;
+const recordFailedRoomsIntervalId = setInterval(async () => {
+  // Prevent multiple writes from building up. We only allow one write until it finishes
+  if (writingFailedRoomsFileLock) {
+    return;
+  }
+
+  try {
+    writingFailedRoomsFileLock = true;
+    const failedRoomIds = concurrentQueue.getFailedItemIds();
+    await persistFailedRoomIds(failedRoomIds);
+  } catch (err) {
+    logger.error(`Problem persisting failedRoomIds file to disk (from the interval)`, {
+      exception: err
+    });
+  } finally {
+    writingFailedRoomsFileLock = false;
+  }
+}, RECORD_FAILED_ROOMS_TIME_INTERVAL);
+
 async function updateAllRooms() {
-  const resumeFromGitterRoomId = opts.resumeFromGitterRoomId;
+  const resumeFromGitterRoomId = await getRoomIdResumePositionFromFile(
+    roomResumePositionCheckpointFilePath
+  );
   if (resumeFromGitterRoomId) {
     logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
   }
 
-  const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
-    ({ previousIdFromCursor }) => {
-      const gitterRoomCursor = persistence.Troupe.find({
-        _id: (() => {
-          const idQuery = {};
+  const matrixDmGroupUri = 'matrix';
+  const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
 
-          if (previousIdFromCursor) {
-            idQuery['$gt'] = previousIdFromCursor;
-          } else if (resumeFromGitterRoomId) {
-            idQuery['$gte'] = resumeFromGitterRoomId;
-          } else {
-            idQuery['$exists'] = true;
-          }
+  let gitterRoomIterableToProcess;
+  if (manualGitterRoomIdsToProcess) {
+    const manualGitterRoomsToProcess = await troupeService.findByIdsLean(
+      manualGitterRoomIdsToProcess
+    );
+    gitterRoomIterableToProcess = manualGitterRoomsToProcess.values();
+  } else {
+    gitterRoomIterableToProcess = noTimeoutIterableFromMongooseCursor(
+      ({ previousIdFromCursor }) => {
+        const gitterRoomCursor = persistence.Troupe.find({
+          _id: (() => {
+            const idQuery = {};
 
-          return idQuery;
-        })()
-      })
-        // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
-        .sort({ _id: 'asc' })
-        .lean()
-        .read(DB_READ_PREFERENCE)
-        .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
-        .cursor();
+            if (previousIdFromCursor) {
+              idQuery['$gt'] = previousIdFromCursor;
+            } else if (resumeFromGitterRoomId) {
+              idQuery['$gte'] = resumeFromGitterRoomId;
+            } else {
+              idQuery['$exists'] = true;
+            }
 
-      return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
-    }
-  );
+            return idQuery;
+          })()
+        })
+          // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
+          .sort({ _id: 'asc' })
+          .lean()
+          .read(DB_READ_PREFERENCE)
+          .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
+          .cursor();
+
+        return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
+      }
+    );
+  }
 
   await concurrentQueue.processFromGenerator(
-    gitterRoomStreamIterable,
+    gitterRoomIterableToProcess,
     // Room filter
     gitterRoom => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+      // Skip any Matrix DM's since `ensureCorrectRoomState` should not be used on DM
+      // rooms with Matrix users. Also by their nature, they have been around since the
+      // Matrix bridge so there is historical room to update either.
+      if (
+        matrixDmGroup &&
+        mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
+      ) {
+        return false;
+      }
 
       // Skip any ONE_TO_ONE rooms because one to one rooms are setup correctly from the
       // beginning and never need updates
@@ -178,14 +303,23 @@ async function updateAllRooms() {
       return true;
     },
     // Process function
-    async ({ value: gitterRoom /*, laneIndex*/ }) => {
+    async ({ value: gitterRoom, laneIndex }) => {
       numberOfRoomsAttemptedToUpdate += 1;
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
+      concurrentQueue.updateLaneStatus(laneIndex, {
+        startTs: Date.now(),
+        gitterRoom: {
+          id: gitterRoomId,
+          uri: gitterRoom.uri,
+          lcUri: gitterRoom.lcUri
+        }
+      });
+
       // Find our current live Matrix room
-      let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
       // Find the historical Matrix room we should import the history into
-      let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+      const matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
         gitterRoomId
       );
       debug(
@@ -293,6 +427,13 @@ async function run() {
   } catch (err) {
     logger.error('Error occured while updating bridged rooms', { exception: err });
   }
+
+  // Stop calculating which room to resume from as the process is stopping and we
+  // don't need to keep track anymore.
+  clearInterval(calculateWhichRoomToResumeFromIntervalId);
+  // Stop recording failed rooms as we're done doing anything and the process is stopping
+  clearInterval(recordFailedRoomsIntervalId);
+
   shutdown.shutdownGracefully();
 }
 

@@ -10,6 +10,8 @@ const shutdown = require('shutdown');
 const debug = require('debug')('gitter:scripts:ensure-existing-bridged-matrix-room-up-to-date');
 const env = require('gitter-web-env');
 const logger = env.logger;
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 
 const installBridge = require('gitter-web-matrix-bridge');
@@ -53,14 +55,30 @@ async function run() {
     console.log('Setting up Matrix bridge');
     await installBridge();
 
+    const matrixDmGroupUri = 'matrix';
+    const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
+
     try {
       const gitterRoom = await troupeService.findByUri(opts.uri);
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
+      // Skip any Matrix DM's since `ensureCorrectRoomState` should not be used on DM
+      // rooms with Matrix users. Also by their nature, they have been around since the
+      // Matrix bridge so there is historical room to update either.
+      if (
+        matrixDmGroup &&
+        mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
+      ) {
+        logger.warn(
+          `Unable to run \`ensureCorrectRoomState\` on DM rooms with Matrix users so skipping and doing nothing here.`
+        );
+        return;
+      }
+
       // Find our current live Matrix room
-      let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
       // Find the historical Matrix room we should import the history into
-      let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+      const matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
         gitterRoomId
       );
       debug(

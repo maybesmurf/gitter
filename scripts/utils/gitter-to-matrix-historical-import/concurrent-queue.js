@@ -69,7 +69,7 @@ class ConcurrentQueue {
           laneStartWaitingForNextItemTs: Date.now(),
           laneEndWaitingForNextItemTs: null
         });
-        const nextIteratorResult = await itemGenerator.next();
+        const nextIteratorResult = await Promise.resolve(itemGenerator.next());
         this.updateLaneStatus(laneIndex, {
           laneEndWaitingForNextItemTs: Date.now()
         });
