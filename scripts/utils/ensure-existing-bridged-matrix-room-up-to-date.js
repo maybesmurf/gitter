@@ -62,22 +62,25 @@ async function run() {
       const gitterRoom = await troupeService.findByUri(opts.uri);
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
-      // Find our current live Matrix room
-      let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
-      // Find the historical Matrix room we should import the history into
-      //
-      // Ignore Matrix DMs, rooms under the matrix/ group (matrixDmGroupUri). By their
-      // nature, they have been around since the Matrix bridge so there is nothing to
-      // import (no historical room)
-      let matrixHistoricalRoomId;
+      // Skip any Matrix DM's since `ensureCorrectRoomState` should not be used on DM
+      // rooms with Matrix users. Also by their nature, they have been around since the
+      // Matrix bridge so there is historical room to update either.
       if (
         matrixDmGroup &&
-        !mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
+        mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
       ) {
-        matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
-          gitterRoomId
+        logger.warn(
+          `Unable to run \`ensureCorrectRoomState\` on DM rooms with Matrix users so skipping and doing nothing here.`
         );
+        return;
       }
+
+      // Find our current live Matrix room
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+      // Find the historical Matrix room we should import the history into
+      const matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+        gitterRoomId
+      );
       debug(
         `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
       );
