@@ -33,6 +33,7 @@ const {
   getRoomIdResumePositionFromFile,
   occasionallyPersistRoomResumePositionCheckpointFileToDisk
 } = require('./gitter-to-matrix-historical-import/resume-position-utils');
+const getRoomIdsFromJsonFile = require('./gitter-to-matrix-historical-import/get-room-ids-from-json-file');
 // Setup stat logging
 require('./gitter-to-matrix-historical-import/performance-observer-stats');
 
@@ -87,6 +88,13 @@ const opts = require('yargs')
     required: false,
     description: 'The regex filter to match against the room lcUri'
   })
+  .option('room-ids-from-json-list-file-path', {
+    type: 'string',
+    description:
+      'The optional path where to read the JSON list of Gitter room IDs from ' +
+      '(array of strings or array of objects with "id" property). ' +
+      'When this option is not provided, will loop through all rooms'
+  })
   .help('help')
   .alias('help', 'h').argv;
 
@@ -100,6 +108,8 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
     `opts.workerIndex=${opts.workerIndex} can not be higher than opts.workerTotal=${opts.workerTotal}`
   );
 }
+
+let manualGitterRoomIdsToProcess = getRoomIdsFromJsonFile(opts.roomIdsFromJsonListFilePath);
 
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
@@ -239,36 +249,44 @@ async function exec() {
     logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
   }
 
-  const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
-    ({ previousIdFromCursor }) => {
-      const gitterRoomCursor = persistence.Troupe.find({
-        _id: (() => {
-          const idQuery = {};
+  let gitterRoomIterableToProcess;
+  if (manualGitterRoomIdsToProcess) {
+    const manualGitterRoomsToProcess = await troupeService.findByIdsLean(
+      manualGitterRoomIdsToProcess
+    );
+    gitterRoomIterableToProcess = manualGitterRoomsToProcess.values();
+  } else {
+    gitterRoomIterableToProcess = noTimeoutIterableFromMongooseCursor(
+      ({ previousIdFromCursor }) => {
+        const gitterRoomCursor = persistence.Troupe.find({
+          _id: (() => {
+            const idQuery = {};
 
-          if (previousIdFromCursor) {
-            idQuery['$gt'] = previousIdFromCursor;
-          } else if (resumeFromGitterRoomId) {
-            idQuery['$gte'] = resumeFromGitterRoomId;
-          } else {
-            idQuery['$exists'] = true;
-          }
+            if (previousIdFromCursor) {
+              idQuery['$gt'] = previousIdFromCursor;
+            } else if (resumeFromGitterRoomId) {
+              idQuery['$gte'] = resumeFromGitterRoomId;
+            } else {
+              idQuery['$exists'] = true;
+            }
 
-          return idQuery;
-        })()
-      })
-        // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
-        .sort({ _id: 'asc' })
-        .lean()
-        .read(DB_READ_PREFERENCE)
-        .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
-        .cursor();
+            return idQuery;
+          })()
+        })
+          // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
+          .sort({ _id: 'asc' })
+          .lean()
+          .read(DB_READ_PREFERENCE)
+          .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
+          .cursor();
 
-      return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
-    }
-  );
+        return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
+      }
+    );
+  }
 
   await concurrentQueue.processFromGenerator(
-    gitterRoomStreamIterable,
+    gitterRoomIterableToProcess,
     // Room filter
     // eslint-disable-next-line complexity
     gitterRoom => {
