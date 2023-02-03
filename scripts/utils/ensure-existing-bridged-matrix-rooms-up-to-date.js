@@ -42,6 +42,8 @@ require('../../server/event-listeners').install();
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
+const configuredServerName = config.get('matrix:bridge:serverName');
+
 const DB_BATCH_SIZE_FOR_ROOMS = 50;
 // "secondary", "secondaryPreferred", etc
 // https://www.mongodb.com/docs/manual/core/read-preference/#read-preference
@@ -326,12 +328,26 @@ async function updateAllRooms() {
           }
         }
 
-        // Then handle the "live" Matrix room which may fail because we don't control
-        // the room in all cases
-        await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
-          keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
-          skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
-        });
+        try {
+          // Then handle the "live" Matrix room which may fail because we don't control
+          // the room in all cases
+          await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
+            keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
+            skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
+          });
+        } catch (err) {
+          const [, serverName] = matrixRoomId.split(':') || [];
+          if (serverName !== configuredServerName && err.errcode === 'M_FORBIDDEN') {
+            logger.warning(
+              `Unable to update matrixRoomId=${matrixRoomId} because we don't have permission in that room. Since this room is bridged to a non-gitter.im room, we can't do anything more to help it.`,
+              {
+                exception: err
+              }
+            );
+          } else {
+            throw err;
+          }
+        }
 
         numberOfRoomsUpdatedSuccessfully += 1;
       } catch (err) {
