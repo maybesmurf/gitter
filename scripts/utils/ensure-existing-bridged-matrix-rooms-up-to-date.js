@@ -22,6 +22,7 @@ const {
 } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 
 const installBridge = require('gitter-web-matrix-bridge');
@@ -183,6 +184,9 @@ async function updateAllRooms() {
     logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
   }
 
+  const matrixDmGroupUri = 'matrix';
+  const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
+
   const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
     ({ previousIdFromCursor }) => {
       const gitterRoomCursor = persistence.Troupe.find({
@@ -261,9 +265,19 @@ async function updateAllRooms() {
       // Find our current live Matrix room
       let matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
       // Find the historical Matrix room we should import the history into
-      let matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
-        gitterRoomId
-      );
+      //
+      // Ignore Matrix DMs, rooms under the matrix/ group (matrixDmGroupUri). By their
+      // nature, they have been around since the Matrix bridge so there is nothing to
+      // import (no historical room)
+      let matrixHistoricalRoomId;
+      if (
+        matrixDmGroup &&
+        !mongoUtils.objectIDsEqual(gitterRoom.groupId, matrixDmGroup.id || matrixDmGroup._id)
+      ) {
+        matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+          gitterRoomId
+        );
+      }
       debug(
         `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
       );
