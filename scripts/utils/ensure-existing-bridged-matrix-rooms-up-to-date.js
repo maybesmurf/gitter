@@ -77,6 +77,13 @@ const opts = require('yargs')
     description:
       'The total number of workers. We will partition based on this number `(id % workerTotal) === workerIndex ? doWork : pass`'
   })
+  .option('room-ids-from-json-list-file-path', {
+    type: 'string',
+    description:
+      'The optional path where to read the JSON list of Gitter room IDs from ' +
+      '(array of strings or array of objects with "id" property). ' +
+      'When this option is not provided, will loop through all rooms'
+  })
   .option('delay', {
     alias: 'd',
     type: 'number',
@@ -114,6 +121,35 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   throw new Error(
     `opts.workerIndex=${opts.workerIndex} can not be higher than opts.workerTotal=${opts.workerTotal}`
   );
+}
+
+let manualGitterRoomIdsToProcess;
+if (opts.roomIdsFromJsonListFilePath) {
+  const jsonContentFromFile = require(opts.roomIdsFromJsonListFilePath);
+  if (!Array.isArray(jsonContentFromFile)) {
+    throw new Error(
+      `opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} was unexpectedly not a JSON array`
+    );
+  }
+
+  if (jsonContentFromFile.length === 0) {
+    logger.warn(
+      `Nothing to process from opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} since it was an empty array`
+    );
+    return;
+  }
+
+  if (typeof jsonContentFromFile[0] === 'string') {
+    manualGitterRoomIdsToProcess = jsonContentFromFile;
+  } else if (typeof jsonContentFromFile[0] === 'object') {
+    manualGitterRoomIdsToProcess = jsonContentFromFile.map(entry => {
+      return entry.id;
+    });
+  } else {
+    throw new Error(
+      `opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} must be an array of strings or an array of objects with an "id" property`
+    );
+  }
 }
 
 const concurrentQueue = new ConcurrentQueue({
@@ -187,36 +223,41 @@ async function updateAllRooms() {
   const matrixDmGroupUri = 'matrix';
   const matrixDmGroup = await groupService.findByUri(matrixDmGroupUri, { lean: true });
 
-  const gitterRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
-    ({ previousIdFromCursor }) => {
-      const gitterRoomCursor = persistence.Troupe.find({
-        _id: (() => {
-          const idQuery = {};
+  let gitterRoomIterableToProcess;
+  if (manualGitterRoomIdsToProcess) {
+    gitterRoomIterableToProcess = await troupeService.findByIdsLean(manualGitterRoomIdsToProcess);
+  } else {
+    gitterRoomIterableToProcess = noTimeoutIterableFromMongooseCursor(
+      ({ previousIdFromCursor }) => {
+        const gitterRoomCursor = persistence.Troupe.find({
+          _id: (() => {
+            const idQuery = {};
 
-          if (previousIdFromCursor) {
-            idQuery['$gt'] = previousIdFromCursor;
-          } else if (resumeFromGitterRoomId) {
-            idQuery['$gte'] = resumeFromGitterRoomId;
-          } else {
-            idQuery['$exists'] = true;
-          }
+            if (previousIdFromCursor) {
+              idQuery['$gt'] = previousIdFromCursor;
+            } else if (resumeFromGitterRoomId) {
+              idQuery['$gte'] = resumeFromGitterRoomId;
+            } else {
+              idQuery['$exists'] = true;
+            }
 
-          return idQuery;
-        })()
-      })
-        // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
-        .sort({ _id: 'asc' })
-        .lean()
-        .read(DB_READ_PREFERENCE)
-        .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
-        .cursor();
+            return idQuery;
+          })()
+        })
+          // Go from oldest to most recent because the bulk of the history will be in the oldest rooms
+          .sort({ _id: 'asc' })
+          .lean()
+          .read(DB_READ_PREFERENCE)
+          .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
+          .cursor();
 
-      return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
-    }
-  );
+        return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
+      }
+    );
+  }
 
   await concurrentQueue.processFromGenerator(
-    gitterRoomStreamIterable,
+    gitterRoomIterableToProcess,
     // Room filter
     gitterRoom => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
