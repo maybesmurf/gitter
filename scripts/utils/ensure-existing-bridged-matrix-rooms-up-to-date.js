@@ -225,7 +225,10 @@ async function updateAllRooms() {
 
   let gitterRoomIterableToProcess;
   if (manualGitterRoomIdsToProcess) {
-    gitterRoomIterableToProcess = await troupeService.findByIdsLean(manualGitterRoomIdsToProcess);
+    const manualGitterRoomsToProcess = await troupeService.findByIdsLean(
+      manualGitterRoomIdsToProcess
+    );
+    gitterRoomIterableToProcess = manualGitterRoomsToProcess.values();
   } else {
     gitterRoomIterableToProcess = noTimeoutIterableFromMongooseCursor(
       ({ previousIdFromCursor }) => {
