@@ -10,6 +10,7 @@ const shutdown = require('shutdown');
 const debug = require('debug')('gitter:scripts:ensure-existing-bridged-matrix-room-up-to-date');
 const env = require('gitter-web-env');
 const logger = env.logger;
+const config = env.config;
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
@@ -20,6 +21,8 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const {
   isGitterRoomIdDoneImporting
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
+
+const configuredServerName = config.get('matrix:bridge:serverName');
 
 require('../../server/event-listeners').install();
 
@@ -50,6 +53,7 @@ if (opts.keepExistingUserPowerLevels) {
   );
 }
 
+// eslint-disable-next-line complexity, max-statements
 async function run() {
   try {
     console.log('Setting up Matrix bridge');
@@ -88,10 +92,10 @@ async function run() {
       logger.info(
         `Updating matrixRoomId=${matrixRoomId} and matrixHistoricalRoomId=${matrixHistoricalRoomId} for gitterRoomId=${gitterRoomId}`
       );
-      await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
-        keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
-        skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
-      });
+
+      // Handle the `matrixHistoricalRoomId` first because it's more likely to succeed
+      // no matter what given it's a `gitter.im` homeserver room where we have all
+      // permissions necessary to do whatever we want
       if (matrixHistoricalRoomId) {
         const isDoneImporting = await isGitterRoomIdDoneImporting(gitterRoomId);
         if (isDoneImporting) {
@@ -107,6 +111,27 @@ async function run() {
             gitterRoomId,
             skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
           });
+        }
+      }
+
+      try {
+        // Then handle the "live" Matrix room which may fail because we don't control
+        // the room in all cases
+        await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
+          keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
+          skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
+        });
+      } catch (err) {
+        const [, serverName] = matrixRoomId.split(':') || [];
+        if (serverName !== configuredServerName && err.errcode === 'M_FORBIDDEN') {
+          logger.warning(
+            `Unable to update matrixRoomId=${matrixRoomId} (bridged to gitterRoomId=${gitterRoomId}) because we don't have permission in that room. Since this room is bridged to a non-gitter.im room, we can't do anything more to help it.`,
+            {
+              exception: err
+            }
+          );
+        } else {
+          throw err;
         }
       }
 
