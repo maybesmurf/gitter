@@ -31,6 +31,7 @@ const {
   getRoomIdResumePositionFromFile,
   occasionallyPersistRoomResumePositionCheckpointFileToDisk
 } = require('./gitter-to-matrix-historical-import/resume-position-utils');
+const getRoomIdsFromJsonFile = require('./gitter-to-matrix-historical-import/get-room-ids-from-json-file');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const {
@@ -123,34 +124,7 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   );
 }
 
-let manualGitterRoomIdsToProcess;
-if (opts.roomIdsFromJsonListFilePath) {
-  const jsonContentFromFile = require(opts.roomIdsFromJsonListFilePath);
-  if (!Array.isArray(jsonContentFromFile)) {
-    throw new Error(
-      `opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} was unexpectedly not a JSON array`
-    );
-  }
-
-  if (jsonContentFromFile.length === 0) {
-    logger.warn(
-      `Nothing to process from opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} since it was an empty array`
-    );
-    return;
-  }
-
-  if (typeof jsonContentFromFile[0] === 'string') {
-    manualGitterRoomIdsToProcess = jsonContentFromFile;
-  } else if (typeof jsonContentFromFile[0] === 'object') {
-    manualGitterRoomIdsToProcess = jsonContentFromFile.map(entry => {
-      return entry.id;
-    });
-  } else {
-    throw new Error(
-      `opts.roomIdsFromJsonListFilePath=${opts.roomIdsFromJsonListFilePath} must be an array of strings or an array of objects with an "id" property`
-    );
-  }
-}
+let manualGitterRoomIdsToProcess = getRoomIdsFromJsonFile(opts.roomIdsFromJsonListFilePath);
 
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
