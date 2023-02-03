@@ -272,10 +272,10 @@ async function updateAllRooms() {
         logger.info(
           `Updating matrixRoomId=${matrixRoomId} and matrixHistoricalRoomId=${matrixHistoricalRoomId} for gitterRoomId=${gitterRoomId} (${gitterRoom.uri})`
         );
-        await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
-          keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
-          skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
-        });
+
+        // Handle the `matrixHistoricalRoomId` first because it's more likely to succeed
+        // no matter what given it's a `gitter.im` homeserver room where we have all
+        // permissions necessary to do whatever we want
         if (matrixHistoricalRoomId) {
           const isDoneImporting = await isGitterRoomIdDoneImporting(gitterRoomId);
           if (isDoneImporting) {
@@ -293,6 +293,14 @@ async function updateAllRooms() {
             });
           }
         }
+
+        // Then handle the "live" Matrix room which may fail because we don't control
+        // the room in all cases
+        await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
+          keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
+          skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
+        });
+
         numberOfRoomsUpdatedSuccessfully += 1;
       } catch (err) {
         logger.error(
