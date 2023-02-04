@@ -171,12 +171,17 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
     .reverse();
 
   // Assert the messages match the expected
-  // assert.deepEqual(
-  //   relevantMessageEvents.map(event => {
-  //     return event.content.body[0];
-  //   }),
-  //   expectedMessages
-  // );
+  assert.deepEqual(
+    relevantMessageEvents
+      .map(event => {
+        return event.content.body && event.content.body[0];
+      })
+      // An undefined body will mean that the event was redacted so we just want to
+      // remove those from our comparison as they are deleted and not seen in the final
+      // product.
+      .filter(relevantMessageEventKey => relevantMessageEventKey !== undefined),
+    expectedMessages
+  );
 
   const messageAssertionMap = {
     1: event => {
@@ -462,9 +467,10 @@ describe('Gitter -> Matrix historical import e2e', () => {
 
       // Pretend that we already bridged messages 4 in a old `gitter.im` Matrix room
       // before it was updated to a custom plumbed room
+      console.log('START storing before import----------------------------');
       await matrixStore.storeBridgedMessage(
         fixtureMessages[3],
-        '!old-bridged-room:gitter.im',
+        '!previous-live-room:gitter.im',
         `$${fixtureLoader.generateGithubId()}`
       );
       // Pretend that we already bridged messages 5-6 in a custom plumbed room
@@ -478,6 +484,7 @@ describe('Gitter -> Matrix historical import e2e', () => {
         matrixRoomId,
         `$${fixtureLoader.generateGithubId()}`
       );
+      console.log('END storing before import----------------------------');
 
       // The function under test.
       //
@@ -488,6 +495,8 @@ describe('Gitter -> Matrix historical import e2e', () => {
       const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
         fixture.troupe1.id
       );
+
+      console.log('matrixRoomId', matrixRoomId, 'matrixHistoricalRoomId', matrixHistoricalRoomId);
 
       // Try to join the room from some random Matrix user's perspective. We should be
       // able to get in to a public room!
@@ -507,9 +516,9 @@ describe('Gitter -> Matrix historical import e2e', () => {
       await assertHistoryInMatrixRoom({
         matrixRoomId: matrixHistoricalRoomId,
         mxid: userRandomMxid,
-        // We should only see messages 1-2 imported in the historical room since the old "live"
-        // room already message history (3) and the custom plumb has (4-6).
-        expectedMessages: [1, 2]
+        // We should only see messages 1-3 imported in the historical room since the old "live"
+        // room already message history (4) and the custom plumb has (5-6).
+        expectedMessages: [1, 2, 3]
       });
     }
   );
