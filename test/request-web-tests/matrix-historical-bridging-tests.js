@@ -134,14 +134,22 @@ async function setupMessagesInRoom(gitterRoom, user) {
   const message6 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '6 six'
   });
-  debug('setupMessagesInRoom: Created Gitter messages in room');
+
+  const gitterMessages = [message1, message2, message3, message4, message5, message6];
+
+  debug(
+    `setupMessagesInRoom: Created Gitter messages in room ${gitterRoom.id}\n`,
+    gitterMessages.map((gitterMessage, index) => {
+      return ` - ${index + 1}: ${gitterMessage.id || gitterMessage._id} - ${gitterMessage.text}`;
+    })
+  );
 
   // Since we don't have the main webapp running during the tests, the out-of-band
   // Gitter event-listeners won't be listening and these message sends won't make their
   // way to Matrix via the bridge. We also don't have the bridge running until after we
   // create the Gitter messages.
 
-  return [message1, message2, message3, message4, message5, message6];
+  return gitterMessages;
 }
 
 async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages }) {
@@ -156,16 +164,30 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
     limit: 100
   });
 
-  const relevantMessageEvents = messagesRes.chunk.filter(event => {
-    return event.type === 'm.room.message';
-  });
+  const relevantMessageEvents = messagesRes.chunk
+    // Only grab message events
+    .filter(event => {
+      return event.type === 'm.room.message';
+    })
+    // An undefined body will mean that the event was redacted so we just want to
+    // remove those from our comparison as they are deleted and not seen in the final
+    // product.
+    .filter(event => {
+      return event.content.body !== undefined;
+    })
+    .reverse();
 
   // Assert the messages match the expected
-  assert.strictEqual(relevantMessageEvents.length, expectedMessages.length);
+  assert.deepEqual(
+    relevantMessageEvents.map(event => {
+      return event.content.body && event.content.body[0];
+    }),
+    expectedMessages
+  );
 
   const messageAssertionMap = {
     1: event => {
-      assert.strictEqual(event[0].content.body, '1 *one*');
+      assert.strictEqual(event.content.body, '1 *one*');
     },
     2: event => {
       assert.strictEqual(event.content.body, '2 **two**');
@@ -180,7 +202,7 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
       assert.strictEqual(event.content.body, '3 three');
     },
     4: event => {
-      assert.strictEqual(event[0].content.body, '4 *four*');
+      assert.strictEqual(event.content.body, '4 *four*');
     },
     5: event => {
       assert.strictEqual(event.content.body, '5 **five**');
@@ -196,7 +218,7 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
     }
   };
 
-  for (let i = 0; i < expectedMessages; i++) {
+  for (let i = 0; i < expectedMessages.length; i++) {
     const nextExpectedMessageKey = expectedMessages[i];
 
     const assertionFunc = messageAssertionMap[nextExpectedMessageKey];

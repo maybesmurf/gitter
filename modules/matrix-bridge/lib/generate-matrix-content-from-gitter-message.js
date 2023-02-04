@@ -34,14 +34,15 @@ async function generateMatrixContentFromGitterMessage(gitterRoomId, model) {
       gitterRoomId,
       model.parentId,
       {
-        beforeId: model.id,
+        beforeId: model.id || model._id,
         limit: 1
       }
     );
 
     let lastMessageId = model.parentId;
     if (lastMessagesInThread.length > 0) {
-      lastMessageId = lastMessagesInThread[0].id;
+      const lastMessageIdInThread = lastMessagesInThread[0].id || lastMessagesInThread[0]._id;
+      lastMessageId = lastMessageIdInThread;
     }
 
     lastMatrixEventIdInThread = await store.getMatrixEventIdByGitterMessageId(lastMessageId);
