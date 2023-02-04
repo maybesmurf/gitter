@@ -381,6 +381,10 @@ async function run() {
     );
 
     const failedRoomIds = concurrentQueue.getFailedItemIds();
+    // Persist this even if no rooms failed so it's easy to tell whether or not we
+    // succeeded in writing anything out. It's better to know nothing failed than whether
+    // or not we actually made it to the end.
+    await persistFailedRoomIds(failedRoomIds);
     if (failedRoomIds.length === 0) {
       logger.info(
         `Successfully updated all rooms ${numberOfRoomsUpdatedSuccessfully}/${numberOfRoomsAttemptedToUpdate}`
