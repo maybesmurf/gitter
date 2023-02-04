@@ -165,21 +165,23 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
   });
 
   const relevantMessageEvents = messagesRes.chunk
+    // Only grab message events
     .filter(event => {
       return event.type === 'm.room.message';
+    })
+    // An undefined body will mean that the event was redacted so we just want to
+    // remove those from our comparison as they are deleted and not seen in the final
+    // product.
+    .filter(event => {
+      return event.content.body !== undefined;
     })
     .reverse();
 
   // Assert the messages match the expected
   assert.deepEqual(
-    relevantMessageEvents
-      .map(event => {
-        return event.content.body && event.content.body[0];
-      })
-      // An undefined body will mean that the event was redacted so we just want to
-      // remove those from our comparison as they are deleted and not seen in the final
-      // product.
-      .filter(relevantMessageEventKey => relevantMessageEventKey !== undefined),
+    relevantMessageEvents.map(event => {
+      return event.content.body && event.content.body[0];
+    }),
     expectedMessages
   );
 
