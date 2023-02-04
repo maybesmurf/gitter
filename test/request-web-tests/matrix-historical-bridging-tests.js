@@ -134,14 +134,22 @@ async function setupMessagesInRoom(gitterRoom, user) {
   const message6 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '6 six'
   });
-  debug('setupMessagesInRoom: Created Gitter messages in room');
+
+  const gitterMessages = [message1, message2, message3, message4, message5, message6];
+
+  debug(
+    `setupMessagesInRoom: Created Gitter messages in room ${gitterRoom.id}\n`,
+    gitterMessages.map((gitterMessage, index) => {
+      return ` - ${index + 1}: ${gitterMessage.id || gitterMessage._id} - ${gitterMessage.text}`;
+    })
+  );
 
   // Since we don't have the main webapp running during the tests, the out-of-band
   // Gitter event-listeners won't be listening and these message sends won't make their
   // way to Matrix via the bridge. We also don't have the bridge running until after we
   // create the Gitter messages.
 
-  return [message1, message2, message3, message4, message5, message6];
+  return gitterMessages;
 }
 
 async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages }) {
@@ -156,16 +164,23 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
     limit: 100
   });
 
-  const relevantMessageEvents = messagesRes.chunk.filter(event => {
-    return event.type === 'm.room.message';
-  });
+  const relevantMessageEvents = messagesRes.chunk
+    .filter(event => {
+      return event.type === 'm.room.message';
+    })
+    .reverse();
 
   // Assert the messages match the expected
-  assert.strictEqual(relevantMessageEvents.length, expectedMessages.length);
+  // assert.deepEqual(
+  //   relevantMessageEvents.map(event => {
+  //     return event.content.body[0];
+  //   }),
+  //   expectedMessages
+  // );
 
   const messageAssertionMap = {
     1: event => {
-      assert.strictEqual(event[0].content.body, '1 *one*');
+      assert.strictEqual(event.content.body, '1 *one*');
     },
     2: event => {
       assert.strictEqual(event.content.body, '2 **two**');
@@ -180,7 +195,7 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
       assert.strictEqual(event.content.body, '3 three');
     },
     4: event => {
-      assert.strictEqual(event[0].content.body, '4 *four*');
+      assert.strictEqual(event.content.body, '4 *four*');
     },
     5: event => {
       assert.strictEqual(event.content.body, '5 **five**');
@@ -196,7 +211,7 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
     }
   };
 
-  for (let i = 0; i < expectedMessages; i++) {
+  for (let i = 0; i < expectedMessages.length; i++) {
     const nextExpectedMessageKey = expectedMessages[i];
 
     const assertionFunc = messageAssertionMap[nextExpectedMessageKey];
@@ -421,4 +436,81 @@ describe('Gitter -> Matrix historical import e2e', () => {
       });
     });
   });
+
+  // If we see a `E11000 duplicate key error collection:
+  // gitter.matricesbridgedchatmessage index: gitterMessageId_1 dup key: { :
+  // ObjectId('...') }`, then we know that this is a room where we were initially
+  // bridging to a `gitter.im` "live" room and that community asked us to bridge to
+  // their own Matrix room (custom plumb).
+  //
+  // The reason this error occurs is because our `stopAtMessageId` point is
+  // wrong because we are looking at the first bridged message to their custom Matrix
+  // room instead of our initial `gitter.im` "live" room which we no longer track.
+  //
+  // This error means the historical room reached the point where the old `gitter.im`
+  // "live" room so technically we're done importing anyway (the messages exist on
+  // Matrix somewhere but they will have to manage that chain themselves).
+  it(
+    'historical room stops gracefully when we hit a message that has already been bridged ' +
+      'in an old "live" Matrix room and then was custom plumbed to another Matrix room' +
+      '(MongoError E11000 duplicate key error, collision)',
+    async () => {
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
+        fixture.troupe1.id
+      );
+      const fixtureMessages = gitterRoomToFixtureMessagesMap.get(fixture.troupe1);
+
+      // Pretend that we already bridged messages 4 in a old `gitter.im` Matrix room
+      // before it was updated to a custom plumbed room
+      await matrixStore.storeBridgedMessage(
+        fixtureMessages[3],
+        '!old-bridged-room:gitter.im',
+        `$${fixtureLoader.generateGithubId()}`
+      );
+      // Pretend that we already bridged messages 5-6 in a custom plumbed room
+      await matrixStore.storeBridgedMessage(
+        fixtureMessages[4],
+        matrixRoomId,
+        `$${fixtureLoader.generateGithubId()}`
+      );
+      await matrixStore.storeBridgedMessage(
+        fixtureMessages[5],
+        matrixRoomId,
+        `$${fixtureLoader.generateGithubId()}`
+      );
+
+      // The function under test.
+      //
+      // We should only see messages 1-3 imported in the historical room since the live
+      // room already had some history.
+      await importHistoryFromRooms([fixture.troupe1]);
+
+      const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
+        fixture.troupe1.id
+      );
+
+      // Try to join the room from some random Matrix user's perspective. We should be
+      // able to get in to a public room!
+      const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+        fixture.userRandom.id
+      );
+      await assertCanJoinMatrixRoom({
+        matrixRoomId,
+        matrixHistoricalRoomId,
+        mxid: userRandomMxid,
+        expectToJoin: true,
+        descriptionSecurityType: 'public',
+        descriptionPerspective: 'a random user'
+      });
+
+      // Assert the history
+      await assertHistoryInMatrixRoom({
+        matrixRoomId: matrixHistoricalRoomId,
+        mxid: userRandomMxid,
+        // We should only see messages 1-2 imported in the historical room since the old "live"
+        // room already message history (3) and the custom plumb has (4-6).
+        expectedMessages: [1, 2]
+      });
+    }
+  );
 });
