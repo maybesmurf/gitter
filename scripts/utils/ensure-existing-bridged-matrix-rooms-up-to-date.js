@@ -337,7 +337,12 @@ async function updateAllRooms() {
           });
         } catch (err) {
           const [, serverName] = matrixRoomId.split(':') || [];
-          if (serverName !== configuredServerName && err.errcode === 'M_FORBIDDEN') {
+          if (
+            serverName !== configuredServerName &&
+            // This is very bad and hacky but `matrix-appservice-bridge` gives us no other
+            // clues of this specific problem, see https://github.com/matrix-org/matrix-appservice-bridge/blob/78c1ed201233fc81ff9e1021f2bccfdca95f337b/src/components/intent.ts#L1113-L1118
+            err.message.startsWith('Cannot ensure client has power level for event')
+          ) {
             logger.warn(
               `Unable to update matrixRoomId=${matrixRoomId} (bridged to gitterRoomId=${gitterRoomId}) because we don't have permission in that room. Since this room is bridged to a non-gitter.im room, we can't do anything more to help it.`,
               {
