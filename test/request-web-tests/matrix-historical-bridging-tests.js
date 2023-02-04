@@ -268,6 +268,7 @@ describe('Gitter -> Matrix historical import e2e', () => {
   let stopBridge;
   const gitterRoomToFixtureMessagesMap = new WeakMap();
   beforeEach(async () => {
+    console.log('Setting up messages in rooms');
     gitterRoomToFixtureMessagesMap.set(
       fixture.troupe1,
       await setupMessagesInRoom(fixture.troupe1, fixture.user1)
@@ -281,6 +282,7 @@ describe('Gitter -> Matrix historical import e2e', () => {
       await setupMessagesInRoom(fixture.troupeOneToOne, fixture.user1)
     );
     debug('Setup messages in rooms');
+    console.log('Setup messages in rooms');
 
     // It's important that this comes after we setup all of the messages in the room so
     // that we don't prematurely bridge all of the messages we sent via
@@ -293,6 +295,7 @@ describe('Gitter -> Matrix historical import e2e', () => {
     await assertNotBridgedBefore(fixture.troupePrivate1.id);
     await assertNotBridgedBefore(fixture.troupeOneToOne.id);
     debug('Asserted that these rooms have not been bridged before');
+    console.log('Asserted that these rooms have not been bridged before');
   });
 
   afterEach(async () => {
@@ -404,7 +407,9 @@ describe('Gitter -> Matrix historical import e2e', () => {
       assert(gitterRoom);
 
       // The function under test
+      console.log('starting import');
       await importHistoryFromRooms([gitterRoom]);
+      console.log('after import');
 
       const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterRoom.id);
       const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(

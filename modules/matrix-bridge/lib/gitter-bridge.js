@@ -35,15 +35,19 @@ class GitterBridge {
     this.matrixUtils = new MatrixUtils(matrixBridge);
     this._gitterBridgeBackingUsername = gitterBridgeBackingUsername;
 
+    this._debugIdentifier = `gitter-bridge-${Math.ceil(10000 * Math.random())}`;
+
     this.onDataChangeWithBind = this.onDataChange.bind(this);
   }
 
   async start() {
+    console.log('gitter-bridge start', this._debugIdentifier);
     appEvents.onDataChange2(this.onDataChangeWithBind);
   }
 
   // Stop the listeners and processing any more events
   async stop() {
+    console.log('gitter-bridge stop', this._debugIdentifier);
     appEvents.removeListener('dataChange2', this.onDataChangeWithBind);
   }
 
