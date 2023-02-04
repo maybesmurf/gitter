@@ -268,11 +268,6 @@ describe('Gitter -> Matrix historical import e2e', () => {
   let stopBridge;
   const gitterRoomToFixtureMessagesMap = new WeakMap();
   beforeEach(async () => {
-    await assertNotBridgedBefore(fixture.troupe1.id);
-    await assertNotBridgedBefore(fixture.troupePrivate1.id);
-    await assertNotBridgedBefore(fixture.troupeOneToOne.id);
-    debug('Asserted that these rooms have not been bridged before');
-
     gitterRoomToFixtureMessagesMap.set(
       fixture.troupe1,
       await setupMessagesInRoom(fixture.troupe1, fixture.user1)
@@ -292,6 +287,12 @@ describe('Gitter -> Matrix historical import e2e', () => {
     // `setupMessagesInRoom`. Our tests assume these messages have not been bridged
     // before.
     stopBridge = await installBridge(bridgePortFromConfig + 1);
+
+    // Make sure there are no weird side-effects or cross-talk between tests here
+    await assertNotBridgedBefore(fixture.troupe1.id);
+    await assertNotBridgedBefore(fixture.troupePrivate1.id);
+    await assertNotBridgedBefore(fixture.troupeOneToOne.id);
+    debug('Asserted that these rooms have not been bridged before');
   });
 
   afterEach(async () => {
