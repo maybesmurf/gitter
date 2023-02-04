@@ -578,30 +578,37 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     const lastGitterMessageThatWasImported = await chatService.findByIdLean(
       lastGitterMessageIdThatWasImported
     );
-    const isInThread = lastGitterMessageThatWasImported.parentId;
-    const isThreadParent = lastGitterMessageThatWasImported.threadMessageCount > 0;
+    if (lastGitterMessageThatWasImported) {
+      const isInThread = lastGitterMessageThatWasImported.parentId;
+      const isThreadParent = lastGitterMessageThatWasImported.threadMessageCount > 0;
 
-    let threadParentId;
-    if (isThreadParent) {
-      threadParentId = lastGitterMessageThatWasImported.id || lastGitterMessageThatWasImported._id;
-    } else if (isInThread) {
-      threadParentId = lastGitterMessageThatWasImported.parentId;
-    }
+      let threadParentId;
+      if (isThreadParent) {
+        threadParentId =
+          lastGitterMessageThatWasImported.id || lastGitterMessageThatWasImported._id;
+      } else if (isInThread) {
+        threadParentId = lastGitterMessageThatWasImported.parentId;
+      }
 
-    if (threadParentId) {
-      debug(
-        `Resuming threadParentId=${threadParentId} before continuing to main message loop (matrixRoomId=${matrixRoomId})`
+      if (threadParentId) {
+        debug(
+          `Resuming threadParentId=${threadParentId} before continuing to main message loop (matrixRoomId=${matrixRoomId})`
+        );
+
+        await importThreadReplies({
+          gitterRoomId,
+          matrixRoomId,
+          matrixHistoricalRoomId,
+          threadParentId,
+          // Resume and finish importing the thread we left off at
+          resumeFromMessageId: lastGitterMessageIdThatWasImported,
+          stopAtMessageId: gitterMessageIdToStopImportingAt
+        });
+      }
+    } else {
+      logger.warn(
+        `While importing in matrixHistoricalRoomId=${matrixHistoricalRoomId} (for gitterRoomId=${gitterRoomId}), lastGitterMessageIdThatWasImported=${lastGitterMessageIdThatWasImported} does not exist. This is kinda odd but we bridged this message before but someone has deleted their message on Gitter since then. I guess we just move on.`
       );
-
-      await importThreadReplies({
-        gitterRoomId,
-        matrixRoomId,
-        matrixHistoricalRoomId,
-        threadParentId,
-        // Resume and finish importing the thread we left off at
-        resumeFromMessageId: lastGitterMessageIdThatWasImported,
-        stopAtMessageId: gitterMessageIdToStopImportingAt
-      });
     }
   }
 
