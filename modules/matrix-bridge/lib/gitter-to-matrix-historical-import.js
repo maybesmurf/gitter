@@ -51,6 +51,10 @@ const matrixUtils = new MatrixUtils(matrixBridge);
 
 const matrixHistoricalImportEventEmitter = new EventEmitter();
 
+const hitRoomCollisionAndDoneImportingRoomSymbol = Symbol(
+  'hit-room-collision-and-done-importing-room'
+);
+
 let roomIdTofinalPromiseToAwaitBeforeShutdownMap = new Map();
 shutdown.addHandler('matrix-bridge-batch-import', 20, async callback => {
   // This is to try to best avoid us resuming and duplicating the last message we were
@@ -438,8 +442,8 @@ async function importFromChatMessageStreamIterable({
               }
             );
 
-            // Skip to the next message
-            resolve();
+            // Signal that we should break out of the import loop for this room
+            resolve(hitRoomCollisionAndDoneImportingRoomSymbol);
             return null;
           }
 
@@ -475,7 +479,12 @@ async function importFromChatMessageStreamIterable({
         messageSendAndStorePromise
       );
       // Then actually wait for the work to be done
-      await messageSendAndStorePromise;
+      const messageSendAndStoreResult = await messageSendAndStorePromise;
+
+      if (messageSendAndStoreResult === hitRoomCollisionAndDoneImportingRoomSymbol) {
+        // Break out of the for-loop, we're done importing this room
+        return null;
+      }
 
       stats.eventHF('matrix-bridge.import.event', 1, METRIC_SAMPLE_RATIO);
 
