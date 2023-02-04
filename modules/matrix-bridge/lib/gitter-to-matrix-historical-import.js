@@ -690,12 +690,6 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
     chatMessageStreamIterable
   );
 
-  console.log(
-    'gitterMessageIdToStopImportingAt',
-    gitterMessageIdToStopImportingAt,
-    'looking at matrixRoomId',
-    matrixRoomId
-  );
   await importFromChatMessageStreamIterable({
     gitterRoomId,
     matrixRoomId,

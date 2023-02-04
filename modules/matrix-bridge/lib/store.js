@@ -147,7 +147,6 @@ async function storeBridgedMessage(gitterMessage, matrixRoomId, matrixEventId) {
   assert(gitterMessage);
   assert(matrixRoomId);
   assert(matrixEventId);
-  console.log('storeBridgedMessage', gitterMessage.id || gitterMessage._id, matrixEventId);
   return persistence.MatrixBridgedChatMessage.create({
     gitterMessageId: gitterMessage.id || gitterMessage._id,
     matrixRoomId,

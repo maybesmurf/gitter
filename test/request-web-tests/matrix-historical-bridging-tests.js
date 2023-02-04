@@ -467,7 +467,6 @@ describe('Gitter -> Matrix historical import e2e', () => {
 
       // Pretend that we already bridged messages 4 in a old `gitter.im` Matrix room
       // before it was updated to a custom plumbed room
-      console.log('START storing before import----------------------------');
       await matrixStore.storeBridgedMessage(
         fixtureMessages[3],
         '!previous-live-room:gitter.im',
@@ -484,7 +483,6 @@ describe('Gitter -> Matrix historical import e2e', () => {
         matrixRoomId,
         `$${fixtureLoader.generateGithubId()}`
       );
-      console.log('END storing before import----------------------------');
 
       // The function under test.
       //
@@ -495,8 +493,6 @@ describe('Gitter -> Matrix historical import e2e', () => {
       const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
         fixture.troupe1.id
       );
-
-      console.log('matrixRoomId', matrixRoomId, 'matrixHistoricalRoomId', matrixHistoricalRoomId);
 
       // Try to join the room from some random Matrix user's perspective. We should be
       // able to get in to a public room!
