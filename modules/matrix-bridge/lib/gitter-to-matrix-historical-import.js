@@ -250,6 +250,7 @@ async function importThreadReplies({
   // eslint-disable-next-line no-use-before-define
   await importFromChatMessageStreamIterable({
     gitterRoomId,
+    matrixRoomId,
     matrixHistoricalRoomId,
     chatMessageStreamIterable: filteredThreadReplyMessageStreamIterable,
     stopAtMessageId
@@ -259,10 +260,20 @@ async function importThreadReplies({
 // eslint-disable-next-line max-statements, complexity
 async function importFromChatMessageStreamIterable({
   gitterRoomId,
+  matrixRoomId,
   matrixHistoricalRoomId,
   chatMessageStreamIterable,
   stopAtMessageId
 }) {
+  assert(gitterRoomId);
+  assert(matrixRoomId);
+  assert(matrixHistoricalRoomId);
+  assert(chatMessageStreamIterable);
+  // stopAtMessageId is not required since it's possible we have not bridged any
+  // messages in this room.
+  //
+  //assert(stopAtMessageId);
+
   try {
     let runningImportedMessageCount = 0;
     let lastImportMetricReportTs = Date.now();
@@ -359,6 +370,7 @@ async function importFromChatMessageStreamIterable({
       }
 
       // Will send message and join the room if necessary
+      // eslint-disable-next-line max-statements
       const messageSendAndStorePromise = new Promise(async (resolve, reject) => {
         try {
           const matrixId = await _getOrCreateMatrixUserByGitterUserIdCached(message.fromUserId);
@@ -397,6 +409,33 @@ async function importFromChatMessageStreamIterable({
           if (err.status === 413 && err.errcode === 'M_TOO_LARGE') {
             logger.warn(
               `Skipping gitterMessageId=${gitterMessageId} from gitterRoomId=${gitterRoomId} since it was too large to send (M_TOO_LARGE).`
+            );
+
+            // Skip to the next message
+            resolve();
+            return null;
+          }
+
+          // If we see a `E11000 duplicate key error collection:
+          // gitter.matricesbridgedchatmessage index: gitterMessageId_1 dup key: { :
+          // ObjectId('...') }`, then we know that this is a room where we were initially
+          // bridging to a `gitter.im` "live" room and that community asked us to bridge to
+          // their own Matrix room (custom plumb).
+          //
+          // The reason this error occurs is because our `stopAtMessageId` point is
+          // wrong because we are looking at the first bridged message to their custom Matrix
+          // room instead of our initial `gitter.im` "live" room which we no longer track.
+          //
+          // This error means the historical room reached the point where the old `gitter.im`
+          // "live" room so technically we're done importing anyway (the messages exist on
+          // Matrix somewhere but they will have to manage that chain themselves).
+          const [, serverName] = matrixRoomId.split(':') || [];
+          if (serverName !== configuredServerName && mongoUtils.mongoErrorWithCode(11000)(err)) {
+            logger.warn(
+              `Done importing custom plumbed room because we ran into the collision point where the historical room ran into our old \`gitter.im\` "live" room which is now a custom plumb to ${matrixRoomId}. All of the history is on Matrix somewhere so we're considering this good enough.`,
+              {
+                exception: err
+              }
             );
 
             // Skip to the next message
@@ -619,6 +658,7 @@ async function importMessagesFromGitterRoomToHistoricalMatrixRoom({
 
   await importFromChatMessageStreamIterable({
     gitterRoomId,
+    matrixRoomId,
     matrixHistoricalRoomId,
     chatMessageStreamIterable: filteredChatMessageStreamIterable,
     stopAtMessageId: gitterMessageIdToStopImportingAt
@@ -675,39 +715,11 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
     `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
   );
 
-  try {
-    await importMessagesFromGitterRoomToHistoricalMatrixRoom({
-      gitterRoom,
-      matrixRoomId,
-      matrixHistoricalRoomId
-    });
-  } catch (err) {
-    const [, serverName] = matrixRoomId.split(':') || [];
-
-    // If we see a `E11000 duplicate key error collection:
-    // gitter.matricesbridgedchatmessage index: gitterMessageId_1 dup key: { :
-    // ObjectId('...') }`, then we know that this is a room where we were initially
-    // bridging to a `gitter.im` "live" room and that community asked us to bridge to
-    // their own Matrix room (custom plumb).
-    //
-    // The reason this error occurs is because our `stopAtMessageId` point is
-    // wrong because we are looking at the first bridged message to their custom Matrix
-    // room instead of our initial `gitter.im` "live" room which we no longer track.
-    //
-    // This error means the historical room reached the point where the old `gitter.im`
-    // "live" room so technically we're done importing anyway (the messages exist on
-    // Matrix somewhere but they will have to manage that chain themselves).
-    if (serverName !== configuredServerName && mongoUtils.mongoErrorWithCode(11000)(err)) {
-      logger.warn(
-        `Done importing custom plumbed room because we ran into the collision point where the historical room ran into our old \`gitter.im\` "live" room which is now a custom plumb to ${matrixRoomId}. All of the history is on Matrix somewhere so we're considering this good enough.`,
-        {
-          exception: err
-        }
-      );
-    } else {
-      throw err;
-    }
-  }
+  await importMessagesFromGitterRoomToHistoricalMatrixRoom({
+    gitterRoom,
+    matrixRoomId,
+    matrixHistoricalRoomId
+  });
 
   await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
     matrixRoomId,
