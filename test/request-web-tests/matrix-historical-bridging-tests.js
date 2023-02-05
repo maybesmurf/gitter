@@ -28,6 +28,8 @@ const ConcurrentQueue = require('../../scripts/utils/gitter-to-matrix-historical
 
 // Instead of side-effects where this can be included from other tests, just include it
 // here always so we can better fight the flakey problems.
+//
+// See `waitForAppEvents` in this file for where we use/listen for events
 require('../../server/event-listeners').install();
 
 const matrixUtils = new MatrixUtils(matrixBridge);
