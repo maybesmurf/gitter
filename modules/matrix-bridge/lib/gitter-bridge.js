@@ -35,26 +35,27 @@ class GitterBridge {
     this.matrixUtils = new MatrixUtils(matrixBridge);
     this._gitterBridgeBackingUsername = gitterBridgeBackingUsername;
 
-    this._debugIdentifier = `gitter-bridge-${Math.ceil(10000 * Math.random())}`;
+    // via https://stackoverflow.com/a/8084248
+    this._debugIdentifier = `gitter-bridge-${(Math.random() + 1).toString(36).substring(7)}`;
 
     this.onDataChangeWithBind = this.onDataChange.bind(this);
   }
 
   async start() {
-    console.log('gitter-bridge start', this._debugIdentifier);
+    logger.info(`gitter-bridge-${this._debugIdentifier} start`);
     appEvents.onDataChange2(this.onDataChangeWithBind);
   }
 
   // Stop the listeners and processing any more events
   async stop() {
-    console.log('gitter-bridge stop', this._debugIdentifier);
+    logger.info(`gitter-bridge-${this._debugIdentifier} stop`);
     appEvents.removeListener('dataChange2', this.onDataChangeWithBind);
   }
 
   // eslint-disable-next-line complexity, max-statements
   async onDataChange(data) {
     try {
-      debug('onDataChange', data);
+      debug(`(${this._debugIdentifier}) onDataChange`, data);
       stats.eventHF('gitter_bridge.event_received');
       // Ignore data without a URL or model
       if (!data.url || !data.model) {
@@ -258,7 +259,7 @@ class GitterBridge {
     const matrixId = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(model.fromUser.id);
     const intent = this.matrixBridge.getIntent(matrixId);
     logger.info(
-      `Sending message to Matrix room (Gitter gitterRoomId=${gitterRoomId} -> Matrix gitterRoomId=${matrixRoomId}) (via user mxid=${matrixId})`
+      `(${this._debugIdentifier}) Sending message to Matrix room (Gitter gitterRoomId=${gitterRoomId} -> Matrix gitterRoomId=${matrixRoomId}) (via user mxid=${matrixId})`
     );
     stats.event('gitter_bridge.chat_create', {
       gitterRoomId,
