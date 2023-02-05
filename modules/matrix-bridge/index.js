@@ -63,8 +63,10 @@ async function install(bridgePort = bridgePortFromConfig) {
   }
 
   return async function stop() {
+    logger.info(`🛑 Stopping Matrix bridge listening on port ${bridgePort} 🛑`);
     await matrixBridge.close();
     await gitterBridge.stop();
+    logger.info(`🛑 Stopped Matrix bridge listening on port ${bridgePort} 🛑`);
   };
 }
 
