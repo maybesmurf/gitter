@@ -156,7 +156,7 @@ validate:
     - *webapp_service_neo4j
     - *webapp_service_synapse
   script:
-    - npm run mocha -- test/request-web-tests/matrix-historical-bridging-tests.js --timeout 12000
+    - make ci-test
 
 test:
   extends:
