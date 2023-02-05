@@ -175,7 +175,7 @@ async function ensureMatrixRoomIdPowerLevelsAreCorrect({
   }, TEST_WAIT_TIMEOUT_MS);
 }
 
-describe('Gitter -> Matrix briding power-levels e2e', () => {
+describe('Gitter -> Matrix bridging power-levels e2e', () => {
   fixtureLoader.ensureIntegrationEnvironment(
     // This is a public member of `GITTER_INTEGRATION_ORG`
     '#integrationCollabUser1',

@@ -11,8 +11,11 @@ const ensureMatrixFixtures = require('./utils/ensure-matrix-fixtures');
 
 const env = require('gitter-web-env');
 const config = env.config;
+const logger = env.logger;
 const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
 
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const appEvents = require('gitter-web-appevents');
 const chatService = require('gitter-web-chats');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
@@ -22,6 +25,10 @@ const {
   gitterToMatrixHistoricalImport
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('../../scripts/utils/gitter-to-matrix-historical-import/concurrent-queue');
+
+// Instead of side-effects where this can be included from other tests, just include it
+// here always so we can better fight the flakey problems.
+require('../../server/event-listeners').install();
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
@@ -112,7 +119,16 @@ async function assertCanJoinMatrixRoom({
   await _canJoinWrapper(matrixHistoricalRoomId);
 }
 
+const TEST_WAIT_TIMEOUT_MS = 5000;
 async function setupMessagesInRoom(gitterRoom, user) {
+  let seenMessageIdsOverAppEvents = [];
+  const listenForAppEventsCallback = data => {
+    if (data.type === 'chatMessage' && data.operation === 'create') {
+      seenMessageIdsOverAppEvents.push(data.model.id || data.model._id);
+    }
+  };
+  appEvents.onDataChange2(listenForAppEventsCallback);
+
   const message1 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '1 *one*'
   });
@@ -136,6 +152,9 @@ async function setupMessagesInRoom(gitterRoom, user) {
   });
 
   const gitterMessages = [message1, message2, message3, message4, message5, message6];
+  const gitterMessageIds = gitterMessages.map(
+    gitterMessage => gitterMessage.id || gitterMessage._id
+  );
 
   debug(
     `setupMessagesInRoom: Created Gitter messages in room ${gitterRoom.id}\n`,
@@ -144,10 +163,48 @@ async function setupMessagesInRoom(gitterRoom, user) {
     })
   );
 
-  // Since we don't have the main webapp running during the tests, the out-of-band
-  // Gitter event-listeners won't be listening and these message sends won't make their
-  // way to Matrix via the bridge. We also don't have the bridge running until after we
-  // create the Gitter messages.
+  // Try and wait for any appEvents to drain before moving on with the rest of the
+  // tests.
+  //
+  // We don't want any of these chat message creation events to leak into the Matrix
+  // bridge that we're about to install below.
+  //
+  // It's too hard to prevent side-effects from other tests having the appEvents and
+  // event-listeners going so instead we just explicitly include it in this test and
+  // wait for them to clear out.
+  const waitForAppEventsPromise = new Promise((resolve, reject) => {
+    logger.info(
+      'setupMessagesInRoom: Waiting to see all gitterMessages over appEvents before moving on:',
+      JSON.stringify(gitterMessageIds)
+    );
+    const timeoutId = setTimeout(() => {
+      reject(
+        new Error(
+          `setupMessagesInRoom: Timed out waiting to see all gitterMessages come over appEvents, expected=${gitterMessageIds} seenMessageIdsOverAppEvents=${seenMessageIdsOverAppEvents}`
+        )
+      );
+    }, TEST_WAIT_TIMEOUT_MS);
+
+    const checkIfSeenAllMessagesCallback = () => {
+      const haveSeenAllGitterMessagesOverAppEvents = gitterMessages.every(gitterMessage => {
+        const gitterMessageId = gitterMessage.id || gitterMessage._id;
+        return seenMessageIdsOverAppEvents.some(seenMessageId => {
+          return mongoUtils.objectIDsEqual(seenMessageId, gitterMessageId);
+        });
+      });
+
+      if (haveSeenAllGitterMessagesOverAppEvents) {
+        clearTimeout(timeoutId);
+        appEvents.removeListener('dataChange2', checkIfSeenAllMessagesCallback);
+        appEvents.removeListener('dataChange2', listenForAppEventsCallback);
+        logger.info('setupMessagesInRoom: Saw all gitterMessages over appEvents ✅');
+        resolve();
+      }
+    };
+    appEvents.onDataChange2(checkIfSeenAllMessagesCallback);
+  });
+
+  await waitForAppEventsPromise;
 
   return gitterMessages;
 }
@@ -390,6 +447,7 @@ describe('Gitter -> Matrix historical import e2e', () => {
   });
 
   [
+    // TODO: Uncomment
     {
       label: 'private Gitter room',
       gitterRoomFixtureKey: 'troupePrivate1'

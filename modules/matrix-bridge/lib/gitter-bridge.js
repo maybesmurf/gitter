@@ -42,20 +42,20 @@ class GitterBridge {
   }
 
   async start() {
-    logger.info(`gitter-bridge-${this._debugIdentifier} start`);
+    logger.info(`${this._debugIdentifier} start`);
     appEvents.onDataChange2(this.onDataChangeWithBind);
   }
 
   // Stop the listeners and processing any more events
   async stop() {
-    logger.info(`gitter-bridge-${this._debugIdentifier} stop`);
+    logger.info(`${this._debugIdentifier} stop`);
     appEvents.removeListener('dataChange2', this.onDataChangeWithBind);
   }
 
   // eslint-disable-next-line complexity, max-statements
   async onDataChange(data) {
     try {
-      debug(`(${this._debugIdentifier}) onDataChange`, data);
+      debug(`${this._debugIdentifier} onDataChange`, data);
       stats.eventHF('gitter_bridge.event_received');
       // Ignore data without a URL or model
       if (!data.url || !data.model) {
@@ -259,7 +259,7 @@ class GitterBridge {
     const matrixId = await this.matrixUtils.getOrCreateMatrixUserByGitterUserId(model.fromUser.id);
     const intent = this.matrixBridge.getIntent(matrixId);
     logger.info(
-      `(${this._debugIdentifier}) Sending message to Matrix room (Gitter gitterRoomId=${gitterRoomId} -> Matrix gitterRoomId=${matrixRoomId}) (via user mxid=${matrixId})`
+      `${this._debugIdentifier}: Sending message to Matrix room (Gitter gitterRoomId=${gitterRoomId} -> Matrix gitterRoomId=${matrixRoomId}) (via user mxid=${matrixId})`
     );
     stats.event('gitter_bridge.chat_create', {
       gitterRoomId,
