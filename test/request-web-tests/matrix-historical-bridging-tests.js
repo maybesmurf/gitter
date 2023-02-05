@@ -11,8 +11,11 @@ const ensureMatrixFixtures = require('./utils/ensure-matrix-fixtures');
 
 const env = require('gitter-web-env');
 const config = env.config;
+const logger = env.logger;
 const bridgePortFromConfig = parseInt(config.get('matrix:bridge:applicationServicePort'), 10);
 
+const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
+const appEvents = require('gitter-web-appevents');
 const chatService = require('gitter-web-chats');
 const installBridge = require('gitter-web-matrix-bridge');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
@@ -22,6 +25,12 @@ const {
   gitterToMatrixHistoricalImport
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('../../scripts/utils/gitter-to-matrix-historical-import/concurrent-queue');
+
+// Instead of side-effects where this can be included from other tests, just include it
+// here always so we can better fight the flakey problems.
+//
+// See `waitForAppEvents` in this file for where we use/listen for events
+require('../../server/event-listeners').install();
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
@@ -112,7 +121,16 @@ async function assertCanJoinMatrixRoom({
   await _canJoinWrapper(matrixHistoricalRoomId);
 }
 
+const TEST_WAIT_TIMEOUT_MS = 5000;
 async function setupMessagesInRoom(gitterRoom, user) {
+  let seenMessageIdsOverAppEvents = [];
+  const listenForAppEventsCallback = data => {
+    if (data.type === 'chatMessage' && data.operation === 'create') {
+      seenMessageIdsOverAppEvents.push(data.model.id || data.model._id);
+    }
+  };
+  appEvents.onDataChange2(listenForAppEventsCallback);
+
   const message1 = await chatService.newChatMessageToTroupe(gitterRoom, user, {
     text: '1 *one*'
   });
@@ -136,6 +154,9 @@ async function setupMessagesInRoom(gitterRoom, user) {
   });
 
   const gitterMessages = [message1, message2, message3, message4, message5, message6];
+  const gitterMessageIds = gitterMessages.map(
+    gitterMessage => gitterMessage.id || gitterMessage._id
+  );
 
   debug(
     `setupMessagesInRoom: Created Gitter messages in room ${gitterRoom.id}\n`,
@@ -144,10 +165,48 @@ async function setupMessagesInRoom(gitterRoom, user) {
     })
   );
 
-  // Since we don't have the main webapp running during the tests, the out-of-band
-  // Gitter event-listeners won't be listening and these message sends won't make their
-  // way to Matrix via the bridge. We also don't have the bridge running until after we
-  // create the Gitter messages.
+  // Try and wait for any appEvents to drain before moving on with the rest of the
+  // tests.
+  //
+  // We don't want any of these chat message creation events to leak into the Matrix
+  // bridge that we're about to install below.
+  //
+  // It's too hard to prevent side-effects from other tests having the appEvents and
+  // event-listeners going so instead we just explicitly include it in this test and
+  // wait for them to clear out.
+  const waitForAppEventsPromise = new Promise((resolve, reject) => {
+    logger.info(
+      'setupMessagesInRoom: Waiting to see all gitterMessages over appEvents before moving on:',
+      JSON.stringify(gitterMessageIds)
+    );
+    const timeoutId = setTimeout(() => {
+      reject(
+        new Error(
+          `setupMessagesInRoom: Timed out waiting to see all gitterMessages come over appEvents, expected=${gitterMessageIds} seenMessageIdsOverAppEvents=${seenMessageIdsOverAppEvents}`
+        )
+      );
+    }, TEST_WAIT_TIMEOUT_MS);
+
+    const checkIfSeenAllMessagesCallback = () => {
+      const haveSeenAllGitterMessagesOverAppEvents = gitterMessages.every(gitterMessage => {
+        const gitterMessageId = gitterMessage.id || gitterMessage._id;
+        return seenMessageIdsOverAppEvents.some(seenMessageId => {
+          return mongoUtils.objectIDsEqual(seenMessageId, gitterMessageId);
+        });
+      });
+
+      if (haveSeenAllGitterMessagesOverAppEvents) {
+        clearTimeout(timeoutId);
+        appEvents.removeListener('dataChange2', checkIfSeenAllMessagesCallback);
+        appEvents.removeListener('dataChange2', listenForAppEventsCallback);
+        logger.info('setupMessagesInRoom: Saw all gitterMessages over appEvents ✅');
+        resolve();
+      }
+    };
+    appEvents.onDataChange2(checkIfSeenAllMessagesCallback);
+  });
+
+  await waitForAppEventsPromise;
 
   return gitterMessages;
 }
@@ -268,11 +327,6 @@ describe('Gitter -> Matrix historical import e2e', () => {
   let stopBridge;
   const gitterRoomToFixtureMessagesMap = new WeakMap();
   beforeEach(async () => {
-    await assertNotBridgedBefore(fixture.troupe1.id);
-    await assertNotBridgedBefore(fixture.troupePrivate1.id);
-    await assertNotBridgedBefore(fixture.troupeOneToOne.id);
-    debug('Asserted that these rooms have not been bridged before');
-
     gitterRoomToFixtureMessagesMap.set(
       fixture.troupe1,
       await setupMessagesInRoom(fixture.troupe1, fixture.user1)
@@ -292,6 +346,12 @@ describe('Gitter -> Matrix historical import e2e', () => {
     // `setupMessagesInRoom`. Our tests assume these messages have not been bridged
     // before.
     stopBridge = await installBridge(bridgePortFromConfig + 1);
+
+    // Make sure there are no weird side-effects or cross-talk between tests here
+    await assertNotBridgedBefore(fixture.troupe1.id);
+    await assertNotBridgedBefore(fixture.troupePrivate1.id);
+    await assertNotBridgedBefore(fixture.troupeOneToOne.id);
+    debug('Asserted that these rooms have not been bridged before');
   });
 
   afterEach(async () => {
@@ -443,4 +503,81 @@ describe('Gitter -> Matrix historical import e2e', () => {
       });
     });
   });
+
+  // If we see a `E11000 duplicate key error collection:
+  // gitter.matricesbridgedchatmessage index: gitterMessageId_1 dup key: { :
+  // ObjectId('...') }`, then we know that this is a room where we were initially
+  // bridging to a `gitter.im` "live" room and that community asked us to bridge to
+  // their own Matrix room (custom plumb).
+  //
+  // The reason this error occurs is because our `stopAtMessageId` point is
+  // wrong because we are looking at the first bridged message to their custom Matrix
+  // room instead of our initial `gitter.im` "live" room which we no longer track.
+  //
+  // This error means the historical room reached the point where the old `gitter.im`
+  // "live" room so technically we're done importing anyway (the messages exist on
+  // Matrix somewhere but they will have to manage that chain themselves).
+  it(
+    'historical room stops gracefully when we hit a message that has already been bridged ' +
+      'in an old "live" Matrix room and then was custom plumbed to another Matrix room' +
+      '(MongoError E11000 duplicate key error, collision)',
+    async () => {
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
+        fixture.troupe1.id
+      );
+      const fixtureMessages = gitterRoomToFixtureMessagesMap.get(fixture.troupe1);
+
+      // Pretend that we already bridged messages 4 in a old `gitter.im` Matrix room
+      // before it was updated to a custom plumbed room
+      await matrixStore.storeBridgedMessage(
+        fixtureMessages[3],
+        '!previous-live-room:gitter.im',
+        `$${fixtureLoader.generateGithubId()}`
+      );
+      // Pretend that we already bridged messages 5-6 in a custom plumbed room
+      await matrixStore.storeBridgedMessage(
+        fixtureMessages[4],
+        matrixRoomId,
+        `$${fixtureLoader.generateGithubId()}`
+      );
+      await matrixStore.storeBridgedMessage(
+        fixtureMessages[5],
+        matrixRoomId,
+        `$${fixtureLoader.generateGithubId()}`
+      );
+
+      // The function under test.
+      //
+      // We should only see messages 1-3 imported in the historical room since the live
+      // room already had some history.
+      await importHistoryFromRooms([fixture.troupe1]);
+
+      const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
+        fixture.troupe1.id
+      );
+
+      // Try to join the room from some random Matrix user's perspective. We should be
+      // able to get in to a public room!
+      const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+        fixture.userRandom.id
+      );
+      await assertCanJoinMatrixRoom({
+        matrixRoomId,
+        matrixHistoricalRoomId,
+        mxid: userRandomMxid,
+        expectToJoin: true,
+        descriptionSecurityType: 'public',
+        descriptionPerspective: 'a random user'
+      });
+
+      // Assert the history
+      await assertHistoryInMatrixRoom({
+        matrixRoomId: matrixHistoricalRoomId,
+        mxid: userRandomMxid,
+        // We should only see messages 1-3 imported in the historical room since the old "live"
+        // room already message history (4) and the custom plumb has (5-6).
+        expectedMessages: [1, 2, 3]
+      });
+    }
+  );
 });
