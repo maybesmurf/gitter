@@ -34,15 +34,11 @@ const {
 const getRoomIdsFromJsonFile = require('./gitter-to-matrix-historical-import/get-room-ids-from-json-file');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
-const {
-  isGitterRoomIdDoneImporting
-} = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
+const ensureCorrectMatrixRoomStateForGitterRoomId = require('./ensure-existing-bridged-matrix-room-up-to-date/ensure-correct-matrix-room-state-for-gitter-room-id');
 
 require('../../server/event-listeners').install();
 
 const matrixUtils = new MatrixUtils(matrixBridge);
-
-const configuredServerName = config.get('matrix:bridge:serverName');
 
 const DB_BATCH_SIZE_FOR_ROOMS = 50;
 // "secondary", "secondaryPreferred", etc
@@ -279,80 +275,34 @@ async function updateAllRooms() {
       return true;
     },
     // Process function
+    // eslint-disable-next-line complexity
     async ({ value: gitterRoom, laneIndex }) => {
-      numberOfRoomsAttemptedToUpdate += 1;
-      const gitterRoomId = gitterRoom.id || gitterRoom._id;
-
-      concurrentQueue.updateLaneStatus(laneIndex, {
-        startTs: Date.now(),
-        gitterRoom: {
-          id: gitterRoomId,
-          uri: gitterRoom.uri,
-          lcUri: gitterRoom.lcUri
-        }
-      });
-
-      // Find our current live Matrix room
-      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
-      // Find the historical Matrix room we should import the history into
-      const matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
-        gitterRoomId
-      );
-      debug(
-        `Found matrixHistoricalRoomId=${matrixHistoricalRoomId} matrixRoomId=${matrixRoomId} for given Gitter room ${gitterRoom.uri} (${gitterRoomId})`
-      );
-
+      let matrixRoomId;
+      let matrixHistoricalRoomId;
       try {
-        logger.info(
-          `Updating matrixRoomId=${matrixRoomId} and matrixHistoricalRoomId=${matrixHistoricalRoomId} for gitterRoomId=${gitterRoomId} (${gitterRoom.uri})`
+        numberOfRoomsAttemptedToUpdate += 1;
+        const gitterRoomId = gitterRoom.id || gitterRoom._id;
+
+        concurrentQueue.updateLaneStatus(laneIndex, {
+          startTs: Date.now(),
+          gitterRoom: {
+            id: gitterRoomId,
+            uri: gitterRoom.uri,
+            lcUri: gitterRoom.lcUri
+          }
+        });
+
+        // Find our current live Matrix room
+        matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);
+        // Find the historical Matrix room we should import the history into
+        matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+          gitterRoomId
         );
 
-        // Handle the `matrixHistoricalRoomId` first because it's more likely to succeed
-        // no matter what given it's a `gitter.im` homeserver room where we have all
-        // permissions necessary to do whatever we want
-        if (matrixHistoricalRoomId) {
-          const isDoneImporting = await isGitterRoomIdDoneImporting(gitterRoomId);
-          if (isDoneImporting) {
-            await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
-              matrixRoomId,
-              matrixHistoricalRoomId,
-              gitterRoomId,
-              skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
-            });
-          } else {
-            await matrixUtils.ensureCorrectHistoricalMatrixRoomStateBeforeImport({
-              matrixHistoricalRoomId,
-              gitterRoomId,
-              skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
-            });
-          }
-        }
-
-        try {
-          // Then handle the "live" Matrix room which may fail because we don't control
-          // the room in all cases
-          await matrixUtils.ensureCorrectRoomState(matrixRoomId, gitterRoomId, {
-            keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
-            skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
-          });
-        } catch (err) {
-          const [, serverName] = matrixRoomId.split(':') || [];
-          if (
-            serverName !== configuredServerName &&
-            // This is very bad and hacky but `matrix-appservice-bridge` gives us no other
-            // clues of this specific problem, see https://github.com/matrix-org/matrix-appservice-bridge/blob/78c1ed201233fc81ff9e1021f2bccfdca95f337b/src/components/intent.ts#L1113-L1118
-            err.message.startsWith('Cannot ensure client has power level for event')
-          ) {
-            logger.warn(
-              `Unable to update matrixRoomId=${matrixRoomId} (bridged to gitterRoomId=${gitterRoomId}) because we don't have permission in that room. Since this room is bridged to a non-gitter.im room, we can't do anything more to help it.`,
-              {
-                exception: err
-              }
-            );
-          } else {
-            throw err;
-          }
-        }
+        await ensureCorrectMatrixRoomStateForGitterRoomId(gitterRoomId, {
+          keepExistingUserPowerLevels: opts.keepExistingUserPowerLevels,
+          skipRoomAvatarIfExists: opts.skipRoomAvatarIfExists
+        });
 
         numberOfRoomsUpdatedSuccessfully += 1;
       } catch (err) {
