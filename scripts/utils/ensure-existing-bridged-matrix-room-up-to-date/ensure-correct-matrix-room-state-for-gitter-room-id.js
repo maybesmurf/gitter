@@ -26,6 +26,7 @@ async function ensureCorrectMatrixRoomStateForGitterRoomId(
   assert(gitterRoomId);
 
   const gitterRoom = await troupeService.findById(gitterRoomId);
+  assert(gitterRoom);
 
   // Find our current live Matrix room
   const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(gitterRoomId);

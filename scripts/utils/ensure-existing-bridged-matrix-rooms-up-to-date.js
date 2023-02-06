@@ -11,7 +11,6 @@ const path = require('path');
 const os = require('os');
 const mkdirp = require('mkdirp');
 const fs = require('fs').promises;
-const debug = require('debug')('gitter:scripts:ensure-existing-bridged-matrix-rooms-up-to-date');
 
 const env = require('gitter-web-env');
 const logger = env.logger;
@@ -275,13 +274,12 @@ async function updateAllRooms() {
       return true;
     },
     // Process function
-    // eslint-disable-next-line complexity
     async ({ value: gitterRoom, laneIndex }) => {
+      const gitterRoomId = gitterRoom.id || gitterRoom._id;
       let matrixRoomId;
       let matrixHistoricalRoomId;
       try {
         numberOfRoomsAttemptedToUpdate += 1;
-        const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
         concurrentQueue.updateLaneStatus(laneIndex, {
           startTs: Date.now(),
