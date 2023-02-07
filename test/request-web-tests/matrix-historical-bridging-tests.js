@@ -294,76 +294,76 @@ async function assertHistoryInMatrixRoom({ matrixRoomId, mxid, expectedMessages 
 }
 
 describe('Gitter -> Matrix historical import e2e', () => {
+  const fixture = fixtureLoader.setupEach({
+    userRandom: {
+      accessToken: 'web-internal'
+    },
+    user1: {
+      accessToken: 'web-internal'
+    },
+    user2: {
+      accessToken: 'web-internal'
+    },
+    group1: {},
+    troupe1: {
+      group: 'group1'
+    },
+    troupePrivate1: {
+      group: 'group1',
+      users: ['user1'],
+      securityDescriptor: {
+        members: 'INVITE',
+        admins: 'MANUAL',
+        public: false
+      }
+    },
+    troupeOneToOne: {
+      oneToOne: true,
+      users: ['user1', 'user2']
+    }
+  });
+
   before(async () => {
     await ensureMatrixFixtures();
   });
 
+  let stopBridge;
+  const gitterRoomToFixtureMessagesMap = new WeakMap();
+  beforeEach(async () => {
+    gitterRoomToFixtureMessagesMap.set(
+      fixture.troupe1,
+      await setupMessagesInRoom(fixture.troupe1, fixture.user1)
+    );
+    gitterRoomToFixtureMessagesMap.set(
+      fixture.troupePrivate1,
+      await setupMessagesInRoom(fixture.troupePrivate1, fixture.user1)
+    );
+    gitterRoomToFixtureMessagesMap.set(
+      fixture.troupeOneToOne,
+      await setupMessagesInRoom(fixture.troupeOneToOne, fixture.user1)
+    );
+    debug('Setup messages in rooms');
+
+    // It's important that this comes after we setup all of the messages in the room so
+    // that we don't prematurely bridge all of the messages we sent via
+    // `setupMessagesInRoom`. Our tests assume these messages have not been bridged
+    // before.
+    stopBridge = await installBridge(bridgePortFromConfig + 1);
+
+    // Make sure there are no weird side-effects or cross-talk between tests here
+    await assertNotBridgedBefore(fixture.troupe1.id);
+    await assertNotBridgedBefore(fixture.troupePrivate1.id);
+    await assertNotBridgedBefore(fixture.troupeOneToOne.id);
+    debug('Asserted that these rooms have not been bridged before');
+  });
+
+  afterEach(async () => {
+    if (stopBridge) {
+      await stopBridge();
+    }
+  });
+
   describe('importHistoryFromRooms', () => {
-    const fixture = fixtureLoader.setupEach({
-      userRandom: {
-        accessToken: 'web-internal'
-      },
-      user1: {
-        accessToken: 'web-internal'
-      },
-      user2: {
-        accessToken: 'web-internal'
-      },
-      group1: {},
-      troupe1: {
-        group: 'group1'
-      },
-      troupePrivate1: {
-        group: 'group1',
-        users: ['user1'],
-        securityDescriptor: {
-          members: 'INVITE',
-          admins: 'MANUAL',
-          public: false
-        }
-      },
-      troupeOneToOne: {
-        oneToOne: true,
-        users: ['user1', 'user2']
-      }
-    });
-
-    let stopBridge;
-    const gitterRoomToFixtureMessagesMap = new WeakMap();
-    beforeEach(async () => {
-      gitterRoomToFixtureMessagesMap.set(
-        fixture.troupe1,
-        await setupMessagesInRoom(fixture.troupe1, fixture.user1)
-      );
-      gitterRoomToFixtureMessagesMap.set(
-        fixture.troupePrivate1,
-        await setupMessagesInRoom(fixture.troupePrivate1, fixture.user1)
-      );
-      gitterRoomToFixtureMessagesMap.set(
-        fixture.troupeOneToOne,
-        await setupMessagesInRoom(fixture.troupeOneToOne, fixture.user1)
-      );
-      debug('Setup messages in rooms');
-
-      // It's important that this comes after we setup all of the messages in the room so
-      // that we don't prematurely bridge all of the messages we sent via
-      // `setupMessagesInRoom`. Our tests assume these messages have not been bridged
-      // before.
-      stopBridge = await installBridge(bridgePortFromConfig + 1);
-
-      // Make sure there are no weird side-effects or cross-talk between tests here
-      await assertNotBridgedBefore(fixture.troupe1.id);
-      await assertNotBridgedBefore(fixture.troupePrivate1.id);
-      await assertNotBridgedBefore(fixture.troupeOneToOne.id);
-      debug('Asserted that these rooms have not been bridged before');
-    });
-
-    afterEach(async () => {
-      if (stopBridge) {
-        await stopBridge();
-      }
-    });
-
     it('imports history to Matrix for public Gitter room', async () => {
       // The function under test
       await importHistoryFromRooms([fixture.troupe1]);
@@ -589,32 +589,6 @@ describe('Gitter -> Matrix historical import e2e', () => {
   });
 
   describe('isGitterRoomIdDoneImporting', () => {
-    const fixture = fixtureLoader.setupEach({
-      user1: {
-        accessToken: 'web-internal'
-      },
-      group1: {},
-      troupe1: {
-        group: 'group1'
-      },
-      message1: {
-        user: 'user1',
-        troupe: 'troupe1',
-        text: 'my gitter message'
-      }
-    });
-
-    let stopBridge;
-    beforeEach(async () => {
-      stopBridge = await installBridge(bridgePortFromConfig + 1);
-    });
-
-    afterEach(async () => {
-      if (stopBridge) {
-        await stopBridge();
-      }
-    });
-
     it('assumes done when room is read-only and has a tombstone', async () => {
       const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
         fixture.troupe1.id
