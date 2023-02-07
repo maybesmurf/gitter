@@ -740,7 +740,7 @@ class MatrixUtils {
     // Ensure historical predecessor set correctly. NB: This function is also used for
     // historical rooms so be mindful to only put the predecessor on the "live" Matrix
     // room
-    const matrixHistoricalRoomId = await this.store.getHistoricalMatrixRoomIdByGitterRoomId(
+    const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
       gitterRoomId
     );
     if (
