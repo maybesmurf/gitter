@@ -770,35 +770,41 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
 // `hitRoomCollisionAndDoneImportingRoomSymbol` and assume that we're done importing.
 async function _checkDoneImportingFromAssumptions({ matrixHistoricalRoomId }) {
   assert(matrixHistoricalRoomId);
-
-  const bridgeIntent = matrixBridge.getIntent();
-
-  let tombstoneInHistoricalRoom;
   try {
-    tombstoneInHistoricalRoom = await bridgeIntent.getStateEvent(
+    const bridgeIntent = matrixBridge.getIntent();
+
+    let tombstoneInHistoricalRoom;
+    try {
+      tombstoneInHistoricalRoom = await bridgeIntent.getStateEvent(
+        matrixHistoricalRoomId,
+        'm.room.tombstone'
+      );
+    } catch (err) {
+      // no-op
+    }
+    const hasTombstoneInMatrixRoom =
+      tombstoneInHistoricalRoom && tombstoneInHistoricalRoom.replacement_room;
+
+    const currentPowerLevelContentOfHistoricalRoom = await bridgeIntent.getStateEvent(
       matrixHistoricalRoomId,
-      'm.room.tombstone'
+      'm.room.power_levels'
     );
+    const READ_ONLY_EVENT_POWER_LEVEL = 50;
+    const isMatrixRoomReadOnly =
+      currentPowerLevelContentOfHistoricalRoom.events_default === READ_ONLY_EVENT_POWER_LEVEL;
+
+    let isAssumedDoneFromRoomBeingReadOnly = false;
+    if (hasTombstoneInMatrixRoom && isMatrixRoomReadOnly) {
+      isAssumedDoneFromRoomBeingReadOnly = true;
+    }
+
+    return isAssumedDoneFromRoomBeingReadOnly;
   } catch (err) {
-    // no-op
+    logger.info('_checkDoneImportingFromAssumptions failed with error so assuming `false`', {
+      exception: err
+    });
+    return false;
   }
-  const hasTombstoneInMatrixRoom =
-    tombstoneInHistoricalRoom && tombstoneInHistoricalRoom.replacement_room;
-
-  const currentPowerLevelContentOfHistoricalRoom = await bridgeIntent.getStateEvent(
-    matrixHistoricalRoomId,
-    'm.room.power_levels'
-  );
-  const READ_ONLY_EVENT_POWER_LEVEL = 50;
-  const isMatrixRoomReadOnly =
-    currentPowerLevelContentOfHistoricalRoom.events_default === READ_ONLY_EVENT_POWER_LEVEL;
-
-  let isAssumedDoneFromRoomBeingReadOnly = false;
-  if (hasTombstoneInMatrixRoom && isMatrixRoomReadOnly) {
-    isAssumedDoneFromRoomBeingReadOnly = true;
-  }
-
-  return isAssumedDoneFromRoomBeingReadOnly;
 }
 
 // Given a `gitterRoomId`, figure out if we're done importing messages into the historical Matrix room
