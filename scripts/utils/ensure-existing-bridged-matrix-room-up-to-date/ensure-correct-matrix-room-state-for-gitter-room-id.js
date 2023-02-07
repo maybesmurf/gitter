@@ -78,7 +78,14 @@ async function ensureCorrectMatrixRoomStateForGitterRoomId(
     // https://github.com/matrix-org/matrix-appservice-bridge/blob/78c1ed201233fc81ff9e1021f2bccfdca95f337b/src/components/intent.ts#L1113-L1118
     const isHackyForbiddenError =
       err.message && err.message.startsWith('Cannot ensure client has power level for event');
-    if (serverName !== configuredServerName && (isForbiddenError || isHackyForbiddenError)) {
+    // It's also possible to see a `{ errcode: 'M_BAD_STATE', error: 'Cannot join user
+    // who was banned' }` but manifests itself as `Error: Failed to join room` from
+    // `matrix-appservice-bridge` because the bridge user is banned from their custom plumb room
+    const unableToJoinRoomError = err.message && err.message === 'Failed to join room';
+    if (
+      serverName !== configuredServerName &&
+      (isForbiddenError || isHackyForbiddenError || unableToJoinRoomError)
+    ) {
       logger.warn(
         `Unable to update matrixRoomId=${matrixRoomId} (bridged to gitterRoomId=${gitterRoomId}) because we don't have permission in that room. Since this room is bridged to a non-gitter.im room, we can't do anything more to help it.`,
         {
