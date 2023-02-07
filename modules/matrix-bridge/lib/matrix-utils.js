@@ -737,8 +737,27 @@ class MatrixUtils {
       gitterRoomId
     });
 
-    // TODO: Ensure historical predecessor set correctly. This function is also used for
-    // historical rooms so be mindful
+    // Ensure historical predecessor set correctly. NB: This function is also used for
+    // historical rooms so be mindful to only put the predecessor on the "live" Matrix
+    // room
+    const matrixHistoricalRoomId = await store.getHistoricalMatrixRoomIdByGitterRoomId(
+      gitterRoomId
+    );
+    if (
+      matrixHistoricalRoomId &&
+      // Given, this function can only be run with `matrixRoomId` as the historical or
+      // "live" Matrix room, we need to ensure we only run this on the "live" Matrix
+      // room (skip if we're running against the historical Matrix room).
+      matrixHistoricalRoomId !== matrixRoomId
+    ) {
+      await this.ensureStateEvent({
+        matrixRoomId,
+        eventType: 'org.matrix.msc3946.room_predecessor',
+        newContent: {
+          predecessor_room_id: matrixHistoricalRoomId
+        }
+      });
+    }
 
     let roomDisplayName;
     const gitterGroup = await groupService.findById(gitterRoom.groupId);
