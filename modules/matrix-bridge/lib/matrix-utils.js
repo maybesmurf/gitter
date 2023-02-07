@@ -495,7 +495,21 @@ class MatrixUtils {
 
     debug(`ensureRoomAlias(${matrixRoomId}, ${alias}) isAliasAlreadySet=${isAliasAlreadySet}`);
     if (!isAliasAlreadySet) {
-      await bridgeIntent.createAlias(alias, matrixRoomId);
+      try {
+        await bridgeIntent.createAlias(alias, matrixRoomId);
+      } catch (err) {
+        // Handle a race condition where something else in parallel updated the room
+        // alias between when we checked and tried to set the alias. If we detect the
+        // conflict, just try running this again and assuming good-actors, it should
+        // work the second time.
+        //
+        // 409 Conflict
+        if (err.statusCode === 409 && err.body && err.body.errcode === 'M_UNKNOWN') {
+          await this.ensureRoomAlias(matrixRoomId, alias);
+        } else {
+          throw err;
+        }
+      }
     }
   }
 

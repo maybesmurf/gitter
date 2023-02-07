@@ -762,6 +762,51 @@ async function gitterToMatrixHistoricalImport(gitterRoomId) {
   });
 }
 
+// If historical room is read-only and has a tombstone (the state reached by
+// `ensureCorrectHistoricalMatrixRoomStateAfterImport`), then we can assume that we're
+// done importing.
+//
+// This is useful for custom plumbed rooms where we
+// `hitRoomCollisionAndDoneImportingRoomSymbol` and assume that we're done importing.
+async function _checkDoneImportingFromAssumptions({ matrixHistoricalRoomId }) {
+  assert(matrixHistoricalRoomId);
+  try {
+    const bridgeIntent = matrixBridge.getIntent();
+
+    let tombstoneInHistoricalRoom;
+    try {
+      tombstoneInHistoricalRoom = await bridgeIntent.getStateEvent(
+        matrixHistoricalRoomId,
+        'm.room.tombstone'
+      );
+    } catch (err) {
+      // no-op
+    }
+    const hasTombstoneInMatrixRoom =
+      tombstoneInHistoricalRoom && tombstoneInHistoricalRoom.replacement_room;
+
+    const currentPowerLevelContentOfHistoricalRoom = await bridgeIntent.getStateEvent(
+      matrixHistoricalRoomId,
+      'm.room.power_levels'
+    );
+    const READ_ONLY_EVENT_POWER_LEVEL = 50;
+    const isMatrixRoomReadOnly =
+      currentPowerLevelContentOfHistoricalRoom.events_default === READ_ONLY_EVENT_POWER_LEVEL;
+
+    let isAssumedDoneFromRoomBeingReadOnly = false;
+    if (hasTombstoneInMatrixRoom && isMatrixRoomReadOnly) {
+      isAssumedDoneFromRoomBeingReadOnly = true;
+    }
+
+    return isAssumedDoneFromRoomBeingReadOnly;
+  } catch (err) {
+    logger.info('_checkDoneImportingFromAssumptions failed with error so assuming `false`', {
+      exception: err
+    });
+    return false;
+  }
+}
+
 // Given a `gitterRoomId`, figure out if we're done importing messages into the historical Matrix room
 async function isGitterRoomIdDoneImporting(gitterRoomId) {
   assert(mongoUtils.isLikeObjectId(gitterRoomId));
@@ -817,11 +862,21 @@ async function isGitterRoomIdDoneImporting(gitterRoomId) {
     .read(DB_READ_PREFERENCE)
     .exec();
 
+  const isDoneFromImportingMessages = numberOfMessagesRemainingToImport === 0;
+
   debug(
     `isGitterRoomIdDoneImporting(gitterRoomId=${gitterRoomId}) -> numberOfMessagesRemainingToImport=${numberOfMessagesRemainingToImport} (lastBridgedMessageEntryInHistoricalRoom=${lastBridgedMessageEntryInHistoricalRoom}, gitterMessageIdToStopImportingAt=${gitterMessageIdToStopImportingAt})`
   );
 
-  return numberOfMessagesRemainingToImport === 0;
+  const isAssumedDoneFromRoomBeingReadOnly = await _checkDoneImportingFromAssumptions({
+    matrixHistoricalRoomId
+  });
+
+  debug(
+    `isGitterRoomIdDoneImporting(gitterRoomId=${gitterRoomId}) -> isDoneFromImportingMessages=${isDoneFromImportingMessages}, isAssumedDoneFromRoomBeingReadOnly=${isAssumedDoneFromRoomBeingReadOnly}`
+  );
+
+  return isDoneFromImportingMessages || isAssumedDoneFromRoomBeingReadOnly;
 }
 
 module.exports = {
