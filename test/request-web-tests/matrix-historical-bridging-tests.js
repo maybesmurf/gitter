@@ -22,6 +22,9 @@ const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const {
+  isGitterRoomIdDoneImporting
+} = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
+const {
   gitterToMatrixHistoricalImport
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('../../scripts/utils/gitter-to-matrix-historical-import/concurrent-queue');
@@ -360,117 +363,18 @@ describe('Gitter -> Matrix historical import e2e', () => {
     }
   });
 
-  it('imports history to Matrix for public Gitter room', async () => {
-    // The function under test
-    await importHistoryFromRooms([fixture.troupe1]);
-
-    const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(fixture.troupe1.id);
-    const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
-      fixture.troupe1.id
-    );
-
-    // Try to join the room from some random Matrix user's perspective. We should be
-    // able to get in to a public room!
-    const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
-      fixture.userRandom.id
-    );
-    await assertCanJoinMatrixRoom({
-      matrixRoomId,
-      matrixHistoricalRoomId,
-      mxid: userRandomMxid,
-      expectToJoin: true,
-      descriptionSecurityType: 'public',
-      descriptionPerspective: 'a random user'
-    });
-
-    // Assert the history
-    await assertHistoryInMatrixRoom({
-      matrixRoomId: matrixHistoricalRoomId,
-      mxid: userRandomMxid,
-      expectedMessages: [1, 2, 3, 4, 5, 6]
-    });
-  });
-
-  it('historical room stops and continues seamlessly to the live room (no message duplication/overlap)', async () => {
-    // Pretend that we already bridged messages 4-6
-    const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(fixture.troupe1.id);
-    const fixtureMessages = gitterRoomToFixtureMessagesMap.get(fixture.troupe1);
-    await matrixStore.storeBridgedMessage(
-      fixtureMessages[3],
-      matrixRoomId,
-      `$${fixtureLoader.generateGithubId()}`
-    );
-    await matrixStore.storeBridgedMessage(
-      fixtureMessages[4],
-      matrixRoomId,
-      `$${fixtureLoader.generateGithubId()}`
-    );
-    await matrixStore.storeBridgedMessage(
-      fixtureMessages[5],
-      matrixRoomId,
-      `$${fixtureLoader.generateGithubId()}`
-    );
-
-    // The function under test.
-    //
-    // We should only see messages 1-3 imported in the historical room since the live
-    // room already had some history.
-    await importHistoryFromRooms([fixture.troupe1]);
-
-    const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
-      fixture.troupe1.id
-    );
-
-    // Try to join the room from some random Matrix user's perspective. We should be
-    // able to get in to a public room!
-    const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
-      fixture.userRandom.id
-    );
-    await assertCanJoinMatrixRoom({
-      matrixRoomId,
-      matrixHistoricalRoomId,
-      mxid: userRandomMxid,
-      expectToJoin: true,
-      descriptionSecurityType: 'public',
-      descriptionPerspective: 'a random user'
-    });
-
-    // Assert the history
-    await assertHistoryInMatrixRoom({
-      matrixRoomId: matrixHistoricalRoomId,
-      mxid: userRandomMxid,
-      // We should only see messages 1-3 imported in the historical room since the live
-      // room already had some history (4-6).
-      expectedMessages: [1, 2, 3]
-    });
-  });
-
-  [
-    {
-      label: 'private Gitter room',
-      gitterRoomFixtureKey: 'troupePrivate1'
-    },
-    {
-      label: 'ONE_TO_ONE Gitter room',
-      gitterRoomFixtureKey: 'troupeOneToOne'
-    }
-  ].forEach(testMeta => {
-    assert(testMeta.label);
-    assert(testMeta.gitterRoomFixtureKey);
-
-    it(`imports history to Matrix for ${testMeta.label}`, async () => {
-      const gitterRoom = fixture[testMeta.gitterRoomFixtureKey];
-      assert(gitterRoom);
-
+  describe('importHistoryFromRooms', () => {
+    it('imports history to Matrix for public Gitter room', async () => {
       // The function under test
-      await importHistoryFromRooms([gitterRoom]);
+      await importHistoryFromRooms([fixture.troupe1]);
 
-      const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterRoom.id);
+      const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(fixture.troupe1.id);
       const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
-        gitterRoom.id
+        fixture.troupe1.id
       );
 
-      // Try to join the room from some Matrix user's perspective. We shouldn't be able to get in!
+      // Try to join the room from some random Matrix user's perspective. We should be
+      // able to get in to a public room!
       const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
         fixture.userRandom.id
       );
@@ -478,63 +382,30 @@ describe('Gitter -> Matrix historical import e2e', () => {
         matrixRoomId,
         matrixHistoricalRoomId,
         mxid: userRandomMxid,
-        expectToJoin: false,
-        descriptionSecurityType: 'private',
-        descriptionPerspective: 'a random user'
-      });
-
-      // Try to join the room from the perspective of a user in the private Matrix room.
-      // We *should* be able to get in!
-      const user1Mxid = await matrixStore.getMatrixUserIdByGitterUserId(fixture.user1.id);
-      await assertCanJoinMatrixRoom({
-        matrixRoomId,
-        matrixHistoricalRoomId,
-        mxid: user1Mxid,
         expectToJoin: true,
-        descriptionSecurityType: 'private',
-        descriptionPerspective: 'a user in the private room'
+        descriptionSecurityType: 'public',
+        descriptionPerspective: 'a random user'
       });
 
       // Assert the history
       await assertHistoryInMatrixRoom({
         matrixRoomId: matrixHistoricalRoomId,
-        mxid: user1Mxid,
+        mxid: userRandomMxid,
         expectedMessages: [1, 2, 3, 4, 5, 6]
       });
     });
-  });
 
-  // If we see a `E11000 duplicate key error collection:
-  // gitter.matricesbridgedchatmessage index: gitterMessageId_1 dup key: { :
-  // ObjectId('...') }`, then we know that this is a room where we were initially
-  // bridging to a `gitter.im` "live" room and that community asked us to bridge to
-  // their own Matrix room (custom plumb).
-  //
-  // The reason this error occurs is because our `stopAtMessageId` point is
-  // wrong because we are looking at the first bridged message to their custom Matrix
-  // room instead of our initial `gitter.im` "live" room which we no longer track.
-  //
-  // This error means the historical room reached the point where the old `gitter.im`
-  // "live" room so technically we're done importing anyway (the messages exist on
-  // Matrix somewhere but they will have to manage that chain themselves).
-  it(
-    'historical room stops gracefully when we hit a message that has already been bridged ' +
-      'in an old "live" Matrix room and then was custom plumbed to another Matrix room' +
-      '(MongoError E11000 duplicate key error, collision)',
-    async () => {
+    it('historical room stops and continues seamlessly to the live room (no message duplication/overlap)', async () => {
+      // Pretend that we already bridged messages 4-6
       const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
         fixture.troupe1.id
       );
       const fixtureMessages = gitterRoomToFixtureMessagesMap.get(fixture.troupe1);
-
-      // Pretend that we already bridged messages 4 in a old `gitter.im` Matrix room
-      // before it was updated to a custom plumbed room
       await matrixStore.storeBridgedMessage(
         fixtureMessages[3],
-        '!previous-live-room:gitter.im',
+        matrixRoomId,
         `$${fixtureLoader.generateGithubId()}`
       );
-      // Pretend that we already bridged messages 5-6 in a custom plumbed room
       await matrixStore.storeBridgedMessage(
         fixtureMessages[4],
         matrixRoomId,
@@ -574,10 +445,176 @@ describe('Gitter -> Matrix historical import e2e', () => {
       await assertHistoryInMatrixRoom({
         matrixRoomId: matrixHistoricalRoomId,
         mxid: userRandomMxid,
-        // We should only see messages 1-3 imported in the historical room since the old "live"
-        // room already message history (4) and the custom plumb has (5-6).
+        // We should only see messages 1-3 imported in the historical room since the live
+        // room already had some history (4-6).
         expectedMessages: [1, 2, 3]
       });
-    }
-  );
+    });
+
+    [
+      {
+        label: 'private Gitter room',
+        gitterRoomFixtureKey: 'troupePrivate1'
+      },
+      {
+        label: 'ONE_TO_ONE Gitter room',
+        gitterRoomFixtureKey: 'troupeOneToOne'
+      }
+    ].forEach(testMeta => {
+      assert(testMeta.label);
+      assert(testMeta.gitterRoomFixtureKey);
+
+      it(`imports history to Matrix for ${testMeta.label}`, async () => {
+        const gitterRoom = fixture[testMeta.gitterRoomFixtureKey];
+        assert(gitterRoom);
+
+        // The function under test
+        await importHistoryFromRooms([gitterRoom]);
+
+        const matrixRoomId = await matrixStore.getMatrixRoomIdByGitterRoomId(gitterRoom.id);
+        const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
+          gitterRoom.id
+        );
+
+        // Try to join the room from some Matrix user's perspective. We shouldn't be able to get in!
+        const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+          fixture.userRandom.id
+        );
+        await assertCanJoinMatrixRoom({
+          matrixRoomId,
+          matrixHistoricalRoomId,
+          mxid: userRandomMxid,
+          expectToJoin: false,
+          descriptionSecurityType: 'private',
+          descriptionPerspective: 'a random user'
+        });
+
+        // Try to join the room from the perspective of a user in the private Matrix room.
+        // We *should* be able to get in!
+        const user1Mxid = await matrixStore.getMatrixUserIdByGitterUserId(fixture.user1.id);
+        await assertCanJoinMatrixRoom({
+          matrixRoomId,
+          matrixHistoricalRoomId,
+          mxid: user1Mxid,
+          expectToJoin: true,
+          descriptionSecurityType: 'private',
+          descriptionPerspective: 'a user in the private room'
+        });
+
+        // Assert the history
+        await assertHistoryInMatrixRoom({
+          matrixRoomId: matrixHistoricalRoomId,
+          mxid: user1Mxid,
+          expectedMessages: [1, 2, 3, 4, 5, 6]
+        });
+      });
+    });
+
+    // If we see a `E11000 duplicate key error collection:
+    // gitter.matricesbridgedchatmessage index: gitterMessageId_1 dup key: { :
+    // ObjectId('...') }`, then we know that this is a room where we were initially
+    // bridging to a `gitter.im` "live" room and that community asked us to bridge to
+    // their own Matrix room (custom plumb).
+    //
+    // The reason this error occurs is because our `stopAtMessageId` point is
+    // wrong because we are looking at the first bridged message to their custom Matrix
+    // room instead of our initial `gitter.im` "live" room which we no longer track.
+    //
+    // This error means the historical room reached the point where the old `gitter.im`
+    // "live" room so technically we're done importing anyway (the messages exist on
+    // Matrix somewhere but they will have to manage that chain themselves).
+    it(
+      'historical room stops gracefully when we hit a message that has already been bridged ' +
+        'in an old "live" Matrix room and then was custom plumbed to another Matrix room' +
+        '(MongoError E11000 duplicate key error, collision)',
+      async () => {
+        const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
+          fixture.troupe1.id
+        );
+        const fixtureMessages = gitterRoomToFixtureMessagesMap.get(fixture.troupe1);
+
+        // Pretend that we already bridged messages 4 in a old `gitter.im` Matrix room
+        // before it was updated to a custom plumbed room
+        await matrixStore.storeBridgedMessage(
+          fixtureMessages[3],
+          '!previous-live-room:gitter.im',
+          `$${fixtureLoader.generateGithubId()}`
+        );
+        // Pretend that we already bridged messages 5-6 in a custom plumbed room
+        await matrixStore.storeBridgedMessage(
+          fixtureMessages[4],
+          matrixRoomId,
+          `$${fixtureLoader.generateGithubId()}`
+        );
+        await matrixStore.storeBridgedMessage(
+          fixtureMessages[5],
+          matrixRoomId,
+          `$${fixtureLoader.generateGithubId()}`
+        );
+
+        // The function under test.
+        //
+        // We should only see messages 1-3 imported in the historical room since the live
+        // room already had some history.
+        await importHistoryFromRooms([fixture.troupe1]);
+
+        const matrixHistoricalRoomId = await matrixStore.getHistoricalMatrixRoomIdByGitterRoomId(
+          fixture.troupe1.id
+        );
+
+        // Try to join the room from some random Matrix user's perspective. We should be
+        // able to get in to a public room!
+        const userRandomMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+          fixture.userRandom.id
+        );
+        await assertCanJoinMatrixRoom({
+          matrixRoomId,
+          matrixHistoricalRoomId,
+          mxid: userRandomMxid,
+          expectToJoin: true,
+          descriptionSecurityType: 'public',
+          descriptionPerspective: 'a random user'
+        });
+
+        // Assert the history
+        await assertHistoryInMatrixRoom({
+          matrixRoomId: matrixHistoricalRoomId,
+          mxid: userRandomMxid,
+          // We should only see messages 1-3 imported in the historical room since the old "live"
+          // room already message history (4) and the custom plumb has (5-6).
+          expectedMessages: [1, 2, 3]
+        });
+      }
+    );
+  });
+
+  describe('isGitterRoomIdDoneImporting', () => {
+    it('assumes done when room is read-only and has a tombstone', async () => {
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
+        fixture.troupe1.id
+      );
+      const matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+        fixture.troupe1.id
+      );
+
+      // We should not have assumed done importing yet because the historical room was just created
+      const isDoneImportingBefore = await isGitterRoomIdDoneImporting(fixture.troupe1.id);
+      assert.strictEqual(isDoneImportingBefore, false);
+
+      // Make the room read-only and tombstone and importing
+      await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
+        matrixRoomId,
+        matrixHistoricalRoomId,
+        gitterRoomId: fixture.troupe1.id,
+        skipRoomAvatarIfExists: true
+      });
+
+      // After the `ensureCorrectHistoricalMatrixRoomStateAfterImport` function ran over
+      // the room and added the necessary state (read-only and tombstone), the room
+      // should look like it's done importing (at least we can assume from that
+      // information)
+      const isDoneImportingAfter = await isGitterRoomIdDoneImporting(fixture.troupe1.id);
+      assert.strictEqual(isDoneImportingAfter, true);
+    });
+  });
 });
