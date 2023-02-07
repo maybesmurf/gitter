@@ -22,6 +22,9 @@ const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const {
+  isGitterRoomIdDoneImporting
+} = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
+const {
   gitterToMatrixHistoricalImport
 } = require('gitter-web-matrix-bridge/lib/gitter-to-matrix-historical-import');
 const ConcurrentQueue = require('../../scripts/utils/gitter-to-matrix-historical-import/concurrent-queue');
@@ -580,4 +583,34 @@ describe('Gitter -> Matrix historical import e2e', () => {
       });
     }
   );
+
+  describe('isGitterRoomIdDoneImporting', () => {
+    it('assumes done when room is read-only and has a tombstone', async () => {
+      const matrixRoomId = await matrixUtils.getOrCreateMatrixRoomByGitterRoomId(
+        fixture.troupe1.id
+      );
+      const matrixHistoricalRoomId = await matrixUtils.getOrCreateHistoricalMatrixRoomByGitterRoomId(
+        fixture.troupe1.id
+      );
+
+      // We should not have assumed done importing yet because the historical room was just created
+      const isDoneImportingBefore = await isGitterRoomIdDoneImporting(fixture.troupe1.id);
+      assert.strictEqual(isDoneImportingBefore, false);
+
+      // Make the room read-only and tombstone and importing
+      await matrixUtils.ensureCorrectHistoricalMatrixRoomStateAfterImport({
+        matrixRoomId,
+        matrixHistoricalRoomId,
+        gitterRoomId: fixture.troupe1.id,
+        skipRoomAvatarIfExists: true
+      });
+
+      // After the `ensureCorrectHistoricalMatrixRoomStateAfterImport` function ran over
+      // the room and added the necessary state (read-only and tombstone), the room
+      // should look like it's done importing (at least we can assume from that
+      // information)
+      const isDoneImportingAfter = await isGitterRoomIdDoneImporting(fixture.troupe1.id);
+      assert.strictEqual(isDoneImportingAfter, true);
+    });
+  });
 });
