@@ -1,3 +1,9 @@
+
+# 21.56.6 - 2023-02-08
+
+ - Update Gitter -> Matrix migration date on homepage: 2023-02-13, https://gitlab.com/gitterHQ/webapp/-/merge_requests/2399
+
+
 # 21.56.5 - 2023-02-02
 
  - Update Gitter -> Matrix migration date: 2023-02-13 (pushing back another week), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2377
