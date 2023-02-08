@@ -174,10 +174,20 @@ async function ensureMembershipFromGitterRoom({
         true
       );
     } catch (err) {
-      throw new RethrownError(
-        `ensureMembershipFromGitterRoom: Failed to join gitterUserMxid=${gitterUserMxid} to matrixRoomId=${matrixRoomId}`,
-        err
-      );
+      if (err.statusCode === 403 && err.body && err.body.errcode === 'M_BAD_STATE') {
+        logger.warn(
+          `ensureMembershipFromGitterRoom: Assuming that ${gitterUserMxid} (gitterRoomMemberUserId=${gitterRoomMemberUserId}) can't join matrixRoomId=${matrixRoomId} because they are banned.`,
+          {
+            statusCode: err.statusCode,
+            exception: err.body
+          }
+        );
+      } else {
+        throw new RethrownError(
+          `ensureMembershipFromGitterRoom: Failed to join gitterUserMxid=${gitterUserMxid} to matrixRoomId=${matrixRoomId} (err.statusCode=${err.statusCode}, err.body=${err.body})`,
+          err
+        );
+      }
     }
   }
 }
