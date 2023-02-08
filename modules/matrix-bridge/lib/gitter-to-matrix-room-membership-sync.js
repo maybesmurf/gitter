@@ -19,6 +19,7 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const matrixStore = require('gitter-web-matrix-bridge/lib/store');
 const extraPowerLevelUsers = require('gitter-web-matrix-bridge/lib/extra-power-level-users-from-config');
 const parseGitterMxid = require('gitter-web-matrix-bridge/lib/parse-gitter-mxid');
+const RethrownError = require('./rethrown-error');
 
 const configuredServerName = config.get('matrix:bridge:serverName');
 
@@ -144,7 +145,10 @@ async function ensureMembershipFromGitterRoom({
     } catch (err) {
       const gitterUser = await userService.findById(gitterRoomMemberUserId);
       if (gitterUser) {
-        throw err;
+        throw new RethrownError(
+          `ensureMembershipFromGitterRoom: Failed to getOrCreateMatrixUserByGitterUserId for gitterRoomMemberUserId=${gitterRoomMemberUserId} (${gitterUser.username})`,
+          err
+        );
       } else {
         logger.warn(
           `gitterUserId=${gitterRoomMemberUserId} was in gitterRoomId=${gitterRoomId} but the Gitter user does not exist so ignoring`
@@ -155,8 +159,15 @@ async function ensureMembershipFromGitterRoom({
     }
 
     // Join Gitter user to the Matrix room
-    const intent = matrixBridge.getIntent(gitterUserMxid);
-    await intent.join(matrixRoomId);
+    try {
+      const intent = matrixBridge.getIntent(gitterUserMxid);
+      await intent.join(matrixRoomId);
+    } catch (err) {
+      throw new RethrownError(
+        `ensureMembershipFromGitterRoom: Failed to join gitterUserMxid=${gitterUserMxid} to matrixRoomId=${matrixRoomId}`,
+        err
+      );
+    }
   }
 }
 
