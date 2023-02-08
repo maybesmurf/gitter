@@ -22,6 +22,7 @@ const groupService = require('gitter-web-groups');
 
 const installBridge = require('gitter-web-matrix-bridge');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
+const getRoomIdsFromJsonFile = require('./gitter-to-matrix-historical-import/get-room-ids-from-json-file');
 const {
   getRoomIdResumePositionFromFile,
   occasionallyPersistRoomResumePositionCheckpointFileToDisk
@@ -66,6 +67,13 @@ const opts = require('yargs')
     description:
       'The total number of workers. We will partition based on this number `(id % workerTotal) === workerIndex ? doWork : pass`'
   })
+  .option('room-ids-from-json-list-file-path', {
+    type: 'string',
+    description:
+      'The optional path where to read the JSON list of Gitter room IDs from ' +
+      '(array of strings or array of objects with "id" property). ' +
+      'When this option is not provided, will loop through all rooms'
+  })
   .option('uri-deny-pattern', {
     type: 'string',
     required: false,
@@ -84,6 +92,8 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
     `opts.workerIndex=${opts.workerIndex} can not be higher than opts.workerTotal=${opts.workerTotal}`
   );
 }
+
+let manualGitterRoomIdsToProcess = getRoomIdsFromJsonFile(opts.roomIdsFromJsonListFilePath);
 
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
@@ -160,37 +170,45 @@ async function exec() {
     logger.info(`Resuming from resumeFromGitterRoomId=${resumeFromGitterRoomId}`);
   }
 
-  const bridgedMatrixRoomStreamIterable = noTimeoutIterableFromMongooseCursor(
-    ({ previousIdFromCursor }) => {
-      const gitterRoomCursor = persistence.Troupe.find({
-        _id: (() => {
-          const idQuery = {};
+  let gitterRoomIterableToProcess;
+  if (manualGitterRoomIdsToProcess) {
+    const manualGitterRoomsToProcess = await troupeService.findByIdsLean(
+      manualGitterRoomIdsToProcess
+    );
+    gitterRoomIterableToProcess = manualGitterRoomsToProcess.values();
+  } else {
+    gitterRoomIterableToProcess = noTimeoutIterableFromMongooseCursor(
+      ({ previousIdFromCursor }) => {
+        const gitterRoomCursor = persistence.Troupe.find({
+          _id: (() => {
+            const idQuery = {};
 
-          if (previousIdFromCursor) {
-            idQuery['$gt'] = previousIdFromCursor;
-          } else if (resumeFromGitterRoomId) {
-            idQuery['$gte'] = resumeFromGitterRoomId;
-          } else {
-            idQuery['$exists'] = true;
-          }
+            if (previousIdFromCursor) {
+              idQuery['$gt'] = previousIdFromCursor;
+            } else if (resumeFromGitterRoomId) {
+              idQuery['$gte'] = resumeFromGitterRoomId;
+            } else {
+              idQuery['$exists'] = true;
+            }
 
-          return idQuery;
-        })()
-      })
-        // Just use a consistent sort and it makes ascending makes sense to use with `$gt` resuming
-        .sort({ _id: 'asc' })
-        .lean()
-        .read(DB_READ_PREFERENCE)
-        .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
-        .cursor();
+            return idQuery;
+          })()
+        })
+          // Just use a consistent sort and it makes ascending makes sense to use with `$gt` resuming
+          .sort({ _id: 'asc' })
+          .lean()
+          .read(DB_READ_PREFERENCE)
+          .batchSize(DB_BATCH_SIZE_FOR_ROOMS)
+          .cursor();
 
-      return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
-    }
-  );
+        return { cursor: gitterRoomCursor, batchSize: DB_BATCH_SIZE_FOR_ROOMS };
+      }
+    );
+  }
 
   let numberOfRoomsProcessed = 0;
   await concurrentQueue.processFromGenerator(
-    bridgedMatrixRoomStreamIterable,
+    gitterRoomIterableToProcess,
     gitterRoom => {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
