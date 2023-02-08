@@ -161,7 +161,18 @@ async function ensureMembershipFromGitterRoom({
     // Join Gitter user to the Matrix room
     try {
       const intent = matrixBridge.getIntent(gitterUserMxid);
-      await intent.join(matrixRoomId);
+      // XXX: We should be using `intent.join(...)` here but there isn't a way to get
+      // the true error masking the failed join without using
+      // `intent._ensureJoined(...)` with the `passthroughError` option.
+      await intent._ensureJoined(
+        matrixRoomId,
+        // ignoreCache (default)
+        false,
+        // viaServers
+        undefined,
+        // passthroughError
+        true
+      );
     } catch (err) {
       throw new RethrownError(
         `ensureMembershipFromGitterRoom: Failed to join gitterUserMxid=${gitterUserMxid} to matrixRoomId=${matrixRoomId}`,
