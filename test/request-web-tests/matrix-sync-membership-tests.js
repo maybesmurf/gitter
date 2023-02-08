@@ -100,6 +100,9 @@ describe('Gitter -> Matrix syncing room membership e2e', () => {
     userWhoShouldNotBeInMatrixRoom: {
       accessToken: 'web-internal'
     },
+    userBanned1: {
+      accessToken: 'web-internal'
+    },
     group1: {},
     troupe1: {
       group: 'group1',
@@ -113,6 +116,10 @@ describe('Gitter -> Matrix syncing room membership e2e', () => {
         admins: 'MANUAL',
         public: false
       }
+    },
+    troupeWithBannedUser1: {
+      group: 'group1',
+      users: ['user1', 'userBanned1', 'userToAddToMatrixRoom']
     }
   });
 
@@ -171,7 +178,9 @@ describe('Gitter -> Matrix syncing room membership e2e', () => {
       roomDescriptor: 'historical',
       expectedGitterUserIds: [
         fixture.user1.id
-        // Exception: This user wasn't added to the historical room automaticall because they can always join it later themselves since it's a public room
+        // Exception: This user wasn't added to the historical room automatically
+        // because they can always join it later themselves since it's a public room.
+        // They are part of the "live"  room though as asserted above.
         //
         //fixture.userToAddToMatrixRoom.id
       ],
@@ -212,6 +221,56 @@ describe('Gitter -> Matrix syncing room membership e2e', () => {
       roomDescriptor: 'historical',
       expectedGitterUserIds: [fixture.user1.id, fixture.userToAddToMatrixRoom.id],
       denyGitterUserIds: [fixture.userWhoShouldNotBeInMatrixRoom.id]
+    });
+  });
+
+  it(`can handle and skip over user who is banned from the Matrix room and is unable to join`, async () => {
+    const fixtureRoom = fixture.troupeWithBannedUser1;
+    const {
+      matrixRoomId,
+      matrixHistoricalRoomId
+    } = await setupMatrixRoomWithFakeMembershipForGitterRoomId({
+      gitterRoomId: fixtureRoom.id,
+      gitterUserIdsToAddToMatrixRoom: [
+        // This person is member of the Gitter room that should be in the Matrix room.
+        // `fixture.userToAddToMatrixRoom` is also in the Gitter room and should be in
+        // the Matrix room but we will test that our sync script corrects this mistake.
+        fixture.user1.id,
+        // Add an extra Matrix room member that isn't actually a member of the Gitter room. We
+        // will make sure this user isn't in membership after we run the sync.
+        fixture.userWhoShouldNotBeInMatrixRoom.id
+      ]
+    });
+
+    // Ban a user in the Matrix room so they aren't able to join
+    const bannedUserMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+      fixture.userBanned1
+    );
+    const bridgeIntent = matrixBridge.getIntent();
+    await bridgeIntent.ban(matrixRoomId, bannedUserMxid, 'expected to be banned (test fixture)');
+
+    // Sync room memberhip to historical and "live" Matrix rooms
+    await syncMatrixRoomMembershipFromGitterRoom(fixtureRoom);
+
+    // Ensure membership look as expected
+    await ensureMatrixRoomMembershipIsCorrect({
+      matrixRoomId,
+      roomDescriptor: '"live"',
+      expectedGitterUserIds: [fixture.user1.id, fixture.userToAddToMatrixRoom.id],
+      denyGitterUserIds: [fixture.userBanned1.id, fixture.userWhoShouldNotBeInMatrixRoom.id]
+    });
+    await ensureMatrixRoomMembershipIsCorrect({
+      matrixRoomId: matrixHistoricalRoomId,
+      roomDescriptor: 'historical',
+      expectedGitterUserIds: [
+        fixture.user1.id
+        // Exception: This user wasn't added to the historical room automatically
+        // because they can always join it later themselves since it's a public room.
+        // They are part of the "live"  room though as asserted above.
+        //
+        //fixture.userToAddToMatrixRoom.id
+      ],
+      denyGitterUserIds: [fixture.userBanned1.id, fixture.userWhoShouldNotBeInMatrixRoom.id]
     });
   });
 });

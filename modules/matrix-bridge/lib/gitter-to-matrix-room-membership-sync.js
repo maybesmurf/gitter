@@ -161,12 +161,33 @@ async function ensureMembershipFromGitterRoom({
     // Join Gitter user to the Matrix room
     try {
       const intent = matrixBridge.getIntent(gitterUserMxid);
-      await intent.join(matrixRoomId);
-    } catch (err) {
-      throw new RethrownError(
-        `ensureMembershipFromGitterRoom: Failed to join gitterUserMxid=${gitterUserMxid} to matrixRoomId=${matrixRoomId}`,
-        err
+      // XXX: We should be using `intent.join(...)` here but there isn't a way to get
+      // the true error masking the failed join without using
+      // `intent._ensureJoined(...)` with the `passthroughError` option.
+      await intent._ensureJoined(
+        matrixRoomId,
+        // ignoreCache (default)
+        false,
+        // viaServers
+        undefined,
+        // passthroughError
+        true
       );
+    } catch (err) {
+      if (err.statusCode === 403 && err.body && err.body.errcode === 'M_BAD_STATE') {
+        logger.warn(
+          `ensureMembershipFromGitterRoom: Assuming that ${gitterUserMxid} (gitterRoomMemberUserId=${gitterRoomMemberUserId}) can't join matrixRoomId=${matrixRoomId} because they are banned.`,
+          {
+            statusCode: err.statusCode,
+            exception: err.body
+          }
+        );
+      } else {
+        throw new RethrownError(
+          `ensureMembershipFromGitterRoom: Failed to join gitterUserMxid=${gitterUserMxid} to matrixRoomId=${matrixRoomId} (err.statusCode=${err.statusCode}, err.body=${err.body})`,
+          err
+        );
+      }
     }
   }
 }
