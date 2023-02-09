@@ -34,14 +34,13 @@
           </a>
 
           <div class="top-navigation menu-animation">
-            <a href="#integrations-panel">{{ __ "Integrations" }}</a>
             <a href="#apps-panel">{{ __ "Apps" }}</a>
-            <a href="https://gitlab.com/gitterHQ/webapp" target="_blank">{{ __ "Open Source" }}</a>
+            <a href="https://element.io/open-source" target="_blank">{{ __ "Open Source" }}</a>
           </div>
 
-          <a class="btn login" href="/login?action=login&source=intro-login">
+          <a class="btn login" href="{{ elementUrl }}">
             <b><span class='desktopOnly'>{{ __ "Sign In to Start Talking"}}</span><span
-                class='exceptDesktop'>{{ __ "login"}}</span></b>
+                class='exceptDesktop'>{{ __ "Sign In"}}</span></b>
           </a>
         </div>
       </nav>
@@ -118,19 +117,13 @@
 
         <div class="intro-panel-cta-button-block">
           <a class="button-caribbean signup intro-panel-button"
-            href="/login?action=signup&source=intro-createcommunity&returnTo=%23createcommunity">
-            {{  __ "Create your own community" }}
+            href="{{ elementUrl }}">
+            {{ __ "Sign-in to start talking" }}
           </a>
 
-          <a class="subdued-button-clouds intro-panel-button" href="/explore/tags/?action=explore&source=homepage">
-            {{ __ "Explore other communities"}}
+          <a class="subdued-button-clouds intro-panel-button" href="#apps-panel">
+            {{ __ "Get the apps"}}
           </a>
-        </div>
-
-        <div class="community-creation-note">
-          <span>
-            {{{ __ "Learn more about <a %s>creating communities</a> and <a %s>creating rooms</a>." "href='https://gitlab.com/gitterHQ/webapp/blob/develop/docs/communities.md#community-creation'" "href='https://gitlab.com/gitterHQ/webapp/blob/develop/docs/rooms.md#room-creation'" }}}
-          </span>
         </div>
 
         <div class="legal">
@@ -141,23 +134,18 @@
 
         <ul class="mini-features-list">
           <li>
-            <h2>{{ __ "Free without limits" }}</h2>
-            <span>{{ __ "Enjoy free public and private communities with unlimited people, message history and integrations."}}</span>
+            <h2>{{ __ "Built on Matrix" }}</h2>
+            <span>{{{ __ "<a %s>Matrix.org</a> is an open network for secure, decentralized communication. There is a variety of clients are available. <a %s>Learn more</a>" "href='https://matrix.org/' target='_blank'" "href='https://matrix.org/clients/' target='_blank'" }}}</span>
           </li>
 
           <li>
-            <h2>{{ __ "Simple to create"}}</h2>
-            <span>{{{ __ "Simply create your community and start talking - no need to set up any invitation services."}}}</span>
+            <h2>{{ __ "Simple to start"}}</h2>
+            <span>{{ __ "Sign-in with GitHub/GitLab/Twitter and start chatting, with End-to-End Encrypted messaging."}}</span>
           </li>
 
           <li>
-            <h2>{{ __ "Markdown and KaTeX" }}</h2>
-            <span>{{{ __ "Format your messages just like with your other favorite developer tools." }}}</span>
-          </li>
-
-          <li>
-            <h2>{{ __ "Out in the open" }}</h2>
-            <span>{{{ __ "Complete history archives(indexed by search engines) and sharable permalinks or use <a %s>Sidecar</a> to embed Gitter directly in your own site." "href='https://sidecar.gitter.im/' target='_blank'" }}}</span>
+            <h2>{{ __ "Markdown and LaTeX" }}</h2>
+            <span>{{ __ "Format your messages just like with your other favorite developer tools." }}</span>
           </li>
         </ul>
       </div>
@@ -217,87 +205,13 @@
     <section id="communities-panel">
       <div class="wrap">
         <h1>
-          {{ __ "Some of our communities"}}
-
-          <a class="button-caribbean--small communities-panel-heading-button"
-            href="/login?action=signup&source=communities&returnTo=%23createcommunity">
-            {{ __ "Create your own"}}
-          </a>
-          <a class="button-jaffa--small communities-panel-heading-button"
-            href="/explore/tags/?action=explore&source=homepage">
-            <span class='desktopOnly'>{{ __ "Explore rooms"}}</span>
-            <span class='exceptDesktop'>{{ __ "Explore"}}</span>
-          </a>
+          {{ __ "Matrix native"}}
         </h1>
 
-        {{#unless slashdotEffectSurvivalMode}}
-        <div class="communities">
-          <nav class="communities-tabs">
-            <a class="active" data-tab-index="0">
-              <img src="https://avatars1.githubusercontent.com/u/5990364?s=200" width="48" height="48">
-
-              <h3>{{ __ "GitterHQ" }}</h3>
-              <em>{{ __ "Let’s talk about Gitter!" }}</em>
-            </a>
-
-            <a data-tab-index="1">
-              <img src="https://avatars1.githubusercontent.com/u/5990364?s=200" width="48" height="48">
-
-              <h3>{{ __ "GitterHQ" }}</h3>
-              <em>{{ __ "Let’s talk about Gitter!" }}</em>
-            </a>
-
-            <a data-tab-index="2">
-              <img src="https://avatars1.githubusercontent.com/u/5990364?s=200" width="48" height="48">
-
-              <h3>{{ __ "GitterHQ" }}</h3>
-              <em>{{ __ "Let’s talk about Gitter!" }}</em>
-            </a>
-
-            <a data-tab-index="3">
-              <img src="https://avatars1.githubusercontent.com/u/5990364?s=200" width="48" height="48">
-
-              <h3>{{ __ "GitterHQ" }}</h3>
-              <em>{{ __ "Let’s talk about Gitter!" }}</em>
-            </a>
-          </nav>
-
-          <div class="chat-frame">
-            <iframe id="embedded-chat" src="/gitter/gitter/~embed"></iframe>
-          </div>
-        </div>
-        {{/unless}}
-
-      </div>
-    </section>
-
-    <section id="integrations-panel">
-      <div class="wrap">
-        <h1>{{ __ "Designed for community collaboration"}}</h1>
         <p>
-          {{ __ "Gitter is designed to make community messaging, collaboration and discovery as smooth and simple as possible. You can easily create, organise and grow your communities, inviting others to join just in one click." }}
-        </p>
-        <p>
-          {{{ __ "We also provide integrations with GitHub, Trello, Jenkins, Travis CI, Heroku, Sentry, BitBucket, HuBoard, Logentries, Pagerduty & Sprintly. We accept custom webhooks, have an <a %s>open source repository</a> for integrations as well as a <a %s>flexible API</a>." "href='https://gitlab.com/gitlab-org/gitter/services' target='_blank'" " href='https://developer.gitter.im' target='_blank'" }}}
+          All the benefits of matrix...
         </p>
 
-        <div class="loves">
-          <img src="{{cdn 'images/home/gitter-loves.png'}}" alt="Gitter loves">
-          <ul>
-            <li><img src="{{cdn 'images/home/github-logo.jpg'}}" title="Github"></li>
-            <li><img src="{{cdn 'images/home/gitlab-logo.jpg'}}" title="Gitlab"></li>
-            <li><img src="{{cdn 'images/home/bitbucket-logo.jpg'}}" title="Bitbucket"></li>
-            <li><img src="{{cdn 'images/home/heroku-logo.jpg'}}" title="Heroku"></li>
-            <li><img src="{{cdn 'images/home/huboard-logo.jpg'}}" title="Huboard"></li>
-            <li><img src="{{cdn 'images/home/jenkins-logo.jpg'}}" title="Jenkins"></li>
-            <li><img src="{{cdn 'images/home/pagerduty-logo.jpg'}}" title="Pagerduty"></li>
-            <li><img src="{{cdn 'images/home/logentries-logo.jpg'}}" title="Logentries"></li>
-            <li><img src="{{cdn 'images/home/sprintly-logo.jpg'}}" title="Sprintly"></li>
-            <li><img src="{{cdn 'images/home/travis-logo.jpg'}}" title="Travis"></li>
-            <li><img src="{{cdn 'images/home/trello-logo.jpg'}}" title="Trello"></li>
-            <li><img src="{{cdn 'images/home/sentry-logo.jpg'}}" title="Trello"></li>
-          </ul>
-        </div>
       </div>
     </section>
 
@@ -378,7 +292,7 @@
         <h1>{{ __ "Loved by our users" }}</h1>
         <p>{{ __ "Gitter is nothing without the people using it day in and day out." }}</p>
         <p>
-          {{{ __ "We asked a few people what Gitter means to them, this is what they had to say. If you love Gitter, Tweet us <a %s>%s</a> and we'll update these quotes every month." "href='https://twitter.com/gitchat' target='_blank'" "@gitchat" }}}<br><br>
+          {{{ __ "We need updated quotes! If you love Gitter, Tweet us <a %s>@gitchat</a> with what Gitter means to you or your community." "href='https://twitter.com/gitchat' target='_blank'" "@gitchat" }}}<br><br>
         </p>
       </div>
     </section>

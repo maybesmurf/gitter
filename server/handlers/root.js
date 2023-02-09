@@ -35,10 +35,10 @@ router.get(
   featureToggles,
   require('../web/middlewares/unawesome-browser'),
   function(req, res, next) {
-    if (req.user && req.query.redirect !== 'no') {
-      loginUtils.redirectUserToDefaultTroupe(req, res, next);
-      return;
-    }
+    // if (req.user && req.query.redirect !== 'no') {
+    //   loginUtils.redirectUserToDefaultTroupe(req, res, next);
+    //   return;
+    // }
 
     // Ｔhis is code of the translation we are able to provide (e.g. en, zh-TW)
     var locale = req.i18n.getLocale();
@@ -69,6 +69,7 @@ router.get(
       slashdotEffectSurvivalMode: slashdotEffectSurvivalMode,
       bootScriptName: 'homepage',
       cssFileName: 'styles/homepage.css',
+      elementUrl: nconf.get('element:appUrl'),
       wordy: locale === 'ru',
       translationRequired: translationRequired,
       requestLangCode: requestLangCode,

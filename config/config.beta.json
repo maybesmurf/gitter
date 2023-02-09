@@ -1,4 +1,7 @@
 {
+  "element": {
+    "appUrl": "https://app-beta.gitter.im/"
+  },
   "web": {
     "homeurl": "/",
     "baseserver": "beta.gitter.im",
