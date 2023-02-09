@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const debug = require('debug')('gitter:app:matrix-bridge:gitter-to-matrix-room-membership-sync');
 const env = require('gitter-web-env');
 const config = env.config;
 const logger = env.logger;
@@ -51,6 +52,10 @@ async function ensureNoExtraMembersInMatrixRoom({
     matrixRoomId,
     membership: 'join'
   });
+
+  debug(
+    `ensureNoExtraMembersInMatrixRoom(gitterRoomId=${gitterRoomId}): Looking over ${matrixMemberEvents.length} member events in matrixRoomId=${matrixRoomId}`
+  );
   for (const matrixMemberEvent of matrixMemberEvents) {
     const mxid = matrixMemberEvent.state_key;
     // Skip any MXID's that aren't from our own server (gitter.im)
@@ -130,6 +135,10 @@ async function ensureMembershipFromGitterRoom({
   // Loop through all members of the Gitter room, and join anyone who is not already present.
   for await (const gitterRoomMembershipEntry of gitterMembershipStreamIterable) {
     const gitterRoomMemberUserId = gitterRoomMembershipEntry.userId;
+
+    debug(
+      `ensureMembershipFromGitterRoom(gitterRoomId=${gitterRoomId}): Iterating over gitterRoomMemberUserId=${gitterRoomMemberUserId} for membership in matrixRoomId=${matrixRoomId}`
+    );
 
     // We can skip if we already know the Gitter user is joined to the Matrix room from the
     // previous loop
