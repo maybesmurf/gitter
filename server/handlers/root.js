@@ -104,9 +104,7 @@ router.get('/apps', identifyRoute('homepage-apps'), preventClickjackingMiddlewar
   req,
   res
 ) {
-  res.render('apps', {
-    homeUrl: nconf.get('web:homeurl')
-  });
+  res.redirect(nconf.get('web:homeurl'));
 });
 
 router.get(

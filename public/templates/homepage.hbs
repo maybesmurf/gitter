@@ -215,6 +215,19 @@
       </div>
     </section>
 
+    <section id="apps-panel">
+      <div class="wrap">
+        <div class="devices">
+          {{! find the raw source file at https://gitlab.com/gitlab-org/gitter/design/-/blob/master/design-assets/deliverables/frontpage/gitter-apps.xcf}}
+          <img srcset="{{cdn 'images/home/gitter-apps.png'}}, {{cdn 'images/home/gitter-apps@2x.png'}} 2x"
+            src="{{cdn 'images/home/gitter-apps.png'}}">
+        </div>
+
+        <h1>{{ __ "Get Gitter now!"}}</h1>
+        {{> apps_content }}
+    </section>
+
+    
     <section id="testimonials-panel">
       <div class="wrap">
         <div class="quotes">
@@ -295,18 +308,6 @@
           {{{ __ "We need updated quotes! If you love Gitter, Tweet us <a %s>@gitchat</a> with what Gitter means to you or your community." "href='https://twitter.com/gitchat' target='_blank'" "@gitchat" }}}<br><br>
         </p>
       </div>
-    </section>
-
-    <section id="apps-panel">
-      <div class="wrap">
-        <div class="devices">
-          {{! find the raw source file at https://gitlab.com/gitlab-org/gitter/design/-/blob/master/design-assets/deliverables/frontpage/gitter-apps.xcf}}
-          <img srcset="{{cdn 'images/home/gitter-apps.png'}}, {{cdn 'images/home/gitter-apps@2x.png'}} 2x"
-            src="{{cdn 'images/home/gitter-apps.png'}}">
-        </div>
-
-        <h1>{{ __ "Get Gitter now!"}}</h1>
-        {{> apps_content }}
     </section>
 
   </div>
