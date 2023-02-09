@@ -89,5 +89,9 @@
 	"Sign In": "Sign In",
 	"Sign-in to start talking": "Sign-in to start talking",
 	"Get the apps": "Get the apps",
-	"Matrix API": "Matrix API"
+	"Matrix API": "Matrix API",
+	"Get Gitter": "Get Gitter",
+	"The Gitter webapp is available in all modern browsers, and there are a variety of Matrix clients available. We recommend Element for desktop, Android and iOS native apps.": "The Gitter webapp is available in all modern browsers, and there are a variety of Matrix clients available. We recommend Element for desktop, Android and iOS native apps.",
+	"Gitter Web": "Gitter Web",
+	"Download Element": "Download Element"
 }

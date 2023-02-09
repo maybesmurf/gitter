@@ -5,7 +5,6 @@
 
 @import './mixins/text/button-text.less';
 @import './components/home-team-list.less';
-@import './components/home-communities.less';
 
 @import 'trpModals.less';
 @import 'trpButtons.less';
@@ -947,6 +946,17 @@ section {
   padding-top: 0;
 }
 
+#matrix-native-panel {
+  padding: 40px 0;
+  background: #f1f0ed;
+}
+
+#bottom-panel {
+  padding: 40px 0;
+  background: #f1f0ed;
+}
+
+
 /**
  *   Pricing
  */
@@ -1102,7 +1112,7 @@ section {
 #apps-panel {
   position: relative;
 
-  height: 950px;
+  height: 700px;
   padding: 150px 0; /* more padding for devices */
 }
 
@@ -1243,8 +1253,7 @@ section {
     width: 100%;
   }
 
-  .map,
-  #communities-panel {
+  .map {
     display: none;
   }
 
