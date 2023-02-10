@@ -21,26 +21,18 @@
           </a>
         </header>
         <section>
-          <h1>Where developers come to talk.</h1>
-          {{#if showNewLogin}}
-            <p>
-              <a class="btn" href="/login?action=login&source={{source}}{{#if returnTo}}&returnTo={{returnTo}}{{/if}}">
-                Sign in to start talking
-              </a>
-            </p>
-          {{else}}
-            <p>
-              <a class='btn transparent' href="/login/github?action=login&source={{source}}{{#if returnTo}}&returnTo={{returnTo}}{{/if}}">
-                Existing user login
-              </a>
-            </p>
-            <p class='or'>Or</p>
-            <p>
-              <a class='btn signup' href="/login/github?action=signup&source={{source}}{{#if returnTo}}&returnTo={{returnTo}}{{/if}}">
-                Sign up to start talking
-              </a>
-            </p>
+          <h1>Gitter is migrating to Matrix: use <a href="{{ elementUrl }}" target="_blank">app.gitter.im</a></h1>
+          <p>
+            Gitter is migrating to Matrix which just means you need to sign-in again at <a href="{{elementUrl}}" target="_blank">app.gitter.im</a>.
+          </p>
+          {{#if isNativeDesktopApp }}
+          <p>
+            If you would like to continue using a desktop app, see the <a href="{{appsLink}}" target="_blank">apps section on the homepage</a>.
+          </p>
           {{/if}}
+          <p>
+            You can read more about this transition in the <a href="https://blog.gitter.im/2023/01/16/gitter-is-going-fully-native-matrix-in-feb-2023/" target="_blank">blog post</a>.
+          </p>
         </section>
       </div>
     </div>

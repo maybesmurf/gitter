@@ -11,6 +11,7 @@ const featureToggles = require('../web/middlewares/feature-toggles');
 const ensureLoggedIn = require('../web/middlewares/ensure-logged-in');
 const preventClickjackingMiddleware = require('../web/middlewares/prevent-clickjacking');
 const langs = require('langs');
+const urlJoin = require('url-join');
 const loginUtils = require('../web/login-utils');
 const socialMetadataGenerator = require('./social-metadata-generator');
 const fonts = require('../web/fonts');
@@ -104,7 +105,7 @@ router.get('/apps', identifyRoute('homepage-apps'), preventClickjackingMiddlewar
   req,
   res
 ) {
-  res.redirect(nconf.get('web:homeurl'));
+  res.redirect(urlJoin(nconf.get('web:basepath'), '#apps-panel'));
 });
 
 router.get(
