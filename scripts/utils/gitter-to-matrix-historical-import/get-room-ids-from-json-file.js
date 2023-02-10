@@ -24,7 +24,7 @@ function getRoomIdsFromJsonFile(roomIdsFromJsonListFilePath) {
       gitterRoomIds = jsonContentFromFile;
     } else if (typeof jsonContentFromFile[0] === 'object') {
       gitterRoomIds = jsonContentFromFile.map(entry => {
-        return entry.id;
+        return entry.id || entry._id;
       });
     } else {
       throw new Error(
