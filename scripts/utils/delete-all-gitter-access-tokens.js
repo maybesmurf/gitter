@@ -107,7 +107,7 @@ logger.info(
 const calculateWhichTokenToResumeFromIntervalId = occasionallyPersistRoomResumePositionCheckpointFileToDisk(
   {
     concurrentQueue,
-    tokenResumePositionCheckpointFilePath,
+    roomResumePositionCheckpointFilePath: tokenResumePositionCheckpointFilePath,
     persistToDiskIntervalMs: CALCULATE_TOKEN_RESUME_POSITION_TIME_INTERVAL
   }
 );
