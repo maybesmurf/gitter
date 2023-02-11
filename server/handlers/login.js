@@ -9,18 +9,16 @@ var jwt = require('jwt-simple');
 var uuid = require('uuid/v4');
 var url = require('url');
 var express = require('express');
-const urlJoin = require('url-join');
 var GithubMeService = require('gitter-web-github').GitHubMeService;
-// var oauth2 = require('../web/oauth2');
+var oauth2 = require('../web/oauth2');
 var ensureLoggedIn = require('../web/middlewares/ensure-logged-in');
 var resolveUserAvatarUrl = require('gitter-web-shared/avatars/resolve-user-avatar-srcset');
-const isNative = require('../web/is-native');
 
-// var gitlab = require('./auth-providers/gitlab');
-// var github = require('./auth-providers/github');
-// var google = require('./auth-providers/google');
-// var twitter = require('./auth-providers/twitter');
-// var linkedin = require('./auth-providers/linkedin');
+var gitlab = require('./auth-providers/gitlab');
+var github = require('./auth-providers/github');
+var google = require('./auth-providers/google');
+var twitter = require('./auth-providers/twitter');
+var linkedin = require('./auth-providers/linkedin');
 var validatedMessage = require('../web/validated-message');
 
 var router = express.Router({ caseSensitive: true, mergeParams: true });
@@ -33,13 +31,10 @@ router.get('/*', function(req, res, next) {
 
 router.get('/', identifyRoute('login'), function(req, res) {
   res.render('login', {
-    elementUrl: config.get('element:appUrl'),
     source: req.query.source || 'login_page-login',
     returnTo: req.query.returnTo,
     bootScriptName: 'router-login',
     cssFileName: 'styles/login.css',
-    isNativeDesktopApp: isNative(req),
-    appsLink: urlJoin(config.get('web:basepath'), '#apps-panel'),
     // TODO: remove this and just show it anyway
     showNewLogin: true
   });
@@ -49,9 +44,9 @@ router.get('/', identifyRoute('login'), function(req, res) {
 // Common across different providers
 // ----------------------------------------------------------
 
-// router.get('/upgrade-failed', identifyRoute('login-upgrade-failed'), function(req, res) {
-//   res.render('upgrade-failed');
-// });
+router.get('/upgrade-failed', identifyRoute('login-upgrade-failed'), function(req, res) {
+  res.render('upgrade-failed');
+});
 
 router.get('/failed', identifyRoute('login-failed'), function(req, res) {
   var message = validatedMessage.validate(
@@ -68,16 +63,14 @@ router.get('/failed', identifyRoute('login-failed'), function(req, res) {
 router.get('/token-revoked', identifyRoute('token-revoked'), function(req, res) {
   res.status(401);
   res.render('token-revoked', {
-    elementUrl: config.get('element:appUrl'),
-    isNativeDesktopApp: isNative(req),
-    appsLink: urlJoin(config.get('web:basepath'), '#apps-panel')
+    appsLink: config.get('web:basepath') + '/apps'
   });
 });
 
 router.get('/user-agent-revoked', identifyRoute('user-agent-revoked'), function(req, res) {
   res.status(401);
   res.render('user-agent-revoked', {
-    appsLink: urlJoin(config.get('web:basepath'), '#apps-panel')
+    appsLink: config.get('web:basepath') + '/apps'
   });
 });
 
@@ -85,61 +78,60 @@ router.get('/user-agent-revoked', identifyRoute('user-agent-revoked'), function(
 // GitHub
 // ----------------------------------------------------------
 
-// router.get('/github', github.login);
-// router.get('/invited', github.invited);
-// router.get('/upgrade', github.upgradeLandingPage);
-// router.post('/upgrade', github.upgrade);
+router.get('/github', github.login);
+router.get('/invited', github.invited);
+router.get('/upgrade', github.upgradeLandingPage);
+router.post('/upgrade', github.upgrade);
 
 // alias the old /callback to the new /github/callback for backwards
 // compatibility and so we can switch over without downtime
-// ['/github/callback', '/callback'].forEach(function(path) {
-//   router.get(path, github.callback);
-// });
+['/github/callback', '/callback'].forEach(function(path) {
+  router.get(path, github.callback);
+});
 
 // ----------------------------------------------------------
 // GitLab
 // ----------------------------------------------------------
 
-// router.get('/gitlab', gitlab.login);
-// router.get('/gitlab/callback', gitlab.callback);
+router.get('/gitlab', gitlab.login);
+router.get('/gitlab/callback', gitlab.callback);
 
 // ----------------------------------------------------------
 // Google
 // ----------------------------------------------------------
 
-// router.get('/google', google.login);
-// router.get('/google/callback', google.callback);
+router.get('/google', google.login);
+router.get('/google/callback', google.callback);
 
 // ----------------------------------------------------------
 // Twitter
 // ----------------------------------------------------------
 
-// router.get('/twitter', twitter.login);
-// router.get('/twitter/callback', twitter.callback);
+router.get('/twitter', twitter.login);
+router.get('/twitter/callback', twitter.callback);
 
 // ----------------------------------------------------------
 // LinkedIn
 // ----------------------------------------------------------
 
-// router.get('/linkedin', linkedin.login);
-// router.get('/linkedin/callback', linkedin.callback);
+router.get('/linkedin', linkedin.login);
+router.get('/linkedin/callback', linkedin.callback);
 
 // ----------------------------------------------------------
 // OAuth for our own clients
 // ----------------------------------------------------------
 
 // Our clients
-// router.get('/oauth/authorize', identifyRoute('login-oauth-authorize'), oauth2.authorization);
-// router.post('/oauth/authorize/decision', identifyRoute('login-oauth-decision'), oauth2.decision);
-// router.post('/oauth/token', identifyRoute('login-oauth-token'), oauth2.token);
-// router.all('/oauth/callback', identifyRoute('login-oauth-callback'), function(req, res) {
-//   res.send(
-//     'Wait time is the worst / I can hardly sit / No one has the time / Someone is always late'
-//   );
-// });
+router.get('/oauth/authorize', identifyRoute('login-oauth-authorize'), oauth2.authorization);
 
-router.get('/oauth/authorize', identifyRoute('login-oauth-authorize'), function(req, res) {
-  res.redirect('/login');
+router.post('/oauth/authorize/decision', identifyRoute('login-oauth-decision'), oauth2.decision);
+
+router.post('/oauth/token', identifyRoute('login-oauth-token'), oauth2.token);
+
+router.all('/oauth/callback', identifyRoute('login-oauth-callback'), function(req, res) {
+  res.send(
+    'Wait time is the worst / I can hardly sit / No one has the time / Someone is always late'
+  );
 });
 
 // Wait? Why is this here?
@@ -180,8 +172,8 @@ router.get('/zendesk', ensureLoggedIn, identifyRoute('login-zendesk'), function(
     .catch(next);
 });
 
-// router.get('/embed', ensureLoggedIn, function(req, res) {
-//   res.render('embed-login-complete');
-// });
+router.get('/embed', ensureLoggedIn, function(req, res) {
+  res.render('embed-login-complete');
+});
 
 module.exports = router;
