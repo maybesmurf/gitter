@@ -1,5 +1,6 @@
 <script>
 import { mapState, mapGetters, mapActions } from 'vuex';
+import clientEnv from 'gitter-client-env';
 import LoadingSpinner from '../../components/loading-spinner.vue';
 import userCanJoinRoom from 'gitter-web-shared/rooms/user-can-join-room';
 import makeRoomProviderSentence from 'gitter-web-shared/rooms/make-room-provider-sentence';
@@ -17,6 +18,9 @@ export default {
     },
     reasonWhyUserCannotJoin() {
       return makeRoomProviderSentence(this.displayedRoom.providers);
+    },
+    elementUrl() {
+      return clientEnv['elementUrl'];
     }
   },
   methods: {
@@ -40,7 +44,7 @@ export default {
     <div v-else-if="isLoggedIn" class="not-allowed-to-join">
       {{ reasonWhyUserCannotJoin }}
     </div>
-    <a v-else href="/login?action=login" target="_top" class="chat-input__btn">
+    <a v-else :href="elementUrl" target="_blank" class="chat-input__btn">
       Sign in to start talking
     </a>
   </footer>
