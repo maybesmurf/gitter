@@ -84,7 +84,7 @@ if (opts.workerIndex && opts.workerIndex > opts.workerTotal) {
   );
 }
 
-let manualGitterTokensToProcess = getRoomIdsFromJsonFile(opts.roomIdsFromJsonListFilePath);
+let manualGitterTokensToProcess = getRoomIdsFromJsonFile(opts.tokenIdsFromJsonListFilePath);
 
 const concurrentQueue = new ConcurrentQueue({
   concurrency: opts.concurrency,
