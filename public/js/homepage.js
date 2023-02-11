@@ -267,13 +267,6 @@ onready(function() {
   initMapMessages();
   cycleElements($('#testimonials-panel blockquote'), 7000);
   cycleElements($('.loves li'), 2500);
-  document.getElementById('osx-download').addEventListener('click', function() {
-    appEvents.trigger('stats.event', 'apps.osx.download.clicked');
-  });
-
-  document.getElementById('windows-download').addEventListener('click', function() {
-    appEvents.trigger('stats.event', 'apps.windows.download');
-  });
 
   $('a[href^="/login"]').on('click', function(e) {
     var href = $(e.currentTarget).attr('href');
