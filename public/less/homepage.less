@@ -948,8 +948,106 @@ section {
 
 #matrix-native-panel {
   padding: 40px 0;
-  background: #f1f0ed;
+  background-color: #000;
+  //background: #000 linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+  background: #000 linear-gradient(
+    -45deg,
+    rgba(238, 119, 82, 0.6),
+    rgba(231, 60, 126, 0.6),
+    rgba(35, 166, 213, 0.6),
+    rgba(35, 213, 171, 0.6);
+  );
+  background-size: 400% 400%;
+  color: #fff;
+
+  animation: Gradient 10s ease infinite;
+
+  &:before {
+    content: '';
+
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+
+    background-image: url(../images/matrix-hero-spiro.svg);
+    background-position: 100% 50%;
+    background-size: cover;
+    background-repeat: repeat;
+    background-attachment: scroll;
+  }
+
+  & .wrap {
+    position: relative;
+  }
 }
+
+@keyframes Gradient {
+  0% {
+    background-position: 0% 50%
+  }
+  50% {
+    background-position: 100% 50%
+  }
+  100% {
+    background-position: 0% 50%
+  }
+}
+
+.matrix-primary-heading {
+  margin-bottom: 35px;
+
+  &:after {
+    opacity: 0.5;
+  }
+}
+
+.matrix-native-panel-content {
+  display: flex;
+}
+
+.matrix-native-panel-content-description {
+  width: 60%;
+
+  @media (max-width: 900px) {
+    width: 100%;
+  }
+}
+
+.matrix-native-panel-content-logo-wrapper {
+  flex: 1;
+  padding-left: 50px;
+
+  @media (max-width: 900px) {
+   display: none;
+  }
+}
+
+.matrix-native-panel-content-logo {
+  width: 100%;
+}
+
+.matrix-description-paragraph {
+  max-width: 700px;
+  margin-top: 0;
+  margin-bottom: 0.8em;
+
+  font-size: 21px;
+  line-height: 30px;
+
+  & > a {
+    color: currentColor;
+  }
+
+  & > code {
+    color: #23A6D5;
+    border: 1px solid #23A6D5;
+    border-radius: 4px;
+    padding: 0 0.4rem;
+  }
+}
+
 
 #bottom-panel {
   padding: 40px 0;
