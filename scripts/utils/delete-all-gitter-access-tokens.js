@@ -245,7 +245,7 @@ async function exec() {
   // or not we actually made it to the end.
   await persistFailedTokenIds(failedTokenIds);
   if (failedTokenIds.length === 0) {
-    logger.info(`Successfully invalidted all Gitter tokens`);
+    logger.info(`Successfully invalidated all Gitter tokens`);
   } else {
     logger.info(`Done invalidating tokens but failed to process ${failedTokenIds.length} tokens`);
     logger.info(`failedTokenIds`, failedTokenIds);
