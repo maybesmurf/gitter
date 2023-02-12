@@ -12,7 +12,7 @@ const ensureLoggedIn = require('../web/middlewares/ensure-logged-in');
 const preventClickjackingMiddleware = require('../web/middlewares/prevent-clickjacking');
 const langs = require('langs');
 const urlJoin = require('url-join');
-const loginUtils = require('../web/login-utils');
+//const loginUtils = require('../web/login-utils');
 const socialMetadataGenerator = require('./social-metadata-generator');
 const fonts = require('../web/fonts');
 const contextGenerator = require('../web/context-generator');
@@ -35,7 +35,7 @@ router.get(
   preventClickjackingMiddleware,
   featureToggles,
   require('../web/middlewares/unawesome-browser'),
-  function(req, res, next) {
+  function(req, res /*, next*/) {
     // if (req.user && req.query.redirect !== 'no') {
     //   loginUtils.redirectUserToDefaultTroupe(req, res, next);
     //   return;

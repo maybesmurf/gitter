@@ -77,7 +77,7 @@ var accessTokenFailureExtension = {
         window.alert(
           `Realtime communications with the server have been disconnected. ${message.error}`
         );
-        logout();
+        logout('/login/token-revoked');
       }
     }
 
