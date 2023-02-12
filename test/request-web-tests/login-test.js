@@ -10,7 +10,8 @@ const { CookieAccessInfo } = require('cookiejar');
 
 const app = require('../../server/web');
 
-describe('login', () => {
+// XXX: Skipped because Gitter login is now disabled (#gitter-sunset)
+describe.skip('login', () => {
   describe('passport-login.js', () => {
     const fixtures = fixtureLoader.setupEach({
       user1: {
