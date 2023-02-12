@@ -82,7 +82,11 @@ modulesWithTest.forEach(function(testDir) {
 });
 
 testModules['request-tests'] = {
-  files: ['./test/request-api-tests/', './test/request-web-tests/'],
+  files: [
+    './test/request-api-tests/'
+    // XXX: Skipped because Gitter login is now disabled (#gitter-sunset)
+    //'./test/request-web-tests/'
+  ],
   options: {
     // These tests load the entire app, so mocha will sometimes timeout before it even runs the tests
     timeout: 30000
