@@ -7,8 +7,8 @@ var ensureLoggedIn = require('../web/middlewares/ensure-logged-in');
 var timezoneMiddleware = require('../web/middlewares/timezone');
 var isPhoneMiddleware = require('../web/middlewares/is-phone');
 var featureToggles = require('../web/middlewares/feature-toggles');
-var userHomeRenderer = require('./renderers/userhome');
-const exploreRenderer = require('./renderers/explore-renderer');
+// var userHomeRenderer = require('./renderers/userhome');
+// const exploreRenderer = require('./renderers/explore-renderer');
 var identifyRoute = require('gitter-web-env').middlewares.identifyRoute;
 var preventClickjackingMiddleware = require('../web/middlewares/prevent-clickjacking');
 
