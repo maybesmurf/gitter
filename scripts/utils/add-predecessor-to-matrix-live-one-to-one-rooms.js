@@ -237,7 +237,7 @@ async function updateAllRooms() {
       const gitterRoomId = gitterRoom.id || gitterRoom._id;
 
       // Only work on ONE_TO_ONE rooms
-      if (gitterRoom.sd && gitterRoom.sd.type !== 'ONE_TO_ONE') {
+      if (!gitterRoom.sd || gitterRoom.sd.type !== 'ONE_TO_ONE') {
         return false;
       }
 
