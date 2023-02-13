@@ -185,6 +185,11 @@ async function exec() {
       // otherwise fallback to the flawed primary identity. This should cover all cases.
       const identityToUse = (gitterUser.identities && gitterUser.identities[0]) || primaryIdentity;
 
+      // Skip to the next person if they don't have an identity (ghosts)
+      if (!identityToUse) {
+        return;
+      }
+
       // Append info to ndjson file
       const data = {
         gitterUserId,
