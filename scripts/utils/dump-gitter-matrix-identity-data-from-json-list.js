@@ -86,7 +86,7 @@ async function exec() {
       const primaryIdentity = await identityService.findPrimaryIdentityForUser(gitterUser);
       // So let's just pull the identity directly from the user object if it exists,
       // otherwise fallback to the flawed primary identity. This should cover all cases.
-      const identityToUse = gitterUser.identities[0] || primaryIdentity;
+      const identityToUse = (gitterUser.identities && gitterUser.identities[0]) || primaryIdentity;
 
       // Append info to ndjson file
       const data = {
