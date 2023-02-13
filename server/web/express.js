@@ -6,7 +6,7 @@ var logger = env.logger;
 
 var passport = require('passport');
 var expressHbs = require('express-hbs');
-var rememberMe = require('./middlewares/rememberme-middleware');
+//var rememberMe = require('./middlewares/rememberme-middleware');
 var resolveStatic = require('./resolve-static');
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
@@ -165,11 +165,11 @@ module.exports = {
     );
 
     app.use(passport.initialize());
-    app.use(passport.session());
+    // app.use(passport.session());
 
     //anonymous tokens can be still valid for accessing API
     app.use(skipForApi(require('./middlewares/authenticate-bearer')));
-    app.use(rememberMe.rememberMeMiddleware);
+    //app.use(rememberMe.rememberMeMiddleware);
     app.use(require('./middlewares/rate-limiter'));
     app.use(require('./middlewares/record-client-usage-stats'));
 
