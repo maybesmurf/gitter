@@ -11,6 +11,7 @@ const { writeFile, appendFile } = require('fs').promises;
 
 const env = require('gitter-web-env');
 const logger = env.logger;
+const config = env.config;
 const persistence = require('gitter-web-persistence');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
@@ -24,6 +25,18 @@ const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
 const ConcurrentQueue = require('./gitter-to-matrix-historical-import/concurrent-queue');
 
 const DB_BATCH_SIZE_FOR_USERS = 256;
+// "secondary", "secondaryPreferred", etc
+// https://www.mongodb.com/docs/manual/core/read-preference/#read-preference
+//
+// This is an option because I often see it reading from the primary with
+// "secondaryPreferred" and want to try forcing it to "secondary".
+const DB_READ_PREFERENCE =
+  config.get('gitterToMatrixHistoricalImport:databaseReadPreference') ||
+  mongoReadPrefs.secondaryPreferred;
+
+logger.info(
+  `Using DB_READ_PREFERENCE=${DB_READ_PREFERENCE} to read from MongoDB during this import process`
+);
 
 const matrixUtils = new MatrixUtils(matrixBridge);
 
@@ -134,7 +147,7 @@ async function exec() {
         // Go from oldest to most recent for a consistent incremental dump
         .sort({ _id: 'asc' })
         .lean()
-        .read(mongoReadPrefs.secondaryPreferred)
+        .read(DB_READ_PREFERENCE)
         .batchSize(DB_BATCH_SIZE_FOR_USERS)
         .cursor();
 
