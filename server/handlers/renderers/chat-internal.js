@@ -156,6 +156,7 @@ async function renderChat(req, res, next, options) {
         roomMember: uriContext.roomMember,
         isRightToolbarPinned: isRightToolbarPinned,
         matrixRoomLink: troupeContext.troupe.matrixRoomLink,
+        elementUrl: nconf.get('element:appUrl'),
 
         //Feature Switch Left Menu
         troupeTopic: troupeContext.troupe.topic,

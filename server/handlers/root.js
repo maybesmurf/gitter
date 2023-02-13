@@ -11,7 +11,8 @@ const featureToggles = require('../web/middlewares/feature-toggles');
 const ensureLoggedIn = require('../web/middlewares/ensure-logged-in');
 const preventClickjackingMiddleware = require('../web/middlewares/prevent-clickjacking');
 const langs = require('langs');
-const loginUtils = require('../web/login-utils');
+const urlJoin = require('url-join');
+//const loginUtils = require('../web/login-utils');
 const socialMetadataGenerator = require('./social-metadata-generator');
 const fonts = require('../web/fonts');
 const contextGenerator = require('../web/context-generator');
@@ -34,11 +35,11 @@ router.get(
   preventClickjackingMiddleware,
   featureToggles,
   require('../web/middlewares/unawesome-browser'),
-  function(req, res, next) {
-    if (req.user && req.query.redirect !== 'no') {
-      loginUtils.redirectUserToDefaultTroupe(req, res, next);
-      return;
-    }
+  function(req, res /*, next*/) {
+    // if (req.user && req.query.redirect !== 'no') {
+    //   loginUtils.redirectUserToDefaultTroupe(req, res, next);
+    //   return;
+    // }
 
     // Ｔhis is code of the translation we are able to provide (e.g. en, zh-TW)
     var locale = req.i18n.getLocale();
@@ -69,6 +70,7 @@ router.get(
       slashdotEffectSurvivalMode: slashdotEffectSurvivalMode,
       bootScriptName: 'homepage',
       cssFileName: 'styles/homepage.css',
+      elementUrl: nconf.get('element:appUrl'),
       wordy: locale === 'ru',
       translationRequired: translationRequired,
       requestLangCode: requestLangCode,
@@ -103,9 +105,7 @@ router.get('/apps', identifyRoute('homepage-apps'), preventClickjackingMiddlewar
   req,
   res
 ) {
-  res.render('apps', {
-    homeUrl: nconf.get('web:homeurl')
-  });
+  res.redirect(urlJoin(nconf.get('web:basepath'), '#apps-panel'));
 });
 
 router.get(

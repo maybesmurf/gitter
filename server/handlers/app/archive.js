@@ -378,6 +378,7 @@ exports.chatArchive = [
       accessToken: req.accessToken,
       headerView: getHeaderViewOptions(troupeContext.troupe),
       isPrivate: isPrivate,
+      elementUrl: clientEnv.elementUrl,
 
       /* For prerendered archive-navigation-view */
       dayName: dayNameFormatted,

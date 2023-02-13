@@ -34,5 +34,6 @@
 	"Twitter": "Twitter",
 	"The dedicated Gitter Android/iOS apps are no longer recommended and are officially <a href='%s' target='_blank'>deprecated</a>. For Android/iOS, we bridge all public rooms over to Matrix, so you can use any <a href='%s' target='_blank'>Matrix client</a> like <a href='%s' target='_blank'>Element (Android)</a> or <a href='%s' target='_blank'>Element (iOS)</a> to access those rooms.": "The dedicated Gitter Android/iOS apps are no longer recommended and are officially <a href='%s' target='_blank'>deprecated</a>. For Android/iOS, we bridge all public rooms over to Matrix, so you can use any <a href='%s' target='_blank'>Matrix client</a> like <a href='%s' target='_blank'>Element (Android)</a> or <a href='%s' target='_blank'>Element (iOS)</a> to access those rooms.",
 	"The above Mac installer is a signed version of 1.177 (backed by Safari). For an unsigned 5.0.1 installer (backed by <a %s>NW.js</a>), <a %s>click here to download</a>. Mac users on 10.9 or lower, <a %s>download here</a>.": "The above Mac installer is a signed version of 1.177 (backed by Safari). For an unsigned 5.0.1 installer (backed by <a %s>NW.js</a>), <a %s>click here to download</a>. Mac users on 10.9 or lower, <a %s>download here</a>.",
-	"Gitter &mdash; Where developers come to talk.": "Gitter &mdash; Where developers come to talk."
+	"Gitter &mdash; Where developers come to talk.": "Gitter &mdash; Where developers come to talk.",
+	"Matrix API": "Matrix API"
 }
