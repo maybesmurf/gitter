@@ -66,7 +66,9 @@
 
             {{else}}
               <div class="archive-right-toolbar-button-wrapper">
-                <a href="/login?action=login" class="archive-right-toolbar-button button-caribbean--small">Sign in to start talking</a>
+                <a href="{{ elementUrl }}" class="archive-right-toolbar-button button-caribbean--small">
+                  Sign in to start talking
+                </a>
               </div>
             {{/if}}
           {{else}}
@@ -94,7 +96,9 @@
             </div>
             {{else}}
             <div class="archive-right-toolbar-button-wrapper">
-              <a href="/login?action=login&amp;button=archive-login" class="archive-right-toolbar-button button-caribbean--small">Sign in to start talking</a>
+              <a href="{{ elementUrl }}" class="archive-right-toolbar-button button-caribbean--small">
+                Sign in to start talking
+              </a>
             </div>
             {{/if}}
           {{/unless}}

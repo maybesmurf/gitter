@@ -77,5 +77,21 @@
 	"The dedicated Gitter Android/iOS apps are no longer recommended and are officially <a href='%s' target='_blank'>deprecated</a>. For Android/iOS, we bridge all public rooms over to Matrix, so you can use any <a href='%s' target='_blank'>Matrix client</a> like <a href='%s' target='_blank'>Element (Android)</a> or <a href='%s' target='_blank'>Element (iOS)</a> to access those rooms.": "The dedicated Gitter Android/iOS apps are no longer recommended and are officially <a href='%s' target='_blank'>deprecated</a>. For Android/iOS, we bridge all public rooms over to Matrix, so you can use any <a href='%s' target='_blank'>Matrix client</a> like <a href='%s' target='_blank'>Element (Android)</a> or <a href='%s' target='_blank'>Element (iOS)</a> to access those rooms.",
 	"The above Mac installer is a signed version of 1.177 (backed by Safari). For an unsigned 5.0.1 installer (backed by <a %s>NW.js</a>), <a %s>click here to download</a>. Mac users on 10.9 or lower, <a %s>download here</a>.": "The above Mac installer is a signed version of 1.177 (backed by Safari). For an unsigned 5.0.1 installer (backed by <a %s>NW.js</a>), <a %s>click here to download</a>. Mac users on 10.9 or lower, <a %s>download here</a>.",
 	"Documentation": "Documentation",
-	"By signing up you agree to our <a %s>End User License Agreement</a> and <a %s>Acceptable Use Policy</a>.": "By signing up you agree to our <a %s>End User License Agreement</a> and <a %s>Acceptable Use Policy</a>."
+	"By signing up you agree to our <a %s>End User License Agreement</a> and <a %s>Acceptable Use Policy</a>.": "By signing up you agree to our <a %s>End User License Agreement</a> and <a %s>Acceptable Use Policy</a>.",
+	"Built on Matrix": "Built on Matrix",
+	"<a %s>Matrix.org</a> is an open network for secure, decentralized communication. There is a variety of clients are available.<a %s>Learn more</a>": "<a %s>Matrix.org</a> is an open network for secure, decentralized communication. There is a variety of clients are available.<a %s>Learn more</a>",
+	"<a %s>Matrix.org</a> is an open network for secure, decentralized communication. There is a variety of clients are available. <a %s>Learn more</a>": "<a %s>Matrix.org</a> is an open network for secure, decentralized communication. There is a variety of clients are available. <a %s>Learn more</a>",
+	"Simple to start": "Simple to start",
+	"Sign-in with GitHub/GitLab/Twitter and start chatting, with End-to-End Encrypted messaging.": "Sign-in with GitHub/GitLab/Twitter and start chatting, with End-to-End Encrypted messaging.",
+	"Markdown and LaTeX": "Markdown and LaTeX",
+	"Matrix native": "Matrix native",
+	"We need updated quotes! If you love Gitter, Tweet us <a %s>@gitchat</a> with what Gitter means to you or your community.": "We need updated quotes! If you love Gitter, Tweet us <a %s>@gitchat</a> with what Gitter means to you or your community.",
+	"Sign In": "Sign In",
+	"Sign-in to start talking": "Sign-in to start talking",
+	"Get the apps": "Get the apps",
+	"Matrix API": "Matrix API",
+	"Get Gitter": "Get Gitter",
+	"The Gitter webapp is available in all modern browsers, and there are a variety of Matrix clients available. We recommend Element for desktop, Android and iOS native apps.": "The Gitter webapp is available in all modern browsers, and there are a variety of Matrix clients available. We recommend Element for desktop, Android and iOS native apps.",
+	"Gitter Web": "Gitter Web",
+	"Download Element": "Download Element"
 }

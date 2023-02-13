@@ -15,11 +15,22 @@
     <div class="background">
       <div class="login">
         <header>
-          <h1>Token was revoked</h1>
+          <h1>Gitter is migrating to Matrix: Token was revoked</h1>
         </header>
         <section>
           <p>
-            We're very sorry, but the token you were using was revoked. You may need to update your client or sign in again
+            We're very sorry, but the token you were using was revoked.
+          </p>
+          <p>
+            Gitter is migrating to Matrix which just means you need to sign-in again at <a href="{{elementUrl}}" target="_blank">app.gitter.im</a>.
+          </p>
+          {{#if isNativeDesktopApp }}
+          <p>
+            If you would like to continue using a desktop app, see the <a href="{{appsLink}}" target="_blank">apps section on the homepage</a>.
+          </p>
+          {{/if}}
+          <p>
+            You can read more about this transition in the <a href="https://blog.gitter.im/2023/02/13/gitter-has-fully-migrated-to-matrix/" target="_blank">blog post</a>.
           </p>
         </section>
       </div>
