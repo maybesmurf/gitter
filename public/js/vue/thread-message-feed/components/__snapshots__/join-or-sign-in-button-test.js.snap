@@ -6,8 +6,7 @@ exports[`thread-message-feed join-or-sign-in-button shows sign in button for nli
 >
   <a
     class="chat-input__btn"
-    href="/login?action=login"
-    target="_top"
+    target="_blank"
   >
     
     Sign in to start talking

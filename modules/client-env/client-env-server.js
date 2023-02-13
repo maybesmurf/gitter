@@ -21,6 +21,7 @@ var troupeEnv = {
   homeUrl: config.get('web:homeurl'),
   badgeBaseUrl: config.get('web:badgeBaseUrl'),
   embedBaseUrl: config.get('web:embedBaseUrl'),
+  elementUrl: config.get('element:appUrl'),
   googleTrackingId: config.get('stats:ga:key'),
   googleTrackingDomain: config.get('stats:ga:domain'),
   env: env,

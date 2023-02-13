@@ -145,6 +145,7 @@ async function renderExplorePage(req, res) {
         cssFileName: 'styles/explore.css',
         hasDarkTheme: userThemeSnapshot.theme === 'gitter-dark',
         isMobile: isMobile(req),
+        elementUrl: clientEnv.elementUrl,
         exploreBaseUrl: getExploreBaseUrl(req),
         troupeContext: troupeContext,
         isLoggedIn: isLoggedIn,

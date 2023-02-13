@@ -1,4 +1,7 @@
 {
+  "element": {
+    "appUrl": "https://app.gitter.im/"
+  },
   "web": {
     "homeurl": "/",
     "domain": "gitter.im",
