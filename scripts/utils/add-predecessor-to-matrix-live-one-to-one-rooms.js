@@ -21,7 +21,6 @@ const {
 } = require('gitter-web-persistence-utils/lib/mongoose-utils');
 const mongoReadPrefs = require('gitter-web-persistence-utils/lib/mongo-read-prefs');
 const mongoUtils = require('gitter-web-persistence-utils/lib/mongo-utils');
-const groupService = require('gitter-web-groups');
 const troupeService = require('gitter-web-rooms/lib/troupe-service');
 
 const installBridge = require('gitter-web-matrix-bridge');
@@ -33,7 +32,6 @@ const {
 const getRoomIdsFromJsonFile = require('./gitter-to-matrix-historical-import/get-room-ids-from-json-file');
 const matrixBridge = require('gitter-web-matrix-bridge/lib/matrix-bridge');
 const MatrixUtils = require('gitter-web-matrix-bridge/lib/matrix-utils');
-const ensureCorrectMatrixRoomStateForGitterRoomId = require('./ensure-existing-bridged-matrix-room-up-to-date/ensure-correct-matrix-room-state-for-gitter-room-id');
 
 require('../../server/event-listeners').install();
 
@@ -283,7 +281,7 @@ async function updateAllRooms() {
         // Since the bridge user isn't in ONE_TO_ONE rooms, let's use the one of the
         // people in the ONE_TO_ONE room. The room creator can be the first person in the
         // list of users (doesn't matter).
-        const gitterUserCreatorMxid = await this.getOrCreateMatrixUserByGitterUserId(
+        const gitterUserCreatorMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
           gitterRoom.oneToOneUsers[0].userId
         );
 
