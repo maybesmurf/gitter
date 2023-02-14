@@ -1,12 +1,14 @@
 'use strict';
 
+const env = require('gitter-web-env');
+const config = env.config;
 var express = require('express');
 var ensureLoggedIn = require('../web/middlewares/ensure-logged-in');
 var timezoneMiddleware = require('../web/middlewares/timezone');
 var isPhoneMiddleware = require('../web/middlewares/is-phone');
 var featureToggles = require('../web/middlewares/feature-toggles');
-var userHomeRenderer = require('./renderers/userhome');
-const exploreRenderer = require('./renderers/explore-renderer');
+// var userHomeRenderer = require('./renderers/userhome');
+// const exploreRenderer = require('./renderers/explore-renderer');
 var identifyRoute = require('gitter-web-env').middlewares.identifyRoute;
 var preventClickjackingMiddleware = require('../web/middlewares/prevent-clickjacking');
 
@@ -19,8 +21,8 @@ router.get(
   preventClickjackingMiddleware,
   isPhoneMiddleware,
   timezoneMiddleware,
-  function(req, res, next) {
-    userHomeRenderer.renderHomePage(req, res, next);
+  function(req, res) {
+    res.redirect(config.get('web:basepath'));
   }
 );
 
@@ -43,24 +45,7 @@ router.get(
   featureToggles,
   isPhoneMiddleware,
   function(req, res) {
-    if (req.user) {
-      return exploreRenderer.renderExplorePage(req, res);
-    } else {
-      return res.redirect('/explore');
-    }
-  }
-);
-
-// FIXME: Remove after 2020-8-22
-router.get(
-  '/learn',
-  identifyRoute('home-learn-main'),
-  ensureLoggedIn,
-  preventClickjackingMiddleware,
-  featureToggles,
-  isPhoneMiddleware,
-  function(req, res) {
-    return res.redirect('/home');
+    res.redirect(config.get('web:basepath'));
   }
 );
 
