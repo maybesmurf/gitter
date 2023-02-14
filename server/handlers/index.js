@@ -1,12 +1,13 @@
 'use strict';
 
 var env = require('gitter-web-env');
+const config = env.config;
 var express = require('express');
-var urlJoin = require('url-join');
+//var urlJoin = require('url-join');
 const identifyRoute = require('gitter-web-env').middlewares.identifyRoute;
 const featureToggles = require('../web/middlewares/feature-toggles');
 var preventClickjackingMiddleware = require('../web/middlewares/prevent-clickjacking');
-const exploreRenderer = require('./renderers/explore-renderer');
+//const exploreRenderer = require('./renderers/explore-renderer');
 
 var router = express.Router({ caseSensitive: true, mergeParams: true });
 
@@ -20,13 +21,7 @@ router.get(
   preventClickjackingMiddleware,
   featureToggles,
   function(req, res) {
-    // If logged in and trying to go to `/explore`, redirect to `/home/explore`
-    if (req.user) {
-      var userHomeExploreUrl = urlJoin('/home/explore', req.url.replace(/explore\/?/, ''));
-      res.redirect(userHomeExploreUrl);
-    } else {
-      exploreRenderer.renderExplorePage(req, res);
-    }
+    res.redirect(config.get('web:basepath'));
   }
 );
 
