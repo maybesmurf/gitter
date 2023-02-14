@@ -1,4 +1,9 @@
 
+# 21.56.9 - 2023-02-13
+
+ - Gitter migration: Setup redirects (rollout pt. 3), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2406
+
+
 # 21.56.8 - 2023-02-13
 
  - Gitter migration: Disable login (rollout pt. 2), https://gitlab.com/gitterHQ/webapp/-/merge_requests/2404
