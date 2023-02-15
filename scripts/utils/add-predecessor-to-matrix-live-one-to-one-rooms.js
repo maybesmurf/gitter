@@ -278,21 +278,41 @@ async function updateAllRooms() {
           gitterRoomId
         );
 
-        // Since the bridge user isn't in ONE_TO_ONE rooms, let's use the one of the
-        // people in the ONE_TO_ONE room. The room creator can be the first person in the
-        // list of users (doesn't matter).
-        const gitterUserCreatorMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
-          gitterRoom.oneToOneUsers[0].userId
-        );
+        try {
+          // Since the bridge user isn't in ONE_TO_ONE rooms, let's use the one of the
+          // people in the ONE_TO_ONE room. The room creator can be the first person in the
+          // list of users (doesn't matter).
+          const gitterUserCreatorMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+            gitterRoom.oneToOneUsers[0].userId
+          );
 
-        await matrixUtils.ensureStateEventAsMxid({
-          mxid: gitterUserCreatorMxid,
-          matrixRoomId,
-          eventType: 'org.matrix.msc3946.room_predecessor',
-          newContent: {
-            predecessor_room_id: matrixHistoricalRoomId
+          await matrixUtils.ensureStateEventAsMxid({
+            mxid: gitterUserCreatorMxid,
+            matrixRoomId,
+            eventType: 'org.matrix.msc3946.room_predecessor',
+            newContent: {
+              predecessor_room_id: matrixHistoricalRoomId
+            }
+          });
+        } catch (err) {
+          // It's possible the other user in the room left now that they've had access
+          // to their content on the `gitter.im` homeserver. Just try with the other user in the
+          // ONE_TO_ONE to see if they are still in the room
+          if (gitterRoom.oneToOneUsers[1].userId) {
+            const gitterUserCreatorMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+              gitterRoom.oneToOneUsers[1].userId
+            );
+
+            await matrixUtils.ensureStateEventAsMxid({
+              mxid: gitterUserCreatorMxid,
+              matrixRoomId,
+              eventType: 'org.matrix.msc3946.room_predecessor',
+              newContent: {
+                predecessor_room_id: matrixHistoricalRoomId
+              }
+            });
           }
-        });
+        }
 
         numberOfRoomsUpdatedSuccessfully += 1;
       } catch (err) {
