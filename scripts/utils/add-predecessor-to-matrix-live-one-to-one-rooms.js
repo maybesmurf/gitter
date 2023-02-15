@@ -278,14 +278,14 @@ async function updateAllRooms() {
           gitterRoomId
         );
 
-        // Since the bridge user isn't in ONE_TO_ONE rooms, let's use the one of the
-        // people in the ONE_TO_ONE room. The room creator can be the first person in the
-        // list of users (doesn't matter).
-        const gitterUserCreatorMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
-          gitterRoom.oneToOneUsers[0].userId
-        );
-
         try {
+          // Since the bridge user isn't in ONE_TO_ONE rooms, let's use the one of the
+          // people in the ONE_TO_ONE room. The room creator can be the first person in the
+          // list of users (doesn't matter).
+          const gitterUserCreatorMxid = await matrixUtils.getOrCreateMatrixUserByGitterUserId(
+            gitterRoom.oneToOneUsers[0].userId
+          );
+
           await matrixUtils.ensureStateEventAsMxid({
             mxid: gitterUserCreatorMxid,
             matrixRoomId,
